@@ -44,6 +44,8 @@ export interface CarouselSource {
   objective: Objective;
   visualStyle: VisualStyle;
   slideCount: SlideCountOption;
+  /** Library folders the images come from. Empty means every folder. */
+  folders: string[];
 }
 
 export interface Carousel {

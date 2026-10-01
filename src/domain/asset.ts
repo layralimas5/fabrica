@@ -41,6 +41,16 @@ export function parseTags(raw: string): string[] {
   return [...new Set(raw.split(/[,;\n]/).map(normalizeTag).filter(Boolean))];
 }
 
+export const MAX_FOLDER_LENGTH = 60;
+
+export function normalizeFolder(raw: string): string {
+  return raw.trim().replace(/\s+/g, ' ').slice(0, MAX_FOLDER_LENGTH);
+}
+
+export function inFolders(asset: Asset, folders: readonly string[]): boolean {
+  return folders.length === 0 || folders.includes(asset.folder);
+}
+
 export function isPhotoLike(asset: Asset): boolean {
   return asset.kind !== 'icone' && asset.kind !== 'logo';
 }

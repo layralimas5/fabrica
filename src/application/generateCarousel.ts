@@ -1,4 +1,4 @@
-import type { Asset } from '../domain/asset';
+import { inFolders, type Asset } from '../domain/asset';
 import type { BrandKit } from '../domain/brandKit';
 import type { Carousel, CarouselSource } from '../domain/carousel';
 import { composeSlides } from '../domain/composeCarousel';
@@ -13,7 +13,7 @@ export function brandContext(brand: BrandKit): BrandContext {
 
 export async function generateCarousel(services: Services, brand: BrandKit, source: CarouselSource, library: Asset[]): Promise<Carousel> {
   const brandOnly = new Set([brand.logoAssetId, brand.avatarAssetId].filter(Boolean));
-  const assets = library.filter((asset) => !brandOnly.has(asset.id));
+  const assets = library.filter((asset) => !brandOnly.has(asset.id) && inFolders(asset, source.folders));
   const draft = await services.ai.draftCarousel({
     copy: source.copy,
     contentType: source.contentType,

@@ -111,6 +111,11 @@ export class DemoAssets implements AssetRepository {
     return updated;
   }
 
+  async renameFolder(from: string, to: string): Promise<void> {
+    const assets = await this.list();
+    await writeCollection('assets', assets.map((asset) => (asset.folder === from ? { ...asset, folder: to } : asset)));
+  }
+
   async remove(id: string): Promise<void> {
     await writeCollection('assets', (await this.list()).filter((asset) => asset.id !== id));
     await del(await scopedKey(`blob:${id}`), store);

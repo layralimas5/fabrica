@@ -6,6 +6,8 @@ import { useAssets } from '../app/data';
 import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
 import { ASSET_KINDS, parseTags, UNSORTED_FOLDER, type Asset, type AssetKind } from '../domain/asset';
+import { renameFolder } from '../application/renameFolder';
+import { FolderList } from '../library/FolderList';
 import { AssetThumb } from '../ui/AssetThumb';
 import { Alert, Button, Dialog, EmptyState, Field, Input, PageHeader, Select, Spinner } from '../ui/primitives';
 
@@ -26,7 +28,19 @@ export function LibraryPage() {
   const [editing, setEditing] = useState<Asset | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const folders = useMemo(() => [...new Set(assets.data.map((asset) => asset.folder))].sort((a, b) => a.localeCompare(b)), [assets.data]);
+  const folderCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const asset of assets.data) counts.set(asset.folder, (counts.get(asset.folder) ?? 0) + 1);
+    return new Map([...counts.entries()].sort((a, b) => a[0].localeCompare(b[0])));
+  }, [assets.data]);
+  const folders = useMemo(() => [...folderCounts.keys()], [folderCounts]);
+
+  const handleRename = async (from: string, to: string) => {
+    await renameFolder(services, from, to);
+    assets.setData((current) => current.map((asset) => (asset.folder === from ? { ...asset, folder: to } : asset)));
+    if (folder === from) setFolder(to);
+    if (uploadFolder === from) setUploadFolder(to);
+  };
   const visible = useMemo(() => {
     const search = query.trim().toLowerCase();
     return assets.data.filter(
@@ -119,23 +133,7 @@ export function LibraryPage() {
       {(error ?? assets.error) && <div className="mb-4"><Alert>{error ?? assets.error}</Alert></div>}
 
       <div className="grid gap-6 md:grid-cols-[180px_minmax(0,1fr)]">
-        <nav aria-label="Pastas" className="flex gap-1 overflow-x-auto md:flex-col">
-          {['', ...folders].map((name) => (
-            <button
-              key={name || 'all'}
-              type="button"
-              onClick={() => setFolder(name)}
-              aria-current={folder === name}
-              className={clsx(
-                'flex h-10 shrink-0 items-center justify-between gap-3 rounded-xl px-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-                folder === name ? 'bg-surface font-medium text-ink shadow-sm ring-1 ring-line' : 'text-muted hover:bg-subtle hover:text-ink',
-              )}
-            >
-              {name || 'Todas'}
-              <span className="text-xs text-faint">{name ? assets.data.filter((asset) => asset.folder === name).length : assets.data.length}</span>
-            </button>
-          ))}
-        </nav>
+        <FolderList counts={folderCounts} total={assets.data.length} selected={folder} onSelect={setFolder} onRename={handleRename} />
 
         <div className="min-w-0">
           <div className="relative mb-4">

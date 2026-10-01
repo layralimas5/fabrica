@@ -153,6 +153,11 @@ export class SupabaseAssets implements AssetRepository {
     return rowToAsset(data as AssetRow);
   }
 
+  async renameFolder(from: string, to: string): Promise<void> {
+    const { error } = await this.client.from('assets').update({ folder: to }).eq('folder', from);
+    if (error) fail('Não consegui renomear a pasta', error);
+  }
+
   async remove(id: string): Promise<void> {
     const path = await this.pathOf(id);
     const { error } = await this.client.from('assets').delete().eq('id', id);

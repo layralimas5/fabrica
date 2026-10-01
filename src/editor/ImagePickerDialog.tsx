@@ -1,35 +1,55 @@
 import clsx from 'clsx';
 import { useMemo, useState } from 'react';
-import type { Asset } from '../domain/asset';
+import { inFolders, type Asset } from '../domain/asset';
 import { keywords, scoreAsset } from '../domain/imageMatching';
 import { AssetThumb } from '../ui/AssetThumb';
-import { Dialog, EmptyState, Input } from '../ui/primitives';
+import { Dialog, EmptyState, Input, Select } from '../ui/primitives';
+
+const SCOPE_ALL = '__all__';
+const SCOPE_CAROUSEL = '__carousel__';
 
 interface ImagePickerDialogProps {
   open: boolean;
   assets: Asset[];
   currentId: string | null;
   slideText: string;
+  /** Folders chosen for this carousel; empty means all. */
+  carouselFolders: string[];
   onPick: (id: string) => void;
   onClose: () => void;
 }
 
 /** Library picker ranked by how well each image's tags match the slide text. */
-export function ImagePickerDialog({ open, assets, currentId, slideText, onPick, onClose }: ImagePickerDialogProps) {
+export function ImagePickerDialog({ open, assets, currentId, slideText, carouselFolders, onPick, onClose }: ImagePickerDialogProps) {
   const [query, setQuery] = useState('');
+  const [scope, setScope] = useState<string>(carouselFolders.length > 0 ? SCOPE_CAROUSEL : SCOPE_ALL);
+  const allFolders = useMemo(() => [...new Set(assets.map((asset) => asset.folder))].sort((a, b) => a.localeCompare(b)), [assets]);
+  const scopeFolders = useMemo(() => (scope === SCOPE_ALL ? [] : scope === SCOPE_CAROUSEL ? carouselFolders : [scope]), [scope, carouselFolders]);
 
   const ranked = useMemo(() => {
     const slideWords = keywords(slideText);
     const search = query.trim().toLowerCase();
     return assets
+      .filter((asset) => inFolders(asset, scopeFolders))
       .filter((asset) => !search || `${asset.name} ${asset.folder} ${asset.tags.join(' ')}`.toLowerCase().includes(search))
       .map((asset) => ({ asset, score: scoreAsset(asset, slideWords) }))
       .sort((a, b) => b.score - a.score);
-  }, [assets, slideText, query]);
+  }, [assets, slideText, query, scopeFolders]);
 
   return (
     <Dialog title="Trocar imagem" open={open} onClose={onClose} size="xl">
-      <Input aria-label="Buscar por nome, pasta ou tag" placeholder="Buscar por nome, pasta ou tag…" value={query} onChange={(e) => setQuery(e.target.value)} className="mb-4" />
+      <div className="mb-4 grid gap-2 sm:grid-cols-[220px_minmax(0,1fr)]">
+        <Select aria-label="Pastas" value={scope} onChange={(e) => setScope(e.target.value)}>
+          {carouselFolders.length > 0 && <option value={SCOPE_CAROUSEL}>Pastas deste carrossel</option>}
+          <option value={SCOPE_ALL}>Todas as pastas</option>
+          {allFolders.map((folder) => (
+            <option key={folder} value={folder}>
+              {folder}
+            </option>
+          ))}
+        </Select>
+        <Input aria-label="Buscar por nome, pasta ou tag" placeholder="Buscar por nome, pasta ou tag…" value={query} onChange={(e) => setQuery(e.target.value)} />
+      </div>
       {ranked.length === 0 ? (
         <EmptyState title="Nenhuma imagem" description="Sobe imagens na Biblioteca e marca com tags pra IA achar a certa." />
       ) : (

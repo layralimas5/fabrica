@@ -156,6 +156,7 @@ function Editor({ initial, brand, assets }: { initial: Carousel; brand: BrandKit
         open={pickerOpen}
         assets={assets}
         currentId={slide.assetId}
+        carouselFolders={carousel.source.folders ?? []}
         slideText={[slide.title, slide.subtitle, slide.body, ...slide.bullets].filter(Boolean).join(' ')}
         onClose={() => setPickerOpen(false)}
         onPick={(assetId) => {

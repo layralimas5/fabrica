@@ -1,6 +1,6 @@
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight, Sparkles } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAssets, useBrandKits } from '../app/data';
 import { useServices } from '../app/services';
@@ -17,7 +17,9 @@ import {
   type Objective,
   type SlideCountOption,
 } from '../domain/content';
+import { inFolders } from '../domain/asset';
 import { Alert, Button, Field, Select, Spinner, Textarea } from '../ui/primitives';
+import { FolderPicker } from '../ui/FolderPicker';
 
 const STEPS = ['Analisando a copy', 'Encontrando o gancho', 'Estruturando os slides', 'Escolhendo imagens da biblioteca', 'Montando o design'];
 const MIN_COPY_LENGTH = 20;
@@ -37,6 +39,10 @@ export function CreatePage() {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creatingStarter, setCreatingStarter] = useState(false);
+  const [folders, setFolders] = useState<string[]>([]);
+
+  const folderCounts = useMemo(() => countByFolder(assets.data), [assets.data]);
+  const availableImages = assets.data.filter((asset) => inFolders(asset, folders)).length;
 
   const brand = brands.data.find((kit) => kit.id === brandId) ?? brands.data[0];
 
@@ -64,7 +70,7 @@ export function CreatePage() {
     setGenerating(true);
     setError(null);
     try {
-      const carousel = await generateCarousel(services, brand, { copy: copy.trim(), contentType, objective, visualStyle, slideCount }, assets.data);
+      const carousel = await generateCarousel(services, brand, { copy: copy.trim(), contentType, objective, visualStyle, slideCount, folders }, assets.data);
       navigate(`/carrossel/${carousel.id}`);
     } catch (cause) {
       setError(errorMessage(cause));
@@ -161,9 +167,15 @@ export function CreatePage() {
             </Field>
           </div>
 
+          {folderCounts.size > 0 && (
+            <div className="border-t border-line p-4">
+              <FolderPicker label="Fotos de quais pastas" counts={folderCounts} selected={folders} onChange={setFolders} disabled={generating} />
+            </div>
+          )}
+
           <div className="flex flex-col gap-3 p-4 pt-0 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-faint">
-              {assets.data.length > 0 ? `${assets.data.length} imagens na biblioteca` : 'Sem imagens na biblioteca: o carrossel sai só com texto.'}
+              {assets.data.length > 0 ? `${availableImages} imagens disponíveis pra esse carrossel` : 'Sem imagens na biblioteca: o carrossel sai só com texto.'}
               {services.ai.engine === 'heuristic' && ' · IA local (sem Claude)'}
             </p>
             <Button variant="primary" size="lg" disabled={tooShort} loading={generating} onClick={() => void generate()}>
@@ -208,4 +220,10 @@ function GenerationSteps() {
       ))}
     </motion.ol>
   );
+}
+
+function countByFolder(assets: { folder: string }[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const asset of assets) counts.set(asset.folder, (counts.get(asset.folder) ?? 0) + 1);
+  return new Map([...counts.entries()].sort((a, b) => a[0].localeCompare(b[0])));
 }

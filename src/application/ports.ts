@@ -28,6 +28,8 @@ export interface AssetRepository {
   list(): Promise<Asset[]>;
   upload(upload: AssetUpload): Promise<Asset>;
   update(id: string, patch: Pick<Asset, 'tags' | 'folder' | 'kind' | 'name'>): Promise<Asset>;
+  /** Moves every asset of a folder to a new folder name (merging if it already exists). */
+  renameFolder(from: string, to: string): Promise<void>;
   remove(id: string): Promise<void>;
   fetchBlob(asset: Asset): Promise<Blob>;
 }
