@@ -1,6 +1,6 @@
 import { Download } from 'lucide-react';
 import { useState } from 'react';
-import { exportPdf, exportSlide, exportZip, type ImageFormat } from '../app/exportCarousel';
+import type { ImageFormat } from '../app/exportCarousel';
 import type { RenderContext } from '../app/slideRendering';
 import { errorMessage } from '../app/useResource';
 import type { Carousel } from '../domain/carousel';
@@ -26,6 +26,7 @@ export function ExportMenu({ context, carousel, selectedIndex, onExported }: Exp
     setProgress(0);
     setError(null);
     try {
+      const { exportPdf, exportSlide, exportZip } = await import('../app/exportCarousel');
       if (next === 'pdf') await exportPdf(context, carousel, setProgress);
       else if (next.startsWith('zip-')) await exportZip(context, carousel, next.slice(4) as ImageFormat, setProgress);
       else await exportSlide(context, carousel, selectedIndex, next.slice(6) as ImageFormat);
