@@ -85,7 +85,7 @@ export function LibraryPage() {
               ))}
             </datalist>
           </Field>
-          <Field label="Tags para este envio" htmlFor="upload-tags" hint="Separe por vírgula: produtividade, foco, notebook">
+          <Field label="Tags para este envio" htmlFor="upload-tags">
             <Input id="upload-tags" value={uploadTags} onChange={(e) => setUploadTags(e.target.value)} placeholder="produtividade, foco" />
           </Field>
           <Field label="Tipo" htmlFor="upload-kind">
@@ -97,12 +97,12 @@ export function LibraryPage() {
               ))}
             </Select>
           </Field>
-          <Button variant="primary" loading={uploading !== null} onClick={() => fileInput.current?.click()} className="sm:mb-[18px]">
+          <Button variant="primary" loading={uploading !== null} onClick={() => fileInput.current?.click()}>
             {!uploading && <Upload className="size-4" aria-hidden />}
             {uploading ? `Enviando ${uploading.done}/${uploading.total}` : 'Enviar imagens'}
           </Button>
         </div>
-        <p className="mt-3 text-xs text-faint">Ou arraste as imagens pra cá.</p>
+        <p className="mt-3 text-xs text-faint">Tags separadas por vírgula (ex.: produtividade, foco, notebook). Você também pode arrastar as imagens pra cá.</p>
         <input
           ref={fileInput}
           type="file"
@@ -127,7 +127,7 @@ export function LibraryPage() {
               onClick={() => setFolder(name)}
               aria-current={folder === name}
               className={clsx(
-                'flex shrink-0 items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                'flex h-10 shrink-0 items-center justify-between gap-3 rounded-xl px-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
                 folder === name ? 'bg-surface font-medium text-ink shadow-sm ring-1 ring-line' : 'text-muted hover:bg-subtle hover:text-ink',
               )}
             >
