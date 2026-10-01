@@ -12,6 +12,7 @@ export interface SlideRenderInput {
   total: number;
   image: ImageBitmap | null;
   logo: ImageBitmap | null;
+  avatar: ImageBitmap | null;
 }
 
 interface Frame {
@@ -44,6 +45,28 @@ export async function renderSlideToCanvas(input: SlideRenderInput, scale = 1): P
 }
 
 const LAYOUT_RENDERERS: Record<Slide['layout'], (frame: Frame) => void> = {
+  post_image: (frame) => {
+    const { theme, slide, image } = frame.input;
+    fill(frame, theme.background);
+    const pad = theme.padding;
+    const headerBottom = drawPostHeader(frame, pad);
+    const textTop = headerBottom + 56;
+    const textBox = { x: pad, y: textTop, width: frame.width - pad * 2, height: frame.height * 0.26 };
+    const area = drawStack(frame.ctx, textItems(slide, theme.text, theme.muted), offsetBox(textBox, slide), postStackStyle(frame, 56, 'top'));
+    const imageTop = Math.max(area.y + area.height, textTop) + 52;
+    if (image) drawCover(frame, image, { x: pad, y: imageTop, width: frame.width - pad * 2, height: frame.height - imageTop - pad }, Math.min(theme.radius, 16));
+  },
+
+  post_text: (frame) => {
+    const { theme, slide } = frame.input;
+    fill(frame, theme.background);
+    const pad = theme.padding;
+    const headerSpace = POST_AVATAR + 64;
+    const textBox = { x: pad, y: pad + headerSpace, width: frame.width - pad * 2, height: frame.height - pad * 2 - headerSpace };
+    const area = drawStack(frame.ctx, textItems(slide, theme.text, theme.muted), offsetBox(textBox, slide), postStackStyle(frame, 68, 'center'));
+    drawPostHeader(frame, Math.max(pad, area.y - headerSpace));
+  },
+
   text_center: (frame) => {
     const { theme, slide } = frame.input;
     fill(frame, theme.background);
@@ -140,6 +163,66 @@ const LAYOUT_RENDERERS: Record<Slide['layout'], (frame: Frame) => void> = {
     drawFooter(frame, theme.muted);
   },
 };
+
+const POST_AVATAR = 132;
+
+/** Social-post header: round avatar, bold display name and @handle. Returns its bottom edge. */
+function drawPostHeader(frame: Frame, top: number): number {
+  const { ctx } = frame;
+  const { theme, avatar } = frame.input;
+  const x = theme.padding;
+  const radius = POST_AVATAR / 2;
+  const centerY = top + radius;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x + radius, centerY, radius, 0, Math.PI * 2);
+  ctx.closePath();
+  if (avatar) {
+    ctx.clip();
+    const scale = Math.max(POST_AVATAR / avatar.width, POST_AVATAR / avatar.height);
+    const width = avatar.width * scale;
+    const height = avatar.height * scale;
+    ctx.drawImage(avatar, x + radius - width / 2, centerY - height / 2, width, height);
+  } else {
+    ctx.fillStyle = theme.emphasisBackground;
+    ctx.fill();
+    ctx.fillStyle = theme.emphasisText;
+    ctx.font = `700 ${Math.round(POST_AVATAR * 0.42)}px "${theme.bodyFont}", system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText((theme.displayName.trim()[0] ?? '?').toUpperCase(), x + radius, centerY + 2);
+  }
+  ctx.restore();
+
+  const textX = x + POST_AVATAR + 30;
+  ctx.save();
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = theme.text;
+  ctx.font = `700 46px "${theme.bodyFont}", system-ui, sans-serif`;
+  ctx.fillText(theme.displayName, textX, theme.handle ? centerY - 6 : centerY + 16);
+  if (theme.handle) {
+    ctx.fillStyle = theme.muted;
+    ctx.font = `400 36px "${theme.bodyFont}", system-ui, sans-serif`;
+    ctx.fillText(theme.handle, textX, centerY + 42);
+  }
+  ctx.restore();
+  return top + POST_AVATAR;
+}
+
+/** Post text reads like a caption: body font, regular weight, no tracking or caps. */
+function postStackStyle(frame: Frame, size: number, vAlign: StackStyle['vAlign']): StackStyle {
+  const { theme, slide } = frame.input;
+  return {
+    ...stackStyle(frame, { size, align: 'center', vAlign }),
+    headingFont: slide.style.headingFont ?? theme.bodyFont,
+    headingWeight: theme.bodyWeight,
+    uppercase: false,
+    tracking: 0,
+    titleLineHeight: 1.28,
+  };
+}
 
 function textItems(slide: Slide, color: string, muted: string): StackItem[] {
   const items: StackItem[] = [{ kind: 'title', text: slide.title, color }];

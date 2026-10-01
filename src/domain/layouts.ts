@@ -9,6 +9,8 @@ export const LAYOUT_IDS = [
   'text_side',
   'list',
   'cta',
+  'post_image',
+  'post_text',
 ] as const;
 export type LayoutId = (typeof LAYOUT_IDS)[number];
 
@@ -28,7 +30,11 @@ export const LAYOUTS: Record<LayoutId, LayoutMeta> = {
   text_side: { id: 'text_side', label: 'Texto lateral', needsImage: false, textOnlyFallback: 'text_side' },
   list: { id: 'list', label: 'Lista', needsImage: false, textOnlyFallback: 'list' },
   cta: { id: 'cta', label: 'CTA', needsImage: false, textOnlyFallback: 'cta' },
+  post_image: { id: 'post_image', label: 'Post + imagem', needsImage: true, textOnlyFallback: 'post_text' },
+  post_text: { id: 'post_text', label: 'Post só texto', needsImage: false, textOnlyFallback: 'post_text' },
 };
+
+export const POST_LAYOUTS: LayoutId[] = ['post_image', 'post_text'];
 
 const ROLE_PREFERENCES: Partial<Record<SlideRole, LayoutId[]>> = {
   hook: ['image_full_quote', 'text_center', 'big_statement'],

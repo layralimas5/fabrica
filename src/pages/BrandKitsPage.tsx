@@ -104,7 +104,7 @@ export function BrandKitsPage() {
 
 function toInput(brand: BrandKit): BrandKitInput {
   const { id: _id, createdAt: _c, updatedAt: _u, ...input } = brand;
-  return input;
+  return { ...input, avatarAssetId: input.avatarAssetId ?? null };
 }
 
 interface BrandKitEditorProps {
@@ -182,6 +182,16 @@ function BrandKitEditor({ id, initial, assets, inUse, onClose, onSave, onDelete 
                 {logos.map((logo) => (
                   <option key={logo.id} value={logo.id}>
                     {logo.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Foto de perfil" htmlFor="bk-avatar" hint="Aparece no estilo Post (estilo tweet), com o nome e o @.">
+              <Select id="bk-avatar" value={draft.avatarAssetId ?? ''} onChange={(e) => patch('avatarAssetId', e.target.value || null)}>
+                <option value="">Inicial da marca</option>
+                {assets.map((asset) => (
+                  <option key={asset.id} value={asset.id}>
+                    {asset.name}
                   </option>
                 ))}
               </Select>
@@ -294,10 +304,12 @@ function BrandPreview({ draft, assets }: { draft: BrandKitInput; assets: Asset[]
     () => ({ brand: { ...draft, id: 'preview', createdAt: '', updatedAt: '' }, assets, repo, format: '4:5', visualStyle, total: SAMPLE_SLIDES.length }),
     [draft, assets, repo, visualStyle],
   );
-  const slides = useMemo(
-    () => SAMPLE_SLIDES.map((slide) => (slide.layout === 'image_top_text_bottom' ? { ...slide, assetId: photo?.id ?? null, layout: photo ? slide.layout : 'text_side' } : slide)),
-    [photo],
-  ) as Slide[];
+  const slides = useMemo(() => {
+    if (visualStyle === 'post') {
+      return SAMPLE_SLIDES.map((slide, index) => ({ ...slide, subtitle: null, bullets: [], assetId: index > 0 ? null : (photo?.id ?? null), layout: index === 0 && photo ? 'post_image' : 'post_text' }));
+    }
+    return SAMPLE_SLIDES.map((slide) => (slide.layout === 'image_top_text_bottom' ? { ...slide, assetId: photo?.id ?? null, layout: photo ? slide.layout : 'text_side' } : slide));
+  }, [photo, visualStyle]) as Slide[];
 
   return (
     <aside className="flex flex-col gap-3 lg:sticky lg:top-0">
@@ -309,7 +321,7 @@ function BrandPreview({ draft, assets }: { draft: BrandKitInput; assets: Asset[]
       </div>
       <div className="grid grid-cols-2 gap-2">
         {slides.map((slide, index) => (
-          <SlideCanvas key={slide.id} context={context} slide={slide} index={index} scale={0.3} label={`Prévia ${index + 1}`} className={index === 0 ? 'col-span-2 rounded-xl' : 'rounded-lg'} />
+          <SlideCanvas key={slide.id} context={context} slide={slide} index={index} scale={0.3} label={`Prévia ${index + 1}`} className={index === 0 ? 'col-span-2 rounded-xl ring-1 ring-line' : 'rounded-lg ring-1 ring-line'} />
         ))}
       </div>
     </aside>

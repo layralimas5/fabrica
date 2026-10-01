@@ -3,17 +3,22 @@ import type { CarouselDraft, SlideDraft } from './aiContract';
 import { DEFAULT_SLIDE_STYLE, newSlideId, type Slide } from './carousel';
 import { CTA_BY_OBJECTIVE, MAX_SLIDES, TEXT_LIMITS, type Objective } from './content';
 import { matchImages } from './imageMatching';
-import { assignLayouts } from './layouts';
+import type { VisualStyle } from './brandKit';
+import { assignLayouts, type LayoutId } from './layouts';
 import { limitWords } from './text';
 
 interface ComposeOptions {
   objective: Objective;
   assets: Asset[];
+  visualStyle?: VisualStyle;
 }
 
 /** Turns an AI draft into renderable slides: enforces readability, the CTA ending, image choice and layout rhythm. */
-export function composeSlides(draft: CarouselDraft, { objective, assets }: ComposeOptions): Slide[] {
-  const drafts = ensureCta(draft.slides.slice(0, MAX_SLIDES).map(enforceReadability), objective);
+export function composeSlides(draft: CarouselDraft, { objective, assets, visualStyle }: ComposeOptions): Slide[] {
+  const isPost = visualStyle === 'post';
+  const drafts = ensureCta(draft.slides.slice(0, MAX_SLIDES).map(enforceReadability), objective).map((slide) =>
+    isPost ? { ...slide, wantsImage: slide.role !== 'cta' } : slide,
+  );
   const knownIds = new Set(assets.map((asset) => asset.id));
 
   const imageRequests = drafts.map((slide) =>
@@ -26,14 +31,16 @@ export function composeSlides(draft: CarouselDraft, { objective, assets }: Compo
     return matched[index];
   });
 
-  const layouts = assignLayouts(
-    drafts.map((slide, index) => ({
-      role: slide.role,
-      hasBullets: slide.bullets.length > 1,
-      hasImage: assetIds[index] !== null,
-      suggested: slide.layout,
-    })),
-  );
+  const layouts: LayoutId[] = isPost
+    ? assetIds.map((assetId) => (assetId ? 'post_image' : 'post_text'))
+    : assignLayouts(
+        drafts.map((slide, index) => ({
+          role: slide.role,
+          hasBullets: slide.bullets.length > 1,
+          hasImage: assetIds[index] !== null,
+          suggested: slide.layout,
+        })),
+      );
 
   return drafts.map((slide, index) => ({
     id: newSlideId(),

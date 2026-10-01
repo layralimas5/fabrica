@@ -101,6 +101,16 @@ describe('composeSlides', () => {
   });
 });
 
+describe('post style', () => {
+  it('puts an image on every content slide and uses only post layouts', async () => {
+    const draft = await new HeuristicAi().draftCarousel(request({ visualStyle: 'post', slideCount: 5 }));
+    const assets = ['a', 'b', 'c', 'd', 'e'].map((id) => asset(id, ['motivação']));
+    const slides = composeSlides(draft, { objective: 'engajamento', assets, visualStyle: 'post' });
+    expect(slides.slice(0, -1).every((slide) => slide.layout === 'post_image' && slide.assetId)).toBe(true);
+    expect(slides.at(-1)?.layout).toBe('post_text');
+  });
+});
+
 describe('matchImages', () => {
   it('prefers images whose tags match the slide and avoids repeats', () => {
     const assets = [asset('desk', ['trabalho', 'notebook', 'foco']), asset('gym', ['treino', 'academia']), asset('logo', ['marca'], 'logo')];

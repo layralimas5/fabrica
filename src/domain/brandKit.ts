@@ -1,4 +1,4 @@
-export const VISUAL_STYLES = ['minimalista', 'editorial', 'clean', 'bold', 'dark', 'lifestyle'] as const;
+export const VISUAL_STYLES = ['minimalista', 'editorial', 'clean', 'bold', 'dark', 'lifestyle', 'post'] as const;
 export type VisualStyle = (typeof VISUAL_STYLES)[number];
 
 export const VISUAL_STYLE_LABELS: Record<VisualStyle, string> = {
@@ -8,6 +8,7 @@ export const VISUAL_STYLE_LABELS: Record<VisualStyle, string> = {
   bold: 'Bold',
   dark: 'Dark',
   lifestyle: 'Lifestyle',
+  post: 'Post (estilo tweet)',
 };
 
 export type Spacing = 'compact' | 'normal' | 'airy';
@@ -35,6 +36,8 @@ export interface BrandKit {
   name: string;
   handle: string;
   logoAssetId: string | null;
+  /** Profile picture shown in the post-style header. */
+  avatarAssetId: string | null;
   colors: BrandColors;
   typography: BrandTypography;
   visualStyle: VisualStyle;
@@ -70,6 +73,7 @@ export function defaultBrandKit(overrides: Partial<BrandKitInput> = {}): BrandKi
     name: 'Nova marca',
     handle: '',
     logoAssetId: null,
+    avatarAssetId: null,
     colors: {
       primary: '#111111',
       secondary: '#6d5dfc',

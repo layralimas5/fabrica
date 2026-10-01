@@ -28,9 +28,13 @@ async function optionalBitmap(context: RenderContext, assetId: string | null): P
 }
 
 export async function renderCarouselSlide(context: RenderContext, slide: Slide, index: number, scale: number): Promise<HTMLCanvasElement> {
-  const [image, logo] = await Promise.all([optionalBitmap(context, slide.assetId), optionalBitmap(context, context.brand.logoAssetId)]);
+  const [image, logo, avatar] = await Promise.all([
+    optionalBitmap(context, slide.assetId),
+    optionalBitmap(context, context.brand.logoAssetId),
+    optionalBitmap(context, context.brand.avatarAssetId ?? null),
+  ]);
   return renderSlideToCanvas(
-    { slide, theme: resolveTheme(context.brand, context.visualStyle), format: context.format, index, total: context.total, image, logo },
+    { slide, theme: resolveTheme(context.brand, context.visualStyle), format: context.format, index, total: context.total, image, logo, avatar },
     scale,
   );
 }

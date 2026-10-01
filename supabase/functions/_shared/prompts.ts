@@ -28,6 +28,8 @@ Design
   text_center (texto grande central), big_statement (frase de destaque sobre cor sólida), image_full_quote (imagem cheia + frase),
   image_top_text_bottom (imagem em cima, texto embaixo), image_left_text_right (imagem e texto lateral), text_side (texto alinhado à esquerda),
   list (título + itens numerados), cta (último slide).
+- Se visualStyle for "post", o carrossel imita uma postagem de rede social (foto de perfil, nome e @ no topo): use só post_image
+  (frase + imagem embaixo) e post_text (só a frase). Cada slide é uma frase curta e conversada, sem subtítulo nem bullets.
 - Marque wantsImage=true nos slides que ganham com foto. Escolha assetId só entre os ids da biblioteca enviada, pelas tags, pasta e nome.
   Se nenhuma imagem combinar, use assetId=null. Não repita a mesma imagem no mesmo carrossel.
 - O title do carrossel é um nome curto para a área de Projetos (até 8 palavras).

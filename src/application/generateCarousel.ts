@@ -11,7 +11,9 @@ export function brandContext(brand: BrandKit): BrandContext {
   return { name: brand.name, handle: brand.handle, voice: brand.voice, visualStyle: brand.visualStyle };
 }
 
-export async function generateCarousel(services: Services, brand: BrandKit, source: CarouselSource, assets: Asset[]): Promise<Carousel> {
+export async function generateCarousel(services: Services, brand: BrandKit, source: CarouselSource, library: Asset[]): Promise<Carousel> {
+  const brandOnly = new Set([brand.logoAssetId, brand.avatarAssetId].filter(Boolean));
+  const assets = library.filter((asset) => !brandOnly.has(asset.id));
   const draft = await services.ai.draftCarousel({
     copy: source.copy,
     contentType: source.contentType,
@@ -22,7 +24,7 @@ export async function generateCarousel(services: Services, brand: BrandKit, sour
     assets: assets.slice(0, ASSET_CONTEXT_LIMIT).map(({ id, name, folder, kind, tags }) => ({ id, name, folder, kind, tags })),
   });
 
-  const slides = composeSlides(draft, { objective: source.objective, assets });
+  const slides = composeSlides(draft, { objective: source.objective, assets, visualStyle: source.visualStyle });
   return services.carousels.create({
     brandKitId: brand.id,
     title: draft.title || slides[0].title,

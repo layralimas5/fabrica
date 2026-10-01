@@ -22,6 +22,7 @@ export interface SlideTheme {
   grayscale: boolean;
   ruleLines: boolean;
   handle: string;
+  displayName: string;
 }
 
 const PADDING: Record<Spacing, number> = { compact: 72, normal: 96, airy: 128 };
@@ -51,6 +52,7 @@ export function resolveTheme(brand: BrandKit, style: VisualStyle): SlideTheme {
     grayscale: brand.imageGrayscale,
     ruleLines: false,
     handle: brand.handle,
+    displayName: brand.name,
   };
 
   switch (style) {
@@ -64,6 +66,8 @@ export function resolveTheme(brand: BrandKit, style: VisualStyle): SlideTheme {
       return { ...base, uppercase: true, headingWeight: Math.max(base.headingWeight, 800), background: colors.primary, text: readableOn(colors.primary), muted: withAlpha(readableOn(colors.primary), 0.72), emphasisBackground: colors.secondary, emphasisText: readableOn(colors.secondary) };
     case 'dark':
       return { ...base, background: '#0d0d10', surface: '#18181c', text: '#f5f5f4', muted: '#a1a1aa', emphasisBackground: colors.secondary, emphasisText: readableOn(colors.secondary) };
+    case 'post':
+      return { ...base, background: colors.surface };
     case 'lifestyle':
       return { ...base, imageOverlay: Math.max(base.imageOverlay, 0.4), radius: Math.max(base.radius, 32) };
   }

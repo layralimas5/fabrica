@@ -159,7 +159,7 @@ function Editor({ initial, brand, assets }: { initial: Carousel; brand: BrandKit
         slideText={[slide.title, slide.subtitle, slide.body, ...slide.bullets].filter(Boolean).join(' ')}
         onClose={() => setPickerOpen(false)}
         onPick={(assetId) => {
-          editor.updateSlide(slide.id, { assetId, layout: slide.layout === 'text_center' || slide.layout === 'big_statement' ? 'image_full_quote' : slide.layout === 'text_side' ? 'image_top_text_bottom' : slide.layout });
+          editor.updateSlide(slide.id, { assetId, layout: slide.layout === 'text_center' || slide.layout === 'big_statement' ? 'image_full_quote' : slide.layout === 'text_side' ? 'image_top_text_bottom' : slide.layout === 'post_text' ? 'post_image' : slide.layout });
           setPickerOpen(false);
         }}
       />

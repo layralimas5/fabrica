@@ -26,6 +26,7 @@ export interface StackStyle {
   vAlign: 'top' | 'center' | 'bottom';
   markerColor: string;
   markerText: string;
+  titleLineHeight?: number;
 }
 
 interface MeasuredItem {
@@ -94,7 +95,7 @@ function measure(ctx: CanvasRenderingContext2D, items: StackItem[], width: numbe
     const lines = wrap(ctx, text, width - indent);
     const previous = items[index - 1];
     const gapBefore = previous ? gapBetween(previous.kind, item.kind) * scale : 0;
-    return { item, font, size, lineHeight: LINE_HEIGHTS[item.kind], lines, gapBefore, indent };
+    return { item, font, size, lineHeight: isTitle && style.titleLineHeight ? style.titleLineHeight : LINE_HEIGHTS[item.kind], lines, gapBefore, indent };
   });
 }
 
