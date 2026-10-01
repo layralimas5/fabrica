@@ -110,7 +110,7 @@ function totalHeight(items: MeasuredItem[]): number {
   return items.reduce((sum, entry) => sum + entry.gapBefore + entry.lines.length * entry.size * entry.lineHeight, 0);
 }
 
-function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+export function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   return text.split('\n').flatMap((paragraph) => {
     const words = paragraph.split(/\s+/).filter(Boolean);
     const lines: string[] = [];

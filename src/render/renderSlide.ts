@@ -2,7 +2,7 @@ import { FORMAT_SIZES, type CarouselFormat, type Slide } from '../domain/carouse
 import { splitSentences } from '../domain/text';
 import { withAlpha, type SlideTheme } from '../domain/theme';
 import { ensureFont } from './fonts';
-import { drawStack, type Box, type StackItem, type StackStyle } from './textStack';
+import { drawStack, wrap, type Box, type StackItem, type StackStyle } from './textStack';
 
 export interface SlideRenderInput {
   slide: Slide;
@@ -45,6 +45,17 @@ export async function renderSlideToCanvas(input: SlideRenderInput, scale = 1): P
 }
 
 const LAYOUT_RENDERERS: Record<Slide['layout'], (frame: Frame) => void> = {
+  native_photo: (frame) => {
+    const { theme, slide, image } = frame.input;
+    fill(frame, theme.background);
+    if (image) drawCover(frame, image, { x: 0, y: 0, width: frame.width, height: frame.height }, 0);
+    if (theme.imageOverlay > 0) {
+      frame.ctx.fillStyle = `rgba(0,0,0,${theme.imageOverlay})`;
+      frame.ctx.fillRect(0, 0, frame.width, frame.height);
+    }
+    drawPhotoText(frame, [slide.title, slide.subtitle, slide.body, ...slide.bullets].filter(Boolean).join('\n'));
+  },
+
   post_image: (frame) => {
     const { theme, slide, image } = frame.input;
     fill(frame, theme.background);
@@ -163,6 +174,57 @@ const LAYOUT_RENDERERS: Record<Slide['layout'], (frame: Frame) => void> = {
     drawFooter(frame, theme.muted);
   },
 };
+
+const PHOTO_TEXT_LINE_HEIGHT = 1.28;
+
+/** TikTok-native caption: wrapped lines with outline, shadow or highlight boxes, no footer. */
+function drawPhotoText(frame: Frame, text: string): void {
+  const { ctx, width, height } = frame;
+  const { theme, slide } = frame.input;
+  const { style, position, color } = theme.photoText;
+  const size = Math.round(theme.photoText.size * slide.style.fontScale);
+  const maxWidth = width * 0.84;
+
+  ctx.save();
+  ctx.font = `${theme.headingWeight} ${size}px "${theme.headingFont}", system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const lines = wrap(ctx, text, maxWidth);
+  const lineHeight = size * PHOTO_TEXT_LINE_HEIGHT;
+  const blockHeight = lines.length * lineHeight;
+  const top = position === 'top' ? height * 0.16 : position === 'bottom' ? height * 0.74 - blockHeight : (height - blockHeight) / 2;
+  const x = width / 2 + slide.style.offsetX;
+
+  lines.forEach((line, index) => {
+    const y = top + slide.style.offsetY + lineHeight * index + lineHeight / 2;
+    if (style === 'box-light' || style === 'box-dark') {
+      const padX = size * 0.32;
+      const boxHeight = size * 1.3;
+      const lineWidth = ctx.measureText(line).width;
+      ctx.fillStyle = style === 'box-light' ? '#ffffff' : '#000000';
+      ctx.beginPath();
+      ctx.roundRect(x - lineWidth / 2 - padX, y - boxHeight / 2, lineWidth + padX * 2, boxHeight, size * 0.22);
+      ctx.fill();
+      ctx.fillStyle = style === 'box-light' ? '#000000' : '#ffffff';
+      ctx.fillText(line, x, y);
+      return;
+    }
+    if (style === 'outline') {
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = size * 0.14;
+      ctx.strokeStyle = 'rgba(0,0,0,0.92)';
+      ctx.strokeText(line, x, y);
+    }
+    if (style === 'shadow') {
+      ctx.shadowColor = 'rgba(0,0,0,0.7)';
+      ctx.shadowBlur = size * 0.35;
+      ctx.shadowOffsetY = size * 0.04;
+    }
+    ctx.fillStyle = color;
+    ctx.fillText(line, x, y);
+  });
+  ctx.restore();
+}
 
 const POST_AVATAR = 132;
 

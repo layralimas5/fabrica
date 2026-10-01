@@ -1,4 +1,4 @@
-export const VISUAL_STYLES = ['minimalista', 'editorial', 'clean', 'bold', 'dark', 'lifestyle', 'post'] as const;
+export const VISUAL_STYLES = ['minimalista', 'editorial', 'clean', 'bold', 'dark', 'lifestyle', 'post', 'tiktok'] as const;
 export type VisualStyle = (typeof VISUAL_STYLES)[number];
 
 export const VISUAL_STYLE_LABELS: Record<VisualStyle, string> = {
@@ -9,7 +9,36 @@ export const VISUAL_STYLE_LABELS: Record<VisualStyle, string> = {
   dark: 'Dark',
   lifestyle: 'Lifestyle',
   post: 'Post (estilo tweet)',
+  tiktok: 'TikTok (foto + texto)',
 };
+
+export const PHOTO_TEXT_STYLES = ['outline', 'shadow', 'box-light', 'box-dark', 'plain'] as const;
+export type PhotoTextStyle = (typeof PHOTO_TEXT_STYLES)[number];
+
+export const PHOTO_TEXT_STYLE_LABELS: Record<PhotoTextStyle, string> = {
+  outline: 'Contorno preto (clássico do TikTok)',
+  shadow: 'Sombra suave',
+  'box-light': 'Caixa branca, letra preta',
+  'box-dark': 'Caixa preta, letra branca',
+  plain: 'Sem efeito',
+};
+
+export type PhotoTextPosition = 'top' | 'center' | 'bottom';
+
+/** How text sits on top of a full-bleed photo (TikTok style). */
+export interface PhotoText {
+  style: PhotoTextStyle;
+  size: number;
+  position: PhotoTextPosition;
+  color: string;
+}
+
+export const DEFAULT_PHOTO_TEXT: PhotoText = { style: 'outline', size: 58, position: 'center', color: '#ffffff' };
+
+/** Older brand kits were saved before photoText existed. */
+export function photoTextOf(brand: Pick<BrandKit, 'photoText'>): PhotoText {
+  return { ...DEFAULT_PHOTO_TEXT, ...brand.photoText };
+}
 
 export type Spacing = 'compact' | 'normal' | 'airy';
 
@@ -38,6 +67,7 @@ export interface BrandKit {
   logoAssetId: string | null;
   /** Profile picture shown in the post-style header. */
   avatarAssetId: string | null;
+  photoText: PhotoText;
   colors: BrandColors;
   typography: BrandTypography;
   visualStyle: VisualStyle;
@@ -74,6 +104,7 @@ export function defaultBrandKit(overrides: Partial<BrandKitInput> = {}): BrandKi
     handle: '',
     logoAssetId: null,
     avatarAssetId: null,
+    photoText: { ...DEFAULT_PHOTO_TEXT },
     colors: {
       primary: '#111111',
       secondary: '#6d5dfc',
@@ -122,4 +153,21 @@ export const MOMENTUMM_STARTER: BrandKitInput = defaultBrandKit({
   },
   visualStyle: 'minimalista',
   voice: 'Minimalista, moderno, tecnológico e aspiracional. Pouco texto, frases curtas, forte contraste. Fala de produtividade sem culpa.',
+});
+
+export const TIKTOK_STARTER: BrandKitInput = defaultBrandKit({
+  name: 'Ella Refina',
+  handle: '@ellarefina',
+  typography: {
+    headingFont: 'TikTok Sans',
+    bodyFont: 'TikTok Sans',
+    headingWeight: 600,
+    bodyWeight: 500,
+    headingUppercase: false,
+    headingTracking: 0,
+  },
+  visualStyle: 'tiktok',
+  imageOverlay: 15,
+  photoText: { ...DEFAULT_PHOTO_TEXT },
+  voice: 'Frases curtas, íntimas e reflexivas, como quem fala com uma amiga. Estética, rotina e autocuidado.',
 });

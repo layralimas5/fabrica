@@ -1,4 +1,4 @@
-import type { BrandKit, Spacing, VisualStyle } from './brandKit';
+import { photoTextOf, type BrandKit, type PhotoText, type Spacing, type VisualStyle } from './brandKit';
 
 export interface SlideTheme {
   background: string;
@@ -23,6 +23,7 @@ export interface SlideTheme {
   ruleLines: boolean;
   handle: string;
   displayName: string;
+  photoText: PhotoText;
 }
 
 const PADDING: Record<Spacing, number> = { compact: 72, normal: 96, airy: 128 };
@@ -53,6 +54,7 @@ export function resolveTheme(brand: BrandKit, style: VisualStyle): SlideTheme {
     ruleLines: false,
     handle: brand.handle,
     displayName: brand.name,
+    photoText: photoTextOf(brand),
   };
 
   switch (style) {
@@ -68,6 +70,8 @@ export function resolveTheme(brand: BrandKit, style: VisualStyle): SlideTheme {
       return { ...base, background: '#0d0d10', surface: '#18181c', text: '#f5f5f4', muted: '#a1a1aa', emphasisBackground: colors.secondary, emphasisText: readableOn(colors.secondary) };
     case 'post':
       return { ...base, background: colors.surface };
+    case 'tiktok':
+      return { ...base, background: '#000000', imageOverlay: Math.min(base.imageOverlay, 0.2) };
     case 'lifestyle':
       return { ...base, imageOverlay: Math.max(base.imageOverlay, 0.4), radius: Math.max(base.radius, 32) };
   }

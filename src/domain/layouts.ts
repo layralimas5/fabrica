@@ -1,3 +1,4 @@
+import type { VisualStyle } from './brandKit';
 import type { SlideRole } from './content';
 
 export const LAYOUT_IDS = [
@@ -11,6 +12,7 @@ export const LAYOUT_IDS = [
   'cta',
   'post_image',
   'post_text',
+  'native_photo',
 ] as const;
 export type LayoutId = (typeof LAYOUT_IDS)[number];
 
@@ -32,6 +34,7 @@ export const LAYOUTS: Record<LayoutId, LayoutMeta> = {
   cta: { id: 'cta', label: 'CTA', needsImage: false, textOnlyFallback: 'cta' },
   post_image: { id: 'post_image', label: 'Post + imagem', needsImage: true, textOnlyFallback: 'post_text' },
   post_text: { id: 'post_text', label: 'Post só texto', needsImage: false, textOnlyFallback: 'post_text' },
+  native_photo: { id: 'native_photo', label: 'Foto + texto (TikTok)', needsImage: true, textOnlyFallback: 'big_statement' },
 };
 
 export const POST_LAYOUTS: LayoutId[] = ['post_image', 'post_text'];
@@ -80,4 +83,13 @@ export function assignLayouts(slides: LayoutCandidate[]): LayoutId[] {
 /** Layouts a slide can switch to. Lists accept any slide: body sentences become items when there are no bullets. */
 export function compatibleLayouts(hasImage: boolean): LayoutId[] {
   return LAYOUT_IDS.filter((id) => hasImage || !LAYOUTS[id].needsImage);
+}
+
+/** Layout a slide should switch to when it gains an image, so the new photo is actually visible. */
+export function layoutWithImage(layout: LayoutId, style: VisualStyle): LayoutId {
+  if (style === 'tiktok') return 'native_photo';
+  if (layout === 'post_text') return 'post_image';
+  if (layout === 'text_center' || layout === 'big_statement') return 'image_full_quote';
+  if (layout === 'text_side') return 'image_top_text_bottom';
+  return layout;
 }

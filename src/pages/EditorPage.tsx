@@ -9,6 +9,7 @@ import { brandContext } from '../application/generateCarousel';
 import type { Asset } from '../domain/asset';
 import type { BrandKit } from '../domain/brandKit';
 import { CAROUSEL_STATUSES, STATUS_LABELS, type Carousel, type CarouselFormat, type CarouselStatus } from '../domain/carousel';
+import { layoutWithImage } from '../domain/layouts';
 import { ExportMenu } from '../editor/ExportMenu';
 import { Filmstrip } from '../editor/Filmstrip';
 import { HooksDialog } from '../editor/HooksDialog';
@@ -160,7 +161,7 @@ function Editor({ initial, brand, assets }: { initial: Carousel; brand: BrandKit
         slideText={[slide.title, slide.subtitle, slide.body, ...slide.bullets].filter(Boolean).join(' ')}
         onClose={() => setPickerOpen(false)}
         onPick={(assetId) => {
-          editor.updateSlide(slide.id, { assetId, layout: slide.layout === 'text_center' || slide.layout === 'big_statement' ? 'image_full_quote' : slide.layout === 'text_side' ? 'image_top_text_bottom' : slide.layout === 'post_text' ? 'post_image' : slide.layout });
+          editor.updateSlide(slide.id, { assetId, layout: layoutWithImage(slide.layout, carousel.source.visualStyle) });
           setPickerOpen(false);
         }}
       />

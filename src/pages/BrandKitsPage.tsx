@@ -1,3 +1,4 @@
+import clsx from 'clsx';
 import { Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useAssets, useBrandKits, useCarousels } from '../app/data';
@@ -8,6 +9,13 @@ import { isPhotoLike, type Asset } from '../domain/asset';
 import {
   defaultBrandKit,
   FONT_CHOICES,
+  PHOTO_TEXT_STYLE_LABELS,
+  PHOTO_TEXT_STYLES,
+  photoTextOf,
+  TIKTOK_STARTER,
+  type PhotoText,
+  type PhotoTextPosition,
+  type PhotoTextStyle,
   VISUAL_STYLE_LABELS,
   VISUAL_STYLES,
   type BrandColors,
@@ -44,9 +52,14 @@ export function BrandKitsPage() {
         title="Brand Kits"
         description="Cores, fontes e estilo de cada marca. Todo carrossel gerado segue o kit escolhido."
         action={
-          <Button variant="primary" onClick={() => setEditing({ id: null, input: defaultBrandKit() })}>
-            <Plus className="size-4" aria-hidden /> Nova marca
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => setEditing({ id: null, input: { ...TIKTOK_STARTER } })}>
+              Modelo TikTok
+            </Button>
+            <Button variant="primary" onClick={() => setEditing({ id: null, input: defaultBrandKit() })}>
+              <Plus className="size-4" aria-hidden /> Nova marca
+            </Button>
+          </div>
         }
       />
       {brands.error && <Alert>{brands.error}</Alert>}
@@ -104,7 +117,7 @@ export function BrandKitsPage() {
 
 function toInput(brand: BrandKit): BrandKitInput {
   const { id: _id, createdAt: _c, updatedAt: _u, ...input } = brand;
-  return { ...input, avatarAssetId: input.avatarAssetId ?? null };
+  return { ...input, avatarAssetId: input.avatarAssetId ?? null, photoText: photoTextOf(input) };
 }
 
 interface BrandKitEditorProps {
@@ -124,6 +137,7 @@ function BrandKitEditor({ id, initial, assets, inUse, onClose, onSave, onDelete 
 
   const patch = <K extends keyof BrandKitInput>(key: K, value: BrandKitInput[K]) => setDraft((current) => ({ ...current, [key]: value }));
   const patchColor = (key: keyof BrandColors, value: string) => setDraft((current) => ({ ...current, colors: { ...current.colors, [key]: value } }));
+  const patchPhotoText = (patchValue: Partial<PhotoText>) => setDraft((current) => ({ ...current, photoText: { ...current.photoText, ...patchValue } }));
   const patchType = <K extends keyof BrandKitInput['typography']>(key: K, value: BrandKitInput['typography'][K]) =>
     setDraft((current) => ({ ...current, typography: { ...current.typography, [key]: value } }));
 
@@ -281,6 +295,31 @@ function BrandKitEditor({ id, initial, assets, inUse, onClose, onSave, onDelete 
               </label>
             </div>
           </fieldset>
+          <fieldset className="grid gap-3 sm:grid-cols-2">
+            <legend className="mb-3 text-xs font-semibold uppercase tracking-wider text-faint">Texto sobre a foto (estilo TikTok)</legend>
+            <Field label="Efeito do texto" htmlFor="bk-photo-style">
+              <Select id="bk-photo-style" value={draft.photoText.style} onChange={(e) => patchPhotoText({ style: e.target.value as PhotoTextStyle })}>
+                {PHOTO_TEXT_STYLES.map((style) => (
+                  <option key={style} value={style}>
+                    {PHOTO_TEXT_STYLE_LABELS[style]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Posição" htmlFor="bk-photo-position">
+              <Select id="bk-photo-position" value={draft.photoText.position} onChange={(e) => patchPhotoText({ position: e.target.value as PhotoTextPosition })}>
+                <option value="top">Em cima</option>
+                <option value="center">Meio</option>
+                <option value="bottom">Embaixo</option>
+              </Select>
+            </Field>
+            <Field label={`Tamanho da letra: ${draft.photoText.size}px`} htmlFor="bk-photo-size" hint="Medido no slide de 1080 de largura. Compare com um post seu e ajuste olhando a prévia.">
+              <input id="bk-photo-size" type="range" min={32} max={120} step={1} value={draft.photoText.size} onChange={(e) => patchPhotoText({ size: Number(e.target.value) })} className="accent-[var(--accent)]" />
+            </Field>
+            <Field label="Cor da letra" htmlFor="bk-photo-color">
+              <input id="bk-photo-color" type="color" value={draft.photoText.color} onChange={(e) => patchPhotoText({ color: e.target.value })} className="h-10 w-12 cursor-pointer rounded-lg border border-line bg-surface p-1" />
+            </Field>
+          </fieldset>
           {error && <Alert>{error}</Alert>}
         </div>
 
@@ -300,11 +339,15 @@ function BrandPreview({ draft, assets }: { draft: BrandKitInput; assets: Asset[]
   const { assets: repo } = useServices();
   const [visualStyle, setVisualStyle] = useState<VisualStyle>(draft.visualStyle);
   const photo = assets.find(isPhotoLike);
+  const tall = visualStyle === 'tiktok';
   const context: RenderContext = useMemo(
-    () => ({ brand: { ...draft, id: 'preview', createdAt: '', updatedAt: '' }, assets, repo, format: '4:5', visualStyle, total: SAMPLE_SLIDES.length }),
+    () => ({ brand: { ...draft, id: 'preview', createdAt: '', updatedAt: '' }, assets, repo, format: visualStyle === 'tiktok' ? '9:16' : '4:5', visualStyle, total: SAMPLE_SLIDES.length }),
     [draft, assets, repo, visualStyle],
   );
   const slides = useMemo(() => {
+    if (visualStyle === 'tiktok') {
+      return SAMPLE_SLIDES.map((slide) => ({ ...slide, subtitle: null, bullets: [], assetId: photo?.id ?? null, layout: photo ? 'native_photo' : 'big_statement' }));
+    }
     if (visualStyle === 'post') {
       return SAMPLE_SLIDES.map((slide, index) => ({ ...slide, subtitle: null, bullets: [], assetId: index > 0 ? null : (photo?.id ?? null), layout: index === 0 && photo ? 'post_image' : 'post_text' }));
     }
@@ -319,9 +362,9 @@ function BrandPreview({ draft, assets }: { draft: BrandKitInput; assets: Asset[]
           {VISUAL_STYLES.map((style) => <option key={style} value={style}>{VISUAL_STYLE_LABELS[style]}</option>)}
         </Select>
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className={clsx('grid gap-2', tall ? 'grid-cols-3' : 'grid-cols-2')}>
         {slides.map((slide, index) => (
-          <SlideCanvas key={slide.id} context={context} slide={slide} index={index} scale={0.3} label={`Prévia ${index + 1}`} className={index === 0 ? 'col-span-2 rounded-xl ring-1 ring-line' : 'rounded-lg ring-1 ring-line'} />
+          <SlideCanvas key={slide.id} context={context} slide={slide} index={index} scale={0.3} label={`Prévia ${index + 1}`} className={clsx('ring-1 ring-line', index === 0 && !tall ? 'col-span-2 rounded-xl' : 'rounded-lg')} />
         ))}
       </div>
     </aside>

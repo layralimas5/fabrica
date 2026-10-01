@@ -29,7 +29,7 @@ export async function generateCarousel(services: Services, brand: BrandKit, sour
     brandKitId: brand.id,
     title: draft.title || slides[0].title,
     status: 'draft',
-    format: '4:5',
+    format: source.visualStyle === 'tiktok' ? '9:16' : '4:5',
     source,
     slides,
   });

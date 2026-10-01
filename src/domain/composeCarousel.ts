@@ -7,6 +7,12 @@ import type { VisualStyle } from './brandKit';
 import { assignLayouts, type LayoutId } from './layouts';
 import { limitWords } from './text';
 
+/** Styles that imitate a platform format use one layout everywhere instead of a varied rhythm. */
+const FIXED_LAYOUTS: Partial<Record<VisualStyle, { withImage: LayoutId; withoutImage: LayoutId; imageOnCta: boolean }>> = {
+  post: { withImage: 'post_image', withoutImage: 'post_text', imageOnCta: false },
+  tiktok: { withImage: 'native_photo', withoutImage: 'big_statement', imageOnCta: true },
+};
+
 interface ComposeOptions {
   objective: Objective;
   assets: Asset[];
@@ -15,9 +21,9 @@ interface ComposeOptions {
 
 /** Turns an AI draft into renderable slides: enforces readability, the CTA ending, image choice and layout rhythm. */
 export function composeSlides(draft: CarouselDraft, { objective, assets, visualStyle }: ComposeOptions): Slide[] {
-  const isPost = visualStyle === 'post';
+  const fixed = visualStyle ? FIXED_LAYOUTS[visualStyle] : undefined;
   const drafts = ensureCta(draft.slides.slice(0, MAX_SLIDES).map(enforceReadability), objective).map((slide) =>
-    isPost ? { ...slide, wantsImage: slide.role !== 'cta' } : slide,
+    fixed ? { ...slide, wantsImage: fixed.imageOnCta || slide.role !== 'cta' } : slide,
   );
   const knownIds = new Set(assets.map((asset) => asset.id));
 
@@ -31,8 +37,8 @@ export function composeSlides(draft: CarouselDraft, { objective, assets, visualS
     return matched[index];
   });
 
-  const layouts: LayoutId[] = isPost
-    ? assetIds.map((assetId) => (assetId ? 'post_image' : 'post_text'))
+  const layouts: LayoutId[] = fixed
+    ? assetIds.map((assetId) => (assetId ? fixed.withImage : fixed.withoutImage))
     : assignLayouts(
         drafts.map((slide, index) => ({
           role: slide.role,

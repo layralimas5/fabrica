@@ -111,6 +111,17 @@ describe('post style', () => {
   });
 });
 
+describe('tiktok style', () => {
+  it('uses one sentence per slide and a full photo on every slide, CTA included', async () => {
+    const draft = await new HeuristicAi().draftCarousel(request({ visualStyle: 'tiktok' }));
+    const assets = Array.from({ length: 12 }, (_, i) => asset(`p${i}`, ['rotina']));
+    const slides = composeSlides(draft, { objective: 'salvamento', assets, visualStyle: 'tiktok' });
+    expect(slides.length).toBe(splitSentences(COPY).length + 1);
+    expect(slides.every((slide) => slide.layout === 'native_photo' && slide.assetId)).toBe(true);
+    expect(slides.slice(1, -1).every((slide) => slide.body === null)).toBe(true);
+  });
+});
+
 describe('matchImages', () => {
   it('prefers images whose tags match the slide and avoids repeats', () => {
     const assets = [asset('desk', ['trabalho', 'notebook', 'foco']), asset('gym', ['treino', 'academia']), asset('logo', ['marca'], 'logo')];

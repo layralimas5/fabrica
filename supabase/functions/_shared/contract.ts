@@ -7,11 +7,11 @@ export const SLIDE_ROLES = [
 ] as const;
 export const LAYOUT_IDS = [
   'text_center', 'big_statement', 'image_full_quote', 'image_top_text_bottom', 'image_left_text_right', 'text_side', 'list', 'cta',
-  'post_image', 'post_text',
+  'post_image', 'post_text', 'native_photo',
 ] as const;
 const CONTENT_TYPES = ['auto', 'dor', 'educativo', 'lista', 'tutorial', 'storytelling', 'contrarian', 'erros', 'framework', 'manifesto'] as const;
 const OBJECTIVES = ['engajamento', 'compartilhamento', 'salvamento', 'educacao', 'conversao', 'autoridade'] as const;
-const VISUAL_STYLES = ['minimalista', 'editorial', 'clean', 'bold', 'dark', 'lifestyle', 'post'] as const;
+const VISUAL_STYLES = ['minimalista', 'editorial', 'clean', 'bold', 'dark', 'lifestyle', 'post', 'tiktok'] as const;
 
 const brand = z.object({ name: z.string(), handle: z.string(), voice: z.string(), visualStyle: z.enum(VISUAL_STYLES) });
 const slideText = z.object({ title: z.string(), subtitle: z.string().nullable(), body: z.string().nullable(), bullets: z.array(z.string()) });

@@ -1,12 +1,15 @@
 import type { AiService } from '../../application/ports';
 import type { CarouselDraft, DraftRequest, HooksRequest, RewriteRequest, SlideDraft, SlideText } from '../../domain/aiContract';
-import { CTA_BY_OBJECTIVE, NARRATIVES, type ContentType, type SlideRole } from '../../domain/content';
+import type { VisualStyle } from '../../domain/brandKit';
+import { CTA_BY_OBJECTIVE, MAX_SLIDES, NARRATIVES, type ContentType, type SlideRole } from '../../domain/content';
 import { limitWords, splitSentences, stripTrailingPeriod, wordCount } from '../../domain/text';
 
 const REPEATABLE: SlideRole[] = ['point', 'item', 'step', 'mistake', 'argument'];
 const TEXT_ROLES: SlideRole[] = ['insight', 'conclusion', 'belief', 'summary'];
 const DEFAULT_SLIDES = { min: 5, max: 10 };
 const SHORT_TITLE_WORDS = 10;
+/** Platform-native styles read one short sentence per slide. */
+const ONE_SENTENCE_STYLES: VisualStyle[] = ['tiktok', 'post'];
 
 /**
  * Offline engine used in demo mode or when the AI endpoint is not configured.
@@ -21,7 +24,8 @@ export class HeuristicAi implements AiService {
 
     const type = request.contentType === 'auto' ? detectType(request.copy) : request.contentType;
     const [hookSentence, ...material] = sentences;
-    const desired = request.slideCount ?? clamp(sentences.length + 1, DEFAULT_SLIDES.min, DEFAULT_SLIDES.max);
+    const oneSentencePerSlide = ONE_SENTENCE_STYLES.includes(request.visualStyle);
+    const desired = request.slideCount ?? clamp(sentences.length + 1, DEFAULT_SLIDES.min, oneSentencePerSlide ? MAX_SLIDES : DEFAULT_SLIDES.max);
     const contentSlots = Math.max(1, Math.min(desired - 2, material.length));
     const roles = fitRoles(NARRATIVES[type], contentSlots);
     const chunks = distribute(material.length > 0 ? material : [hookSentence], contentSlots);
