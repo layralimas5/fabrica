@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useCalendarEntries, useExperiments } from '../app/data';
 import { useServices } from '../app/services';
 import { toCarouselInput, type Carousel } from '../domain/carousel';
-import { allExperiments, evaluateExperiment, type Experiment, type ExperimentInput, type ExperimentResult } from '../domain/experiments/experiment';
+import { allExperiments, evaluateExperiment, type Experiment, type ExperimentInput, type ExperimentResult, type GroupOf } from '../domain/experiments/experiment';
 import { todayIso } from '../domain/schedule';
 import { useWinnerLibrary } from '../winners/useWinnerLibrary';
 
@@ -20,7 +20,7 @@ export function useExperimentLab() {
   const membersOf = useCallback((id: string) => library.items.filter((item) => item.carousel?.experiment?.id === id), [library.items]);
   const plannedOf = useCallback((id: string) => entries.data.filter((entry) => entry.experimentId === id && !entry.recordId).length, [entries.data]);
   const resultOf = useCallback(
-    (experiment: Experiment): ExperimentResult => evaluateExperiment(experiment, membersOf(experiment.id), library.scoreValue, today, plannedOf(experiment.id)),
+    (experiment: Experiment, groupOf?: GroupOf): ExperimentResult => evaluateExperiment(experiment, membersOf(experiment.id), library.scoreValue, today, plannedOf(experiment.id), groupOf),
     [membersOf, plannedOf, library.scoreValue, today],
   );
 

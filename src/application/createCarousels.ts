@@ -11,7 +11,7 @@ import type { ContentOrigin } from '../domain/winners/record';
 import { distributeDates, type SchedulePlan } from '../domain/schedule';
 import { recentPhotoUsage } from '../domain/photoHistory';
 import { limitWords, stripTrailingPeriod } from '../domain/text';
-import { briefProblems, defaultVersion, experimentFromBrief, slotFor, versionsChosenPerCopy, type TestBrief } from '../domain/experiments/brief';
+import { briefProblems, defaultVersion, experimentFromBrief, slotPlanner, versionsChosenPerCopy, type TestBrief } from '../domain/experiments/brief';
 import { brandContext } from './brandContext';
 import type { Services } from './ports';
 
@@ -140,6 +140,7 @@ export async function createCarousels(services: Services, request: CreateRequest
   const versionOf = (copy: PreparedCopy) => request.test?.copyVersions[copy.copyNumber - 1] ?? defaultVersion(copy.copyNumber - 1);
   const test = request.test ? await startTest(services, request.test.brief, request.accountId, { carousels: copies.length * (isTest ? styles.length : 1), styles: styles.length, copyVersions: copies.map(versionOf) }) : null;
   if (test) experimentIds.push(test.id);
+  const nextSlot = test ? slotPlanner(test.brief) : null;
   const dates = request.schedule ? distributeDates(copies.length, request.schedule) : [];
   const textOnly = (style: VisualStyle) => style === 'post' && !request.postWithImages;
   // Shared by the whole batch and seeded with the account's recent posts: each copy gets photos
@@ -178,7 +179,7 @@ export async function createCarousels(services: Services, request: CreateRequest
       });
       previous = slides;
 
-      const slot = test ? slotFor(test.brief, { copyIndex: prepared.copyNumber - 1, position, styleLabel: VISUAL_STYLE_LABELS[style], copyVersion: versionOf(prepared) }) : null;
+      const slot = nextSlot ? nextSlot({ copyIndex: prepared.copyNumber - 1, styleLabel: VISUAL_STYLE_LABELS[style], copyVersion: versionOf(prepared) }) : null;
       const experiment: ExperimentRef | null = test && slot
         ? { id: test.id, name: test.brief.name.trim(), variant: slot.variant }
         : experimentId
@@ -234,7 +235,7 @@ type PhotoUsage = Map<string, number>;
  */
 /** Checks the ficha against the batch and saves the experiment every carousel will join. */
 async function startTest(services: Services, brief: TestBrief, accountId: string | null, batch: Parameters<typeof briefProblems>[1]): Promise<{ id: string; brief: TestBrief }> {
-  const copyVersions = versionsChosenPerCopy(brief.variable) ? batch.copyVersions : [];
+  const copyVersions = versionsChosenPerCopy(brief.variables) ? batch.copyVersions : [];
   const problems = briefProblems(brief, { ...batch, copyVersions });
   if (problems.length > 0) throw new Error(problems.join(' '));
   const saved = await services.experiments.create(experimentFromBrief(brief, accountId));

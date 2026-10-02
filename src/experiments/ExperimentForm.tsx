@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { accountLabel, type Account } from '../domain/account';
 import { PLATFORM_LABELS } from '../domain/carousel';
-import { EXPERIMENT_LIMITS, MAX_TEST_TIMES, sanitizeExperimentInput, TEST_METRIC_LABELS, TEST_METRICS, TEST_VARIABLE_LABELS, TEST_VARIABLES, type ExperimentInput, type TestMetric } from '../domain/experiments/experiment';
+import { setVariables } from '../domain/experiments/brief';
+import { EXPERIMENT_LIMITS, sanitizeExperimentInput, TEST_METRIC_LABELS, TEST_METRICS, TEST_VARIABLE_LABELS, TEST_VARIABLES, type ExperimentInput, type TestMetric } from '../domain/experiments/experiment';
+import { VariableQuestionsFields } from './VariableQuestionsFields';
 import { Alert, Button, Dialog, Field, Input, Select, Textarea } from '../ui/primitives';
 import { ChipGroup } from '../winners/chips';
 
@@ -13,9 +15,10 @@ interface ExperimentFormProps {
   onSave: (input: ExperimentInput) => Promise<void>;
 }
 
-/** What is being tested, why, and the two versions. */
+/** What is being tested (one or more things), why, and the two sides of each. */
 export function ExperimentForm({ initial, isNew, accounts, onClose, onSave }: ExperimentFormProps) {
-  const [draft, setDraft] = useState(initial);
+  // Older experiments only have one variable: reading them through the sanitizer fills the list.
+  const [draft, setDraft] = useState(() => sanitizeExperimentInput(initial));
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (patch: Partial<ExperimentInput>) => setDraft((current) => ({ ...current, ...patch }));
@@ -67,19 +70,11 @@ export function ExperimentForm({ initial, isNew, accounts, onClose, onSave }: Ex
             </Select>
           </Field>
         </div>
-        <ChipGroup label="O que você está testando?" options={TEST_VARIABLES} labelOf={(item) => TEST_VARIABLE_LABELS[item]} selected={[draft.variable]} onChange={(next) => next[0] && set({ variable: next[0] })} single />
-        <Field label="Hipótese" htmlFor="exp-hypothesis">
-          <Textarea id="exp-hypothesis" rows={2} value={draft.hypothesis} maxLength={EXPERIMENT_LIMITS.hypothesis} onChange={(e) => set({ hypothesis: e.target.value })} placeholder="Ganchos contrarian geram mais compartilhamentos do que ganchos educativos." />
-        </Field>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Controle (versão original)" htmlFor="exp-control">
-            <Input id="exp-control" value={draft.control} maxLength={EXPERIMENT_LIMITS.version} onChange={(e) => set({ control: e.target.value })} placeholder="5 hábitos para ter mais disciplina." />
+        <ChipGroup label="O que você está testando? (pode marcar mais de um)" options={TEST_VARIABLES} labelOf={(item) => TEST_VARIABLE_LABELS[item]} selected={draft.variables} onChange={(next) => next.length > 0 && setDraft((current) => setVariables(current, next))} />
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
+          <Field label="Hipótese" htmlFor="exp-hypothesis">
+            <Textarea id="exp-hypothesis" rows={2} value={draft.hypothesis} maxLength={EXPERIMENT_LIMITS.hypothesis} onChange={(e) => set({ hypothesis: e.target.value })} placeholder="Ganchos contrarian geram mais compartilhamentos do que ganchos educativos." />
           </Field>
-          <Field label="Variação (versão testada)" htmlFor="exp-variation">
-            <Input id="exp-variation" value={draft.variation} maxLength={EXPERIMENT_LIMITS.version} onChange={(e) => set({ variation: e.target.value })} placeholder="Você não precisa de mais disciplina." />
-          </Field>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Métrica que decide" htmlFor="exp-metric">
             <Select id="exp-metric" value={draft.goalMetric} onChange={(e) => set({ goalMetric: e.target.value as TestMetric })}>
               {TEST_METRICS.map((metric) => (
@@ -89,22 +84,8 @@ export function ExperimentForm({ initial, isNew, accounts, onClose, onSave }: Ex
               ))}
             </Select>
           </Field>
-          <Field label={draft.variable === 'horario' ? 'Horários testados' : 'Horário de postagem'} htmlFor="exp-time-0" hint={draft.variable === 'horario' ? `Até ${MAX_TEST_TIMES}; cada um é uma versão.` : 'Opcional.'}>
-            <div className="flex flex-wrap gap-2">
-              {Array.from({ length: draft.variable === 'horario' ? MAX_TEST_TIMES : 1 }, (_, index) => (
-                <Input
-                  key={index}
-                  id={`exp-time-${index}`}
-                  type="time"
-                  aria-label={`Horário ${index + 1}`}
-                  value={draft.times[index] ?? ''}
-                  onChange={(e) => set({ times: Object.assign([...draft.times], { [index]: e.target.value }).filter(Boolean) })}
-                  className="!w-32"
-                />
-              ))}
-            </div>
-          </Field>
         </div>
+        <VariableQuestionsFields idPrefix="exp" variables={draft.variables} details={draft.details} times={draft.times} onDetails={(details) => set({ details })} onTimes={(times) => set({ times })} />
         {error && <Alert>{error}</Alert>}
       </form>
     </Dialog>

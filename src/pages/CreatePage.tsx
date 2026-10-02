@@ -14,8 +14,8 @@ import { EXPLORATION_LEVELS, guidanceFor, planCopies, type ExplorationLevel } fr
 import { TextStylePanel } from '../create/TextStylePanel';
 import { CopyAppImage } from '../create/CopyAppImage';
 import { TestBriefCard } from '../create/TestBriefCard';
-import { briefProblems, defaultBrief, defaultVersion, VERSION_LABELS, versionsChosenPerCopy, type TestBrief } from '../domain/experiments/brief';
-import type { TestVariable } from '../domain/experiments/experiment';
+import { briefProblems, defaultBrief, defaultVersion, setVariables, VERSION_LABELS, versionsChosenPerCopy, type TestBrief } from '../domain/experiments/brief';
+import { variablesOf, type TestVariable } from '../domain/experiments/experiment';
 import type { CreateSettings, Preset } from '../domain/preset';
 import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
@@ -200,7 +200,7 @@ export function CreatePage() {
   const experiments = useExperiments();
   /** Ficha do teste: the batch becomes one experiment in Testes. */
   const [testOn, setTestOn] = useState(false);
-  const [brief, setBrief] = useState<TestBrief>(() => defaultBrief('horario'));
+  const [brief, setBrief] = useState<TestBrief>(() => defaultBrief(['horario']));
   /** Controle / Variação marked on each copy box; null keeps the alternating default. */
   const [copyVersions, setCopyVersions] = useState<(string | null)[]>([]);
   const { settings: similaritySettings } = useSimilaritySettings();
@@ -240,8 +240,8 @@ export function CreatePage() {
   const maxPerDay = Math.max(1, Math.min(MAX_PER_DAY, blocks || MAX_PER_DAY));
   const effectivePerDay = Math.min(perDay, maxPerDay);
   const total = blocks * styles.length;
-  /** With "Testar formatos" on, the test is about the slide model whatever the ficha says. */
-  const testBrief: TestBrief = testing ? { ...brief, variable: 'design' } : brief;
+  /** "Testar formatos" and the Design chip of the ficha are kept in step by the handlers below. */
+  const testBrief = brief;
   const testProblems = testOn
     ? briefProblems(testBrief, {
         carousels: total,
@@ -440,15 +440,27 @@ export function CreatePage() {
   const startTest = (variable: TestVariable) => {
     if (!testOn) {
       setTestOn(true);
-      setBrief(defaultBrief(variable, experiments.data.filter((item) => item.variable === variable).length + 1));
-    } else if (variable === 'design') setBrief((current) => ({ ...current, variable, times: current.times.slice(0, 1) }));
+      setBrief(defaultBrief([variable], experiments.data.filter((item) => variablesOf(item).includes(variable)).length + 1));
+    } else if (!brief.variables.includes(variable)) setBrief((current) => setVariables(current, [...current.variables, variable]));
+  };
+
+  const setFormatTest = (enabled: boolean) => {
+    setTesting(enabled);
+    setStyles((current) => (enabled ? current : current.slice(0, 1)));
   };
 
   const toggleTesting = (enabled: boolean) => {
-    setTesting(enabled);
-    setStyles((current) => (enabled ? current : current.slice(0, 1)));
-    if (enabled) startTest('design');
-    else if (brief.variable === 'design') setTestOn(false);
+    setFormatTest(enabled);
+    if (enabled) return startTest('design');
+    const rest = brief.variables.filter((variable) => variable !== 'design');
+    if (rest.length === 0) setTestOn(false);
+    setBrief((current) => setVariables(current, rest));
+  };
+
+  /** Chips of the ficha: Design turns "Testar formatos" on and off with it. */
+  const changeTestVariables = (variables: TestVariable[]) => {
+    if (variables.includes('design') !== testing) setFormatTest(variables.includes('design'));
+    setBrief((current) => setVariables(current, variables));
   };
 
   const toggleStyle = (style: VisualStyle) => {
@@ -639,7 +651,7 @@ export function CreatePage() {
   const versionAt = (index: number) => copyVersions[index] ?? defaultVersion(index);
   const setVersionAt = (index: number, version: string) =>
     setCopyVersions((current) => Array.from({ length: Math.max(current.length, index + 1) }, (_, position) => (position === index ? version : (current[position] ?? null))));
-  const choosesVersions = testOn && versionsChosenPerCopy(testBrief.variable);
+  const choosesVersions = testOn && versionsChosenPerCopy(testBrief.variables);
   const settingAt = (index: number): CopySetting => copySettings[index] ?? { objective: null, contentType: null };
   const updateSetting = (index: number, patch: Partial<CopySetting>) =>
     setCopySettings((current) => {
@@ -997,9 +1009,9 @@ export function CreatePage() {
               <TestBriefCard
                 enabled={testOn}
                 onEnabled={(enabled) => (enabled ? startTest(testing ? 'design' : 'horario') : setTestOn(false))}
+                onVariables={changeTestVariables}
                 brief={testBrief}
                 onChange={(patch) => setBrief((current) => ({ ...current, ...patch }))}
-                formatTest={testing}
                 problems={testProblems}
                 disabled={generating}
               />

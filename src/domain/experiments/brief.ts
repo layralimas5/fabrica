@@ -1,73 +1,158 @@
-import { sanitizeExperimentInput, sanitizeTimes, TEST_VARIABLE_LABELS, type ExperimentInput, type TestMetric, type TestVariable } from './experiment';
+import { sanitizeExperimentInput, sanitizeTimes, TEST_VARIABLE_LABELS, type ExperimentInput, type TestMetric, type TestVariable, type VariableDetails, type VariableSides } from './experiment';
 
 /**
  * Ficha do teste: filled on the create screen, it turns the whole batch into one experiment.
- * Each carousel joins it under a version, decided by what is being tested:
- * - design / template: the slide model of the carousel is the version;
- * - horario: the posting time is the version, and the carousels take turns over the times;
- * - anything else: the user marks each copy as Controle or Variação.
+ * A test may change several things at once; each carousel's version joins one part per kind of variable:
+ * - design / template: the slide model of the carousel;
+ * - horario: the posting time, the carousels taking turns over the times;
+ * - anything else: Controle or Variação, marked on each copy.
+ * So "Horário + Gancho" gives versions like "Controle · 08:00" and "Variação · 19:00".
  */
 export interface TestBrief {
   name: string;
-  variable: TestVariable;
+  variables: TestVariable[];
   hypothesis: string;
-  control: string;
-  variation: string;
+  /** Control and variation written for each selected variable. */
+  details: VariableDetails;
   goalMetric: TestMetric;
-  /** Posting times. One time keeps every version at the same hour; a time test needs two or more. */
+  /** Posting times. One time keeps every version at the same hour; testing Horário needs two or more. */
   times: string[];
 }
 
 export const VERSION_LABELS = ['Controle', 'Variação', 'Variação 2', 'Variação 3'] as const;
 export type VersionLabel = (typeof VERSION_LABELS)[number];
 
-/** Variables whose version comes from the slide model, not from a choice per copy. */
 const BY_STYLE: TestVariable[] = ['design', 'template'];
 
 export const versionsComeFromStyle = (variable: TestVariable) => BY_STYLE.includes(variable);
 export const versionsComeFromTime = (variable: TestVariable) => variable === 'horario';
-/** The copy boxes show a Controle / Variação choice. */
-export const versionsChosenPerCopy = (variable: TestVariable) => !versionsComeFromStyle(variable) && !versionsComeFromTime(variable);
+const chosenPerCopy = (variable: TestVariable) => !versionsComeFromStyle(variable) && !versionsComeFromTime(variable);
+/** The copy boxes show a Controle / Variação choice when any selected variable is written in the copy. */
+export const versionsChosenPerCopy = (variables: TestVariable[]) => variables.some(chosenPerCopy);
+export const testsTime = (variables: TestVariable[]) => variables.some(versionsComeFromTime);
 
-const SUGGESTIONS: Partial<Record<TestVariable, Pick<TestBrief, 'hypothesis' | 'control' | 'variation'>>> = {
-  horario: { hypothesis: 'Postar no fim do dia traz mais alcance e salvamentos do que de manhã.', control: '', variation: '' },
-  design: { hypothesis: 'Um formato mais nativo da plataforma gera mais compartilhamentos.', control: 'Modelo atual', variation: 'Modelo novo' },
-  template: { hypothesis: 'Templates pouco usados podem performar acima da média da conta.', control: 'O que a conta já usa', variation: 'Templates pouco testados' },
-  gancho: { hypothesis: 'Ganchos contrarian geram mais compartilhamentos do que ganchos educativos.', control: '', variation: '' },
+/** What the ficha asks for each variable: the two sides, in the words of that variable. */
+export interface VariableQuestions {
+  control: string;
+  variation: string;
+  controlPlaceholder: string;
+  variationPlaceholder: string;
+  /** Short note under the fields, when the versions come from somewhere else. */
+  note?: string;
+  hypothesis: string;
+}
+
+export const VARIABLE_QUESTIONS: Record<TestVariable, VariableQuestions | null> = {
+  // Horário is answered with the list of times, not with two texts.
+  horario: null,
+  gancho: {
+    control: 'Gancho atual',
+    variation: 'Gancho testado',
+    controlPlaceholder: '5 hábitos para ter mais disciplina.',
+    variationPlaceholder: 'Você não precisa de mais disciplina.',
+    hypothesis: 'Ganchos contrarian geram mais compartilhamentos do que ganchos educativos.',
+  },
+  tema: {
+    control: 'Tema A',
+    variation: 'Tema B',
+    controlPlaceholder: 'Metas e planejamento',
+    variationPlaceholder: 'Rotina e execução',
+    hypothesis: 'Temas de execução prendem mais do que temas de planejamento.',
+  },
+  design: {
+    control: 'Modelo atual',
+    variation: 'Modelo testado',
+    controlPlaceholder: 'Minimalista',
+    variationPlaceholder: 'TikTok (foto + texto)',
+    note: 'As versões são os modelos marcados em "Testar formatos".',
+    hypothesis: 'Um formato mais nativo da plataforma gera mais compartilhamentos.',
+  },
+  cta: {
+    control: 'CTA atual',
+    variation: 'CTA testado',
+    controlPlaceholder: 'Salva pra ver depois.',
+    variationPlaceholder: 'Manda pra quem precisa ler isso.',
+    hypothesis: 'Pedir pra mandar pra alguém gera mais compartilhamentos do que pedir pra salvar.',
+  },
+  slides: {
+    control: 'Slides hoje',
+    variation: 'Slides no teste',
+    controlPlaceholder: '9 slides',
+    variationPlaceholder: '5 slides',
+    hypothesis: 'Carrosséis mais curtos são vistos até o fim por mais gente.',
+  },
+  estrutura: {
+    control: 'Estrutura atual',
+    variation: 'Estrutura testada',
+    controlPlaceholder: 'Lista de 5 itens',
+    variationPlaceholder: 'História: problema, virada, solução',
+    hypothesis: 'Contar como história segura mais do que listar.',
+  },
+  copy: {
+    control: 'Copy atual',
+    variation: 'Copy testada',
+    controlPlaceholder: 'Frases longas, tom explicativo',
+    variationPlaceholder: 'Frases curtas, tom de conversa',
+    hypothesis: 'Copy mais curta e direta gera mais salvamentos.',
+  },
+  conta: null,
+  template: {
+    control: 'Template que a conta já usa',
+    variation: 'Template testado',
+    controlPlaceholder: 'Editorial',
+    variationPlaceholder: 'Templates pouco testados',
+    note: 'A versão de cada carrossel é o modelo de slide que ele usou.',
+    hypothesis: 'Templates pouco usados podem performar acima da média da conta.',
+  },
+  outro: {
+    control: 'Versão A',
+    variation: 'Versão B',
+    controlPlaceholder: 'Como é hoje',
+    variationPlaceholder: 'O que muda',
+    hypothesis: '',
+  },
 };
 
-const suggestionFor = (variable: TestVariable) => SUGGESTIONS[variable] ?? { hypothesis: '', control: '', variation: '' };
-const defaultName = (variable: TestVariable, number: number) => `Teste de ${TEST_VARIABLE_LABELS[variable]} #${String(number).padStart(2, '0')}`;
-const DEFAULT_NAME = /^Teste de .+ #(\d+)$/;
+const TIME_HYPOTHESIS = 'Postar no fim do dia traz mais alcance e salvamentos do que de manhã.';
+const DEFAULT_TIMES = ['08:00', '19:00'];
 
-export function defaultBrief(variable: TestVariable, number = 1): TestBrief {
-  return { name: defaultName(variable, number), variable, goalMetric: 'score', times: versionsComeFromTime(variable) ? ['08:00', '19:00'] : [], ...suggestionFor(variable) };
+const hypothesisFor = (variable: TestVariable) => (versionsComeFromTime(variable) ? TIME_HYPOTHESIS : (VARIABLE_QUESTIONS[variable]?.hypothesis ?? ''));
+const defaultName = (variables: TestVariable[], number: number) => `Teste de ${variables.map((variable) => TEST_VARIABLE_LABELS[variable]).join(' + ')} #${String(number).padStart(2, '0')}`;
+const DEFAULT_NAME = /^Teste de .+ #(\d+)$/;
+const emptySides = (): VariableSides => ({ control: '', variation: '' });
+
+export function defaultBrief(variables: TestVariable[], number = 1): TestBrief {
+  return {
+    name: defaultName(variables, number),
+    variables,
+    hypothesis: variables.length > 0 ? hypothesisFor(variables[0]) : '',
+    details: Object.fromEntries(variables.map((variable) => [variable, emptySides()])),
+    goalMetric: 'score',
+    times: testsTime(variables) ? DEFAULT_TIMES : [],
+  };
 }
 
 /**
- * Changes what the ficha tests. Fields the user never touched (still empty or the old suggestion)
- * take the new variable's suggestions; anything written by hand stays. A time test gets two times.
+ * Changes what the ficha tests. A name or hypothesis the user never touched follows the new selection;
+ * anything written by hand stays. Adding Horário turns the single posting time into two versions.
  */
-export function switchVariable(brief: TestBrief, variable: TestVariable): TestBrief {
-  const before = suggestionFor(brief.variable);
-  const after = suggestionFor(variable);
-  const keep = (field: keyof typeof before) => (brief[field] === '' || brief[field] === before[field] ? after[field] : brief[field]);
+export function setVariables<T extends TestBrief>(brief: T, variables: TestVariable[]): T {
   const number = DEFAULT_NAME.exec(brief.name)?.[1];
-  const untouchedName = number !== undefined && brief.name === defaultName(brief.variable, Number(number));
-  const times = versionsComeFromTime(variable)
+  const untouchedName = number !== undefined && brief.name === defaultName(brief.variables, Number(number));
+  const untouchedHypothesis = brief.hypothesis === '' || brief.variables.some((variable) => hypothesisFor(variable) === brief.hypothesis);
+  const times = testsTime(variables)
     ? brief.times.length >= 2
       ? brief.times
       : brief.times.length === 1
         ? [brief.times[0], brief.times[0] < '12:00' ? '19:00' : '08:00']
-        : ['08:00', '19:00']
+        : DEFAULT_TIMES
     : brief.times.slice(0, 1);
   return {
     ...brief,
-    variable,
-    name: untouchedName ? defaultName(variable, Number(number)) : brief.name,
-    hypothesis: keep('hypothesis'),
-    control: keep('control'),
-    variation: keep('variation'),
+    variables,
+    name: untouchedName ? defaultName(variables, Number(number)) : brief.name,
+    hypothesis: untouchedHypothesis ? (variables.length > 0 ? hypothesisFor(variables[0]) : '') : brief.hypothesis,
+    details: Object.fromEntries(variables.map((variable) => [variable, brief.details[variable] ?? emptySides()])),
     times,
   };
 }
@@ -80,11 +165,11 @@ export function defaultVersion(index: number): VersionLabel {
 export interface SlotInput {
   /** Position of the copy box the carousel came from. */
   copyIndex: number;
-  /** Position of the carousel in the whole batch (format variants share it). */
+  /** How many carousels of the same version came before this one: picks its turn among the times. */
   position: number;
   /** Label of the slide model used by this carousel. */
   styleLabel: string;
-  /** Version marked on the copy box, when versions are chosen per copy. */
+  /** Version marked on the copy box. */
   copyVersion: string | null;
 }
 
@@ -97,13 +182,51 @@ export interface TestSlot {
 /** Version and posting time of one carousel of the test. */
 export function slotFor(brief: TestBrief, { copyIndex, position, styleLabel, copyVersion }: SlotInput): TestSlot {
   const times = sanitizeTimes(brief.times);
-  if (versionsComeFromTime(brief.variable) && times.length > 0) {
-    const time = times[position % times.length];
-    return { variant: time, time };
-  }
-  const time = times[0] ?? null;
-  if (versionsComeFromStyle(brief.variable)) return { variant: styleLabel, time };
-  return { variant: copyVersion?.trim() || defaultVersion(copyIndex), time };
+  const byTime = testsTime(brief.variables) && times.length > 0;
+  const time = byTime ? times[position % times.length] : (times[0] ?? null);
+  const parts = [
+    versionsChosenPerCopy(brief.variables) ? copyVersion?.trim() || defaultVersion(copyIndex) : null,
+    brief.variables.some(versionsComeFromStyle) ? styleLabel : null,
+    byTime ? time : null,
+  ].filter((part): part is string => Boolean(part));
+  return { variant: parts.join(' · ') || defaultVersion(copyIndex), time };
+}
+
+/**
+ * Hands out versions and times in creation order. The times rotate inside each version (each copy version and
+ * slide model), so with Gancho + Horário the Controle also goes out at 19:00 and the Variação at 08:00:
+ * otherwise every Controle would land on the same hour and the two variables could not be told apart.
+ */
+export function slotPlanner(brief: TestBrief): (input: Omit<SlotInput, 'position'>) => TestSlot {
+  const rounds = new Map<string, number>();
+  return (input) => {
+    const group = [versionsChosenPerCopy(brief.variables) ? input.copyVersion?.trim() || defaultVersion(input.copyIndex) : '', brief.variables.some(versionsComeFromStyle) ? input.styleLabel : ''].join('|');
+    const round = rounds.get(group) ?? 0;
+    rounds.set(group, round + 1);
+    return slotFor(brief, { ...input, position: round });
+  };
+}
+
+/** One part of a combined version name ("Controle · 08:00"): which variables it stands for and where it sits. */
+export interface VersionDimension {
+  label: string;
+  index: number;
+}
+
+/** The parts a version name is made of, in the order slotFor joins them. Only worth showing with two or more. */
+export function versionDimensions(variables: TestVariable[]): VersionDimension[] {
+  const perCopy = variables.filter(chosenPerCopy);
+  const labels = [
+    perCopy.length > 0 ? perCopy.map((variable) => TEST_VARIABLE_LABELS[variable]).join(' + ') : null,
+    variables.some(versionsComeFromStyle) ? 'Modelo' : null,
+    testsTime(variables) ? TEST_VARIABLE_LABELS.horario : null,
+  ].filter((label): label is string => label !== null);
+  return labels.map((label, index) => ({ label, index }));
+}
+
+/** The part of a combined version name for one dimension: "Controle · 08:00" by Horário is "08:00". */
+export function versionPart(variant: string, index: number): string {
+  return variant.split(' · ')[index] ?? variant;
 }
 
 interface BatchShape {
@@ -111,7 +234,7 @@ interface BatchShape {
   carousels: number;
   /** Slide models chosen (a format test has two or more). */
   styles: number;
-  /** Versions of the filled copy boxes, when chosen per copy. */
+  /** Versions of the filled copy boxes. */
   copyVersions: string[];
 }
 
@@ -119,18 +242,19 @@ interface BatchShape {
 export function briefProblems(brief: TestBrief, batch: BatchShape): string[] {
   const problems: string[] = [];
   if (!brief.name.trim()) problems.push('Dê um nome pro teste.');
+  if (brief.variables.length === 0) problems.push('Escolha o que está testando.');
   const times = sanitizeTimes(brief.times);
-  if (versionsComeFromTime(brief.variable)) {
+  if (testsTime(brief.variables)) {
     if (times.length < 2) problems.push('Pra testar horário, coloque pelo menos 2 horários diferentes.');
     else if (batch.carousels < times.length) problems.push(`Pra testar ${times.length} horários, crie pelo menos ${times.length} carrosséis.`);
-  } else if (brief.variable === 'design' && batch.styles < 2) {
-    problems.push('Pra testar formato, marque pelo menos 2 modelos de slide.');
-  } else if (versionsChosenPerCopy(brief.variable) && new Set(batch.copyVersions).size < 2) {
-    problems.push('Um teste precisa de pelo menos 2 versões: marque qual copy é Controle e qual é Variação.');
+  }
+  if (brief.variables.includes('design') && batch.styles < 2) problems.push('Pra testar formato, marque pelo menos 2 modelos de slide.');
+  if (versionsChosenPerCopy(brief.variables) && new Set(batch.copyVersions).size < 2) {
+    problems.push('Marque nas copys qual é o Controle e qual é a Variação: o teste precisa das duas.');
   }
   return problems;
 }
 
 export function experimentFromBrief(brief: TestBrief, accountId: string | null): ExperimentInput {
-  return sanitizeExperimentInput({ ...brief, accountId, learning: '', concludedAt: null });
+  return sanitizeExperimentInput({ ...brief, variable: brief.variables[0], accountId, learning: '', concludedAt: null });
 }

@@ -38,12 +38,25 @@ export const TEST_METRIC_LABELS: Record<TestMetric, string> = {
 /** A test compares at most this many posting times. */
 export const MAX_TEST_TIMES = 4;
 
+/** The two sides of one tested variable, e.g. Gancho: "5 hábitos..." x "Você não precisa...". */
+export interface VariableSides {
+  control: string;
+  variation: string;
+}
+
+export type VariableDetails = Partial<Record<TestVariable, VariableSides>>;
+
 export interface Experiment {
   id: string;
   name: string;
   /** Account whose history keeps the learning; null for tests across accounts. */
   accountId: string | null;
+  /** Main variable: the first of `variables`, kept for older screens and experiments. */
   variable: TestVariable;
+  /** Everything this test changes at once (Horário + Gancho...). Older experiments have only `variable`. */
+  variables: TestVariable[];
+  /** Control and variation of each variable in `variables`. */
+  details: VariableDetails;
   hypothesis: string;
   /** Original version, e.g. "5 hábitos para ter mais disciplina". */
   control: string;
@@ -67,17 +80,40 @@ export const EXPERIMENT_LIMITS = { name: 80, hypothesis: 400, version: 300, lear
 const text = (value: unknown, max: number) => (typeof value === 'string' ? value.trim().slice(0, max) : '');
 
 export function emptyExperiment(accountId: string | null, variable: TestVariable = 'gancho'): ExperimentInput {
-  return { name: '', accountId, variable, hypothesis: '', control: '', variation: '', goalMetric: 'score', times: [], learning: '', concludedAt: null };
+  return { name: '', accountId, variable, variables: [variable], details: {}, hypothesis: '', control: '', variation: '', goalMetric: 'score', times: [], learning: '', concludedAt: null };
+}
+
+const isVariable = (value: unknown): value is TestVariable => TEST_VARIABLES.includes(value as TestVariable);
+
+/** Every variable of a test, for experiments saved before tests could change several things. */
+export function variablesOf(experiment: Pick<Experiment, 'variable'> & Partial<Pick<Experiment, 'variables'>>): TestVariable[] {
+  return experiment.variables?.length ? experiment.variables : [experiment.variable];
+}
+
+/** "Horário + Gancho". */
+export function variablesLabel(experiment: Pick<Experiment, 'variable'> & Partial<Pick<Experiment, 'variables'>>): string {
+  return variablesOf(experiment).map((variable) => TEST_VARIABLE_LABELS[variable]).join(' + ');
 }
 
 export function sanitizeExperimentInput(raw: Partial<ExperimentInput>): ExperimentInput {
+  const listed = Array.isArray(raw.variables) ? [...new Set(raw.variables.filter(isVariable))] : [];
+  const variables = listed.length > 0 ? listed : [isVariable(raw.variable) ? raw.variable : 'outro'];
+  const rawDetails = (raw.details ?? {}) as Record<string, Partial<VariableSides> | undefined>;
+  const details: VariableDetails = {};
+  for (const [index, variable] of variables.entries()) {
+    const sides = rawDetails[variable] ?? (index === 0 ? { control: raw.control, variation: raw.variation } : {});
+    details[variable] = { control: text(sides.control, EXPERIMENT_LIMITS.version), variation: text(sides.variation, EXPERIMENT_LIMITS.version) };
+  }
+  const main = details[variables[0]] ?? { control: '', variation: '' };
   return {
     name: text(raw.name, EXPERIMENT_LIMITS.name),
     accountId: typeof raw.accountId === 'string' && raw.accountId ? raw.accountId : null,
-    variable: TEST_VARIABLES.includes(raw.variable as TestVariable) ? (raw.variable as TestVariable) : 'outro',
+    variable: variables[0],
+    variables,
+    details,
     hypothesis: text(raw.hypothesis, EXPERIMENT_LIMITS.hypothesis),
-    control: text(raw.control, EXPERIMENT_LIMITS.version),
-    variation: text(raw.variation, EXPERIMENT_LIMITS.version),
+    control: main.control,
+    variation: main.variation,
     goalMetric: TEST_METRICS.includes(raw.goalMetric as TestMetric) ? (raw.goalMetric as TestMetric) : 'score',
     times: sanitizeTimes(raw.times),
     learning: text(raw.learning, EXPERIMENT_LIMITS.learning),
@@ -112,6 +148,8 @@ export function allExperiments(entities: Experiment[], carousels: Carousel[]): E
       name: ref.name,
       accountId: carousel.source.accountId ?? null,
       variable: 'design',
+      variables: ['design'],
+      details: {},
       hypothesis: '',
       control: '',
       variation: '',
@@ -171,9 +209,12 @@ export function variantOf(item: AnalyticsItem): string {
   return item.carousel?.experiment?.variant || item.record.title;
 }
 
-export function evaluateExperiment(experiment: Experiment, members: AnalyticsItem[], scoreOf: ScoreOf, today: string, planned = 0): ExperimentResult {
+/** Groups a member under a version; by default its full version name. */
+export type GroupOf = (item: AnalyticsItem) => string;
+
+export function evaluateExperiment(experiment: Experiment, members: AnalyticsItem[], scoreOf: ScoreOf, today: string, planned = 0, groupOf: GroupOf = variantOf): ExperimentResult {
   const groups = new Map<string, AnalyticsItem[]>();
-  for (const item of members) groups.set(variantOf(item), [...(groups.get(variantOf(item)) ?? []), item]);
+  for (const item of members) groups.set(groupOf(item), [...(groups.get(groupOf(item)) ?? []), item]);
   // Sorted so versions read in order: 08:00 before 19:00, Controle before Variação.
   const variants: VariantResult[] = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b, 'pt-BR', { numeric: true })).map(([label, items]) => {
     const measured = items.filter(isMeasured);
@@ -247,7 +288,7 @@ export const COVERAGE_INFO: Record<CoverageLevel, { emoji: string; label: string
 /** Mapa de testes: how often each element was put to the test. */
 export function testMap(experiments: Experiment[]): { variable: TestVariable; count: number; level: CoverageLevel }[] {
   return TEST_VARIABLES.filter((variable) => variable !== 'outro').map((variable) => {
-    const count = experiments.filter((experiment) => experiment.variable === variable).length;
+    const count = experiments.filter((experiment) => variablesOf(experiment).includes(variable)).length;
     return { variable, count, level: count >= 3 ? 'bastante' : count >= 1 ? 'pouco' : 'nunca' };
   });
 }

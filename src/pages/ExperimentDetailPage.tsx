@@ -6,7 +6,8 @@ import { useAccountScope } from '../app/accountScope';
 import { errorMessage } from '../app/useResource';
 import { accountLabel } from '../domain/account';
 import { statusLabel, type Carousel } from '../domain/carousel';
-import { CONFIDENCE_LABELS, EXPERIMENT_LIMITS, EXPERIMENT_STATUS_LABELS, TEST_METRIC_LABELS, TEST_VARIABLE_LABELS, toExperimentInput, variantOf, type Experiment } from '../domain/experiments/experiment';
+import { testsTime, VARIABLE_QUESTIONS, versionDimensions, versionPart } from '../domain/experiments/brief';
+import { CONFIDENCE_LABELS, EXPERIMENT_LIMITS, EXPERIMENT_STATUS_LABELS, TEST_METRIC_LABELS, TEST_VARIABLE_LABELS, toExperimentInput, variablesOf, variantOf, type Experiment } from '../domain/experiments/experiment';
 import { formatPercent } from '../domain/winners/record';
 import { ExperimentForm } from '../experiments/ExperimentForm';
 import { useExperimentLab } from '../experiments/useExperimentLab';
@@ -24,6 +25,8 @@ export function ExperimentDetailPage() {
   const [adding, setAdding] = useState(false);
   const [learning, setLearning] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Part of the version the result is grouped by; null is the full version. */
+  const [dimension, setDimension] = useState<number | null>(null);
 
   if (lab.loading || scope.loading) return <Spinner label="Abrindo o teste" />;
   const experiment = lab.experiments.find((item) => item.id === id);
@@ -31,7 +34,9 @@ export function ExperimentDetailPage() {
     return <EmptyState title="Teste não encontrado" description="Ele pode ter sido excluído." action={<Link to="/testes" className="text-sm font-medium text-accent underline-offset-4 hover:underline">Ver testes</Link>} />;
   }
 
-  const result = lab.resultOf(experiment);
+  const dimensions = versionDimensions(variablesOf(experiment));
+  const groupedBy = dimension !== null && dimension < dimensions.length ? dimension : null;
+  const result = lab.resultOf(experiment, groupedBy === null ? undefined : (item) => versionPart(variantOf(item), groupedBy));
   const members = lab.membersOf(experiment.id);
   const account = scope.accounts.find((item) => item.id === experiment.accountId);
   const draftLearning = learning ?? experiment.learning;
@@ -60,7 +65,9 @@ export function ExperimentDetailPage() {
         <div>
           <div className="mb-2 flex flex-wrap gap-1.5">
             <Badge tone={EXPERIMENT_STATUS_TONES[result.status]}>{EXPERIMENT_STATUS_LABELS[result.status]}</Badge>
-            <Badge>{TEST_VARIABLE_LABELS[experiment.variable]}</Badge>
+            {variablesOf(experiment).map((variable) => (
+              <Badge key={variable}>{TEST_VARIABLE_LABELS[variable]}</Badge>
+            ))}
             <Badge>{account ? accountLabel(account) : 'Várias contas'}</Badge>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">{experiment.name}</h1>
@@ -97,15 +104,22 @@ export function ExperimentDetailPage() {
         <Card label="Hipótese" className="sm:col-span-3">
           {experiment.hypothesis || <span className="text-faint">Sem hipótese. Use Editar pra registrar o que você espera.</span>}
         </Card>
-        {/* In a time test the times are the versions, shown in their own card. */}
-        {experiment.variable !== 'horario' && (
-          <>
-            <Card label="Controle">{experiment.control || <span className="text-faint">—</span>}</Card>
-            <Card label="Variação">{experiment.variation || <span className="text-faint">—</span>}</Card>
-          </>
-        )}
+        {/* One card per tested variable; Horário is answered by the times card. */}
+        {variablesOf(experiment).map((variable) => {
+          const questions = VARIABLE_QUESTIONS[variable];
+          if (!questions) return null;
+          const sides = experiment.details?.[variable] ?? (variable === experiment.variable ? { control: experiment.control, variation: experiment.variation } : null);
+          return (
+            <Card key={variable} label={TEST_VARIABLE_LABELS[variable]}>
+              <span className="block text-xs text-faint">{questions.control}</span>
+              {sides?.control || <span className="text-faint">—</span>}
+              <span className="mt-1.5 block text-xs text-faint">{questions.variation}</span>
+              {sides?.variation || <span className="text-faint">—</span>}
+            </Card>
+          );
+        })}
         <Card label="Métrica que decide">{TEST_METRIC_LABELS[experiment.goalMetric]}</Card>
-        <Card label={experiment.variable === 'horario' ? 'Horários testados' : 'Horário de postagem'}>
+        <Card label={testsTime(variablesOf(experiment)) ? 'Horários testados' : 'Horário de postagem'}>
           {experiment.times.length > 0 ? experiment.times.join(' · ') : <span className="text-faint">Sem horário definido</span>}
         </Card>
         <Card label="Período">
@@ -114,9 +128,31 @@ export function ExperimentDetailPage() {
       </section>
 
       <section aria-labelledby="result-title" className="mb-8">
-        <h2 id="result-title" className="mb-3 text-base font-semibold tracking-tight text-ink">
-          Resultado
-        </h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 id="result-title" className="text-base font-semibold tracking-tight text-ink">
+            Resultado
+          </h2>
+          {dimensions.length > 1 && (
+            <div role="radiogroup" aria-label="Ver resultado por" className="flex flex-wrap items-center gap-1 rounded-xl bg-subtle p-1 text-xs">
+              <span className="px-2 text-faint">Ver por</span>
+              {[{ label: 'Versão completa', index: null as number | null }, ...dimensions].map((option) => (
+                <button
+                  key={option.label}
+                  type="button"
+                  role="radio"
+                  aria-checked={groupedBy === option.index}
+                  onClick={() => setDimension(option.index)}
+                  className={clsx(
+                    'rounded-lg px-2.5 py-1 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                    groupedBy === option.index ? 'bg-surface text-ink shadow-sm ring-1 ring-line' : 'text-muted hover:text-ink',
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         {result.variants.length === 0 ? (
           <EmptyState title="Nenhum conteúdo no teste" description="Use “Adicionar conteúdos”, ou marque como conteúdo de teste no editor ou no Calendário." />
         ) : (
