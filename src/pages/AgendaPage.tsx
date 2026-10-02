@@ -1,7 +1,7 @@
 import clsx from 'clsx';
-import { CalendarDays, CheckCheck, Download } from 'lucide-react';
+import { CalendarDays, CheckCheck, Download, MousePointerClick } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { renderContextFor } from '../app/renderContextFor';
 import { useAccounts, useAssets, useBrandKits, useCarousels } from '../app/data';
 import { useServices } from '../app/services';
@@ -53,6 +53,11 @@ export function AgendaPage() {
   const projects = useMemo(() => [...new Set(carousels.data.map((carousel) => carousel.project).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [carousels.data]);
   const visible = useMemo(() => carousels.data.filter((carousel) => !projectFilter || carousel.project === projectFilter), [carousels.data, projectFilter]);
   const groups = useMemo(() => groupByDay(visible, today), [visible, today]);
+  /** Nothing shows until a day is picked; the day stays in the address so going back keeps it. */
+  const [params, setParams] = useSearchParams();
+  const days = useMemo(() => [...groups.late.map((day) => ({ day, late: true })), ...groups.upcoming.map((day) => ({ day, late: false }))], [groups]);
+  const selected = days.find(({ day }) => day.date === params.get('dia')) ?? null;
+  const selectDay = (date: string | null) => setParams(date ? { dia: date } : {}, { replace: true });
 
   if (carousels.loading || brands.loading || assets.loading || accounts.loading) return <Spinner />;
 
@@ -121,20 +126,34 @@ export function AgendaPage() {
             )}
           </div>
         </div>
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {day.carousels.map((carousel) => (
-            <AgendaItem
-              key={carousel.id}
-              carousel={carousel}
-              brand={brandForCarousel(carousel, brands.data, accounts.data) ?? undefined}
-              account={accounts.data.find((item) => item.id === carousel.source.accountId)}
-              assets={assets.data}
-              accounts={accounts.data}
-              onReschedule={(date) => void save(carousel, { scheduledFor: date })}
-              onPosted={(posted) => save(carousel, { status: postedStatus(posted) })}
-            />
+        <div className="flex flex-col gap-6">
+          {byProject(day.carousels).map(({ project, carousels: items }, _, all) => (
+            <div key={project || '__none__'}>
+              {all.length > 1 && (
+                <h3 className="mb-3 flex items-baseline gap-2 text-xs font-semibold uppercase tracking-wider text-muted">
+                  {project || 'Sem projeto'}
+                  <span className="font-normal normal-case tracking-normal text-faint">
+                    {items.length} {items.length === 1 ? 'carrossel' : 'carrosséis'}
+                  </span>
+                </h3>
+              )}
+              <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                {items.map((carousel) => (
+                  <AgendaItem
+                    key={carousel.id}
+                    carousel={carousel}
+                    brand={brandForCarousel(carousel, brands.data, accounts.data) ?? undefined}
+                    account={accounts.data.find((item) => item.id === carousel.source.accountId)}
+                    assets={assets.data}
+                    accounts={accounts.data}
+                    onReschedule={(date) => void save(carousel, { scheduledFor: date })}
+                    onPosted={(posted) => save(carousel, { status: postedStatus(posted) })}
+                  />
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
       </section>
     );
   };
@@ -171,10 +190,16 @@ export function AgendaPage() {
         />
       ) : (
         <div className="flex flex-col gap-4">
-          {groups.late.length > 0 && <h2 className="text-xs font-semibold uppercase tracking-wider text-red-700 dark:text-red-300">Atrasados</h2>}
-          {groups.late.map((day) => renderDay(day, 'late'))}
-          {groups.upcoming.length > 0 && groups.late.length > 0 && <h2 className="mt-4 text-xs font-semibold uppercase tracking-wider text-faint">Próximos dias</h2>}
-          {groups.upcoming.map((day) => renderDay(day, 'normal'))}
+          <DayPicker days={days} today={today} selected={selected?.day.date ?? null} onSelect={selectDay} />
+          {selected ? (
+            renderDay(selected.day, selected.late ? 'late' : 'normal')
+          ) : (
+            <div className="flex flex-col items-center rounded-2xl border border-dashed border-line px-6 py-12 text-center">
+              <MousePointerClick className="size-5 text-faint" aria-hidden />
+              <p className="mt-2 text-sm font-medium text-ink">Escolha um dia</p>
+              <p className="mt-1 text-sm text-muted">Os carrosséis do dia aparecem aqui, separados por projeto.</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -220,5 +245,56 @@ function AgendaItem({ carousel, brand, account, assets, accounts, onReschedule, 
         </label>
       </div>
     </li>
+  );
+}
+
+/** The day's carousels split by project, projects in alphabetical order and unfiled ones last. */
+function byProject(carousels: Carousel[]): { project: string; carousels: Carousel[] }[] {
+  const groups = new Map<string, Carousel[]>();
+  for (const carousel of carousels) groups.set(carousel.project, [...(groups.get(carousel.project) ?? []), carousel]);
+  return [...groups.entries()]
+    .map(([project, items]) => ({ project, carousels: [...items].sort((a, b) => a.createdAt.localeCompare(b.createdAt)) }))
+    .sort((a, b) => (a.project ? 0 : 1) - (b.project ? 0 : 1) || a.project.localeCompare(b.project));
+}
+
+interface DayPickerProps {
+  days: { day: DayGroup; late: boolean }[];
+  today: string;
+  selected: string | null;
+  onSelect: (date: string | null) => void;
+}
+
+/** One button per scheduled day: late ones first in red, then today onward. Clicking the open day closes it. */
+function DayPicker({ days, today, selected, onSelect }: DayPickerProps) {
+  return (
+    <div role="group" aria-label="Dias com carrosséis" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+      {days.map(({ day, late }) => {
+        const active = day.date === selected;
+        const posted = day.carousels.filter(isPosted).length;
+        const done = posted === day.carousels.length;
+        const [weekday, date] = formatDay(day.date).split(', ');
+        return (
+          <button
+            key={day.date}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onSelect(active ? null : day.date)}
+            className={clsx(
+              'flex min-w-[5.5rem] shrink-0 flex-col items-start rounded-xl border px-3 py-2 text-left transition-colors',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-canvas',
+              active ? 'border-ink bg-ink text-canvas' : late ? 'border-red-300 bg-surface text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40' : 'border-line bg-surface text-ink hover:bg-subtle',
+            )}
+          >
+            <span className={clsx('text-[11px] font-medium uppercase tracking-wide', active ? 'text-canvas/70' : 'opacity-70')}>
+              {day.date === today ? 'Hoje' : late ? 'Atrasado' : weekday.replace('.', '')}
+            </span>
+            <span className="text-sm font-semibold tabular-nums">{date ?? weekday}</span>
+            <span className={clsx('text-[11px] tabular-nums', active ? 'text-canvas/70' : 'text-muted')}>
+              {done ? '✓ tudo postado' : `${day.carousels.length} ${day.carousels.length === 1 ? 'carrossel' : 'carrosséis'}`}
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
