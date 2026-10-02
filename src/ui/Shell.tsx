@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { FolderKanban, Images, Palette, Plus, Settings, Sparkles } from 'lucide-react';
+import { FlaskConical, FolderKanban, Images, Palette, Plus, Settings, Sparkles } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useServices } from '../app/services';
 import { Badge, Button } from './primitives';
@@ -7,6 +7,7 @@ import { Badge, Button } from './primitives';
 const NAV = [
   { to: '/criar', label: 'Criar', icon: Sparkles },
   { to: '/projetos', label: 'Projetos', icon: FolderKanban },
+  { to: '/testes', label: 'Testes', icon: FlaskConical },
   { to: '/biblioteca', label: 'Biblioteca', icon: Images },
   { to: '/marcas', label: 'Brand Kits', icon: Palette },
   { to: '/configuracoes', label: 'Configurações', icon: Settings },

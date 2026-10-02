@@ -2,7 +2,7 @@ import { createStore, del, get, set, type UseStore } from 'idb-keyval';
 import type { AssetRepository, AuthService, BrandKitRepository, CarouselRepository, User } from '../../application/ports';
 import type { Asset, AssetUpload } from '../../domain/asset';
 import type { BrandKit, BrandKitInput } from '../../domain/brandKit';
-import type { Carousel, CarouselInput } from '../../domain/carousel';
+import { normalizeCarousel, type Carousel, type CarouselInput } from '../../domain/carousel';
 import { readImageSize } from '../imageSize';
 
 const store: UseStore = createStore('fabrica-carrosseis-demo', 'kv');
@@ -130,7 +130,7 @@ export class DemoAssets implements AssetRepository {
 
 export class DemoCarousels implements CarouselRepository {
   async list(): Promise<Carousel[]> {
-    const items = await readCollection<Carousel>('carousels');
+    const items = (await readCollection<Carousel>('carousels')).map(normalizeCarousel);
     return items.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 

@@ -34,19 +34,33 @@ export function sampleSlide(style: VisualStyle, photoId: string | null): Slide {
 }
 
 interface StylePickerProps {
+  label: string;
   draft: BrandKitInput;
   photo: Asset | undefined;
   assets: Asset[];
-  value: VisualStyle;
-  onChange: (style: VisualStyle) => void;
+  selected: VisualStyle[];
+  onToggle: (style: VisualStyle) => void;
+  /** Checkbox semantics (format tests) instead of a single choice. */
+  multiple?: boolean;
+  disabled?: boolean;
 }
 
-/** Visual radio group: every option is a live thumbnail of the brand in that style. */
-export function StylePicker({ draft, photo, assets, value, onChange }: StylePickerProps) {
+/** Every option is a live thumbnail of the brand in that style. */
+export function StylePicker({ label, draft, photo, assets, selected, onToggle, multiple = false, disabled = false }: StylePickerProps) {
   return (
-    <div role="radiogroup" aria-label="Estilo visual padrão" className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+    <div role={multiple ? 'group' : 'radiogroup'} aria-label={label} className="grid grid-cols-3 gap-2 sm:grid-cols-4">
       {VISUAL_STYLES.map((style) => (
-        <StyleOption key={style} style={style} draft={draft} photo={photo} assets={assets} selected={style === value} onSelect={() => onChange(style)} />
+        <StyleOption
+          key={style}
+          style={style}
+          draft={draft}
+          photo={photo}
+          assets={assets}
+          selected={selected.includes(style)}
+          multiple={multiple}
+          disabled={disabled}
+          onSelect={() => onToggle(style)}
+        />
       ))}
     </div>
   );
@@ -58,10 +72,12 @@ interface StyleOptionProps {
   photo: Asset | undefined;
   assets: Asset[];
   selected: boolean;
+  multiple: boolean;
+  disabled: boolean;
   onSelect: () => void;
 }
 
-function StyleOption({ style, draft, photo, assets, selected, onSelect }: StyleOptionProps) {
+function StyleOption({ style, draft, photo, assets, selected, multiple, disabled, onSelect }: StyleOptionProps) {
   const { assets: repo } = useServices();
   const context: RenderContext = useMemo(
     () => ({ brand: { ...draft, id: 'style-preview', createdAt: '', updatedAt: '' }, assets, repo, format: '4:5', visualStyle: style, total: 1 }),
@@ -72,11 +88,12 @@ function StyleOption({ style, draft, photo, assets, selected, onSelect }: StyleO
   return (
     <button
       type="button"
-      role="radio"
+      role={multiple ? 'checkbox' : 'radio'}
       aria-checked={selected}
+      disabled={disabled}
       onClick={onSelect}
       className={clsx(
-        'group flex flex-col gap-1.5 rounded-xl p-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+        'group flex flex-col disabled:opacity-60 gap-1.5 rounded-xl p-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
         selected ? 'bg-accent/10 ring-2 ring-accent' : 'ring-1 ring-line hover:ring-faint',
       )}
     >

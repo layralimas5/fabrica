@@ -50,6 +50,7 @@ export async function exportZip(context: RenderContext, carousel: Carousel, form
     folder.file(fileName(index, format), await toBlob(canvas, format));
     onProgress(index + 1);
   }
+  if (carousel.caption.trim()) folder.file('legenda.txt', carousel.caption);
   download(await zip.generateAsync({ type: 'blob' }), `${slugify(carousel.title)}.zip`);
 }
 
@@ -63,4 +64,30 @@ export async function exportPdf(context: RenderContext, carousel: Carousel, onPr
     onProgress(index + 1);
   }
   download(pdf.output('blob'), `${slugify(carousel.title)}.pdf`);
+}
+
+export interface ExportItem {
+  context: RenderContext;
+  carousel: Carousel;
+}
+
+/** One ZIP with a folder per carousel (numbered slides + legenda.txt), for batch posting. */
+export async function exportMany(items: ExportItem[], format: ImageFormat, onProgress: (done: number, total: number) => void): Promise<void> {
+  const zip = new JSZip();
+  const total = items.reduce((sum, item) => sum + item.carousel.slides.length, 0);
+  let done = 0;
+
+  for (const [position, { context, carousel }] of items.entries()) {
+    const folder = zip.folder(`${String(position + 1).padStart(2, '0')}-${slugify(carousel.title)}`);
+    if (!folder) throw new Error('Não consegui montar o ZIP.');
+    for (const [index, slide] of carousel.slides.entries()) {
+      const canvas = await renderCarouselSlide(context, slide, index, 1);
+      folder.file(fileName(index, format), await toBlob(canvas, format));
+      onProgress(++done, total);
+    }
+    if (carousel.caption.trim()) folder.file('legenda.txt', carousel.caption);
+  }
+
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+  download(await zip.generateAsync({ type: 'blob' }), `carrosseis-${stamp}.zip`);
 }

@@ -17,12 +17,17 @@ interface ComposeOptions {
   objective: Objective;
   assets: Asset[];
   visualStyle?: VisualStyle;
+  /** User-written copy: keep every word exactly as typed. */
+  preserveText?: boolean;
+  /** Append the objective CTA when the last slide is not one. */
+  addCta?: boolean;
 }
 
 /** Turns an AI draft into renderable slides: enforces readability, the CTA ending, image choice and layout rhythm. */
-export function composeSlides(draft: CarouselDraft, { objective, assets, visualStyle }: ComposeOptions): Slide[] {
+export function composeSlides(draft: CarouselDraft, { objective, assets, visualStyle, preserveText = false, addCta = true }: ComposeOptions): Slide[] {
   const fixed = visualStyle ? FIXED_LAYOUTS[visualStyle] : undefined;
-  const drafts = ensureCta(draft.slides.slice(0, MAX_SLIDES).map(enforceReadability), objective).map((slide) =>
+  const readable = preserveText ? draft.slides.slice(0, MAX_SLIDES) : draft.slides.slice(0, MAX_SLIDES).map(enforceReadability);
+  const drafts = (addCta ? ensureCta(readable, objective) : readable).map((slide) =>
     fixed ? { ...slide, wantsImage: fixed.imageOnCta || slide.role !== 'cta' } : slide,
   );
   const knownIds = new Set(assets.map((asset) => asset.id));

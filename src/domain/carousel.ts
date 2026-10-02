@@ -1,6 +1,7 @@
 import type { VisualStyle } from './brandKit';
 import type { ContentType, Objective, SlideCountOption, SlideRole } from './content';
 import type { LayoutId } from './layouts';
+import type { Metrics } from './metrics';
 
 export interface SlideStyle {
   fontScale: number;
@@ -46,6 +47,16 @@ export interface CarouselSource {
   slideCount: SlideCountOption;
   /** Library folders the images come from. Empty means every folder. */
   folders: string[];
+  copyMode?: CopyMode;
+}
+
+export type CopyMode = 'manual' | 'ai';
+
+/** Links the variants of one format test. */
+export interface ExperimentRef {
+  id: string;
+  name: string;
+  variant: string;
 }
 
 export interface Carousel {
@@ -56,6 +67,9 @@ export interface Carousel {
   format: CarouselFormat;
   source: CarouselSource;
   slides: Slide[];
+  caption: string;
+  experiment: ExperimentRef | null;
+  metrics: Metrics | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -92,4 +106,15 @@ export function moveItem<T>(items: T[], from: number, to: number): T[] {
   const [moved] = copy.splice(from, 1);
   copy.splice(to, 0, moved);
   return copy;
+}
+
+/** Fills fields added after the first release so older saved carousels keep working. */
+export function normalizeCarousel(carousel: Carousel): Carousel {
+  return {
+    ...carousel,
+    caption: carousel.caption ?? '',
+    experiment: carousel.experiment ?? null,
+    metrics: carousel.metrics ?? null,
+    source: { ...carousel.source, folders: carousel.source.folders ?? [] },
+  };
 }

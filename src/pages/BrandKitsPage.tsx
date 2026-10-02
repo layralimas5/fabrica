@@ -211,7 +211,7 @@ function BrandKitEditor({ id, initial, assets, inUse, onClose, onSave, onDelete 
             </Field>
             <div className="flex flex-col gap-1.5 sm:col-span-2">
               <p className="text-xs font-medium text-muted">Estilo visual padrão</p>
-              <StylePicker draft={draft} photo={assets.find(isPhotoLike)} assets={assets} value={draft.visualStyle} onChange={(style) => patch('visualStyle', style)} />
+              <StylePicker label="Estilo visual padrão" draft={draft} photo={assets.find(isPhotoLike)} assets={assets} selected={[draft.visualStyle]} onToggle={(style) => patch('visualStyle', style)} />
             </div>
             <Field label="Tom e características" htmlFor="bk-voice" hint="A IA usa isso pra escrever no tom da marca." className="sm:col-span-2">
               <Textarea id="bk-voice" rows={3} value={draft.voice} onChange={(e) => patch('voice', e.target.value)} placeholder="Minimalista, moderno, pouco texto, forte contraste…" />

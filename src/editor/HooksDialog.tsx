@@ -2,7 +2,7 @@ import { RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
-import { brandContext } from '../application/generateCarousel';
+import { brandContext } from '../application/brandContext';
 import type { BrandKit } from '../domain/brandKit';
 import { Alert, Button, Dialog, Spinner } from '../ui/primitives';
 

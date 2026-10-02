@@ -1,11 +1,11 @@
-import { ArrowLeft, Check, CloudOff, Loader2, Wand2 } from 'lucide-react';
+import { ArrowLeft, Check, CloudOff, Eye, Loader2, Wand2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAssets, useBrandKits } from '../app/data';
 import { useServices } from '../app/services';
 import type { RenderContext } from '../app/slideRendering';
 import { errorMessage } from '../app/useResource';
-import { brandContext } from '../application/generateCarousel';
+import { brandContext } from '../application/brandContext';
 import type { Asset } from '../domain/asset';
 import type { BrandKit } from '../domain/brandKit';
 import { CAROUSEL_STATUSES, STATUS_LABELS, type Carousel, type CarouselFormat, type CarouselStatus } from '../domain/carousel';
@@ -17,7 +17,8 @@ import { ImagePickerDialog } from '../editor/ImagePickerDialog';
 import { Inspector } from '../editor/Inspector';
 import { SlideStage } from '../editor/SlideStage';
 import { useCarouselEditor, type SaveState } from '../editor/useCarouselEditor';
-import { Alert, Button, EmptyState, Select, Spinner } from '../ui/primitives';
+import { CarouselViewer } from '../ui/CarouselViewer';
+import { Alert, Button, EmptyState, Field, Select, Spinner, Textarea } from '../ui/primitives';
 
 export function EditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -51,6 +52,7 @@ function Editor({ initial, brand, assets }: { initial: Carousel; brand: BrandKit
   const { carousel } = editor;
   const [pickerOpen, setPickerOpen] = useState(false);
   const [hooksOpen, setHooksOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [aiBusy, setAiBusy] = useState<'shorten' | 'variation' | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
 
@@ -114,6 +116,9 @@ function Editor({ initial, brand, assets }: { initial: Carousel; brand: BrandKit
               </option>
             ))}
           </Select>
+          <Button variant="secondary" onClick={() => setPreviewOpen(true)}>
+            <Eye className="size-4" aria-hidden /> Ver prévia
+          </Button>
           <Button variant="secondary" onClick={() => setHooksOpen(true)}>
             <Wand2 className="size-4" aria-hidden /> Novos ganchos
           </Button>
@@ -131,6 +136,9 @@ function Editor({ initial, brand, assets }: { initial: Carousel; brand: BrandKit
         <div className="flex min-w-0 flex-col gap-8">
           <SlideStage context={context} slide={slide} index={index} onMove={(offsetX, offsetY) => editor.updateSlide(slide.id, { style: { ...slide.style, offsetX, offsetY } })} />
           <Filmstrip context={context} slides={carousel.slides} selectedId={slide.id} onSelect={editor.setSelectedId} onReorder={editor.reorder} onAdd={() => editor.addSlide(slide.id)} />
+          <Field label="Legenda do post" htmlFor="carousel-caption" hint="Vai junto no ZIP como legenda.txt.">
+            <Textarea id="carousel-caption" rows={3} value={carousel.caption} onChange={(e) => editor.setCaption(e.target.value)} maxLength={2200} placeholder="Escreva a legenda e as hashtags…" />
+          </Field>
         </div>
 
         <aside className="rounded-2xl border border-line bg-surface p-5 lg:sticky lg:top-8 lg:max-h-[calc(100dvh-4rem)] lg:overflow-y-auto">
@@ -165,6 +173,7 @@ function Editor({ initial, brand, assets }: { initial: Carousel; brand: BrandKit
           setPickerOpen(false);
         }}
       />
+      <CarouselViewer open={previewOpen} onClose={() => setPreviewOpen(false)} context={context} carousel={carousel} />
       <HooksDialog
         open={hooksOpen}
         hook={carousel.slides[0].title}

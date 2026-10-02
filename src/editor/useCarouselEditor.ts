@@ -99,13 +99,14 @@ export function useCarouselEditor(repo: CarouselRepository, initial: Carousel) {
   );
 
   const setTitle = useCallback((title: string) => mutate((current) => ({ ...current, title })), [mutate]);
+  const setCaption = useCallback((caption: string) => mutate((current) => ({ ...current, caption })), [mutate]);
   const setFormat = useCallback((format: CarouselFormat) => mutate((current) => ({ ...current, format })), [mutate]);
   const setStatus = useCallback((status: CarouselStatus) => {
     dirty.current = true;
     setCarousel((current) => ({ ...current, status }));
   }, []);
 
-  return { carousel, selectedId, setSelectedId, saveState, saveError, updateSlide, addSlide, duplicate, removeSlide, reorder, move, setTitle, setFormat, setStatus };
+  return { carousel, selectedId, setSelectedId, saveState, saveError, updateSlide, addSlide, duplicate, removeSlide, reorder, move, setTitle, setCaption, setFormat, setStatus };
 }
 
 export type CarouselEditor = ReturnType<typeof useCarouselEditor>;

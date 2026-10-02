@@ -2,7 +2,7 @@ import type { SupabaseClient, User as SupabaseUser } from '@supabase/supabase-js
 import type { AssetRepository, AuthService, BrandKitRepository, CarouselRepository, User } from '../../application/ports';
 import type { Asset, AssetUpload } from '../../domain/asset';
 import type { BrandKit, BrandKitInput } from '../../domain/brandKit';
-import type { Carousel, CarouselInput } from '../../domain/carousel';
+import { normalizeCarousel, type Carousel, type CarouselInput } from '../../domain/carousel';
 import { readImageSize } from '../imageSize';
 
 const BUCKET = 'assets';
@@ -191,11 +191,15 @@ interface CarouselRow {
   format: Carousel['format'];
   source: Carousel['source'];
   slides: Carousel['slides'];
+  caption: string;
+  experiment: Carousel['experiment'];
+  metrics: Carousel['metrics'];
   created_at: string;
   updated_at: string;
 }
 
-const rowToCarousel = (row: CarouselRow): Carousel => ({
+const rowToCarousel = (row: CarouselRow): Carousel =>
+  normalizeCarousel({
   id: row.id,
   brandKitId: row.brand_kit_id,
   title: row.title,
@@ -203,9 +207,12 @@ const rowToCarousel = (row: CarouselRow): Carousel => ({
   format: row.format,
   source: row.source,
   slides: row.slides,
+  caption: row.caption,
+  experiment: row.experiment,
+  metrics: row.metrics,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
-});
+  });
 
 const carouselToRow = (input: CarouselInput) => ({
   brand_kit_id: input.brandKitId,
@@ -214,6 +221,9 @@ const carouselToRow = (input: CarouselInput) => ({
   format: input.format,
   source: input.source,
   slides: input.slides,
+  caption: input.caption,
+  experiment: input.experiment,
+  metrics: input.metrics,
 });
 
 export class SupabaseCarousels implements CarouselRepository {

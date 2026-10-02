@@ -11,6 +11,8 @@ const EditorPage = lazy(() => import('./pages/EditorPage').then((m) => ({ defaul
 const ProjectsPage = lazy(() => import('./pages/ProjectsPage').then((m) => ({ default: m.ProjectsPage })));
 const LibraryPage = lazy(() => import('./pages/LibraryPage').then((m) => ({ default: m.LibraryPage })));
 const BrandKitsPage = lazy(() => import('./pages/BrandKitsPage').then((m) => ({ default: m.BrandKitsPage })));
+const ExperimentsPage = lazy(() => import('./pages/ExperimentsPage').then((m) => ({ default: m.ExperimentsPage })));
+const ExperimentDetailPage = lazy(() => import('./pages/ExperimentDetailPage').then((m) => ({ default: m.ExperimentDetailPage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -37,6 +39,8 @@ export default function App({ services }: { services: Services }) {
               <Route path="/criar" element={<CreatePage />} />
               <Route path="/carrossel/:id" element={<EditorPage />} />
               <Route path="/projetos" element={<ProjectsPage />} />
+              <Route path="/testes" element={<ExperimentsPage />} />
+              <Route path="/testes/:id" element={<ExperimentDetailPage />} />
               <Route path="/biblioteca" element={<LibraryPage />} />
               <Route path="/marcas" element={<BrandKitsPage />} />
               <Route path="/configuracoes" element={<SettingsPage />} />
