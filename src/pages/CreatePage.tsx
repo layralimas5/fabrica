@@ -14,7 +14,7 @@ import { EXPLORATION_LEVELS, guidanceFor, planCopies, type ExplorationLevel } fr
 import { TextStylePanel } from '../create/TextStylePanel';
 import { CopyAppImage } from '../create/CopyAppImage';
 import { TestBriefCard } from '../create/TestBriefCard';
-import { briefProblems, defaultBrief, defaultVersion, setVariables, VERSION_LABELS, versionsChosenPerCopy, type TestBrief } from '../domain/experiments/brief';
+import { briefProblems, defaultBrief, defaultVersion, setVariables, testsTime, VERSION_LABELS, versionsChosenPerCopy, type TestBrief } from '../domain/experiments/brief';
 import { variablesOf, type TestVariable } from '../domain/experiments/experiment';
 import type { CreateSettings, Preset } from '../domain/preset';
 import { useServices } from '../app/services';
@@ -184,6 +184,7 @@ export function CreatePage() {
   const [scheduling, setScheduling] = useState(false);
   const [startDate, setStartDate] = useState(todayIso);
   const [perDay, setPerDay] = useState(1);
+  const [postingTime, setPostingTime] = useState('');
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creatingStarter, setCreatingStarter] = useState(false);
@@ -242,6 +243,8 @@ export function CreatePage() {
   const total = blocks * styles.length;
   /** "Testar formatos" and the Design chip of the ficha are kept in step by the handlers below. */
   const testBrief = brief;
+  // A time test hands out its own times, so the single posting time steps aside.
+  const testsTimeNow = testOn && testsTime(testBrief.variables);
   const testProblems = testOn
     ? briefProblems(testBrief, {
         carousels: total,
@@ -260,7 +263,7 @@ export function CreatePage() {
   useEffect(() => {
     if (!brand) return;
     setBrandId(brand.id);
-    setStyles([brand.visualStyle]);
+    setStyles([account?.defaults.visualStyle ?? brand.visualStyle]);
     setTesting(false);
     setProductImageId(productOf(brand)?.imageAssetId ?? null);
     setFolders(photoFoldersOf(brand));
@@ -277,6 +280,13 @@ export function CreatePage() {
   useEffect(() => {
     if (account?.brandKitId && brands.data.some((kit) => kit.id === account.brandKitId)) setBrandId(account.brandKitId);
   }, [account?.id, brands.data.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // What the account's tests proved comes preselected; the user can still change both.
+  useEffect(() => {
+    setPostingTime(account?.defaults.postingTime ?? '');
+    const style = account?.defaults.visualStyle;
+    if (style) setStyles((current) => (current.length > 1 ? current : [style]));
+  }, [account?.id, account?.defaults.postingTime, account?.defaults.visualStyle]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Declared after the brand and account effects so it runs last and wins over their resets.
   useEffect(() => {
@@ -616,6 +626,7 @@ export function CreatePage() {
         project: project.trim() || defaultProject,
         folder,
         schedule: scheduling ? { startDate, perDay: effectivePerDay } : null,
+        defaultTime: scheduling ? postingTime || null : null,
         origin,
         test: testOn ? { brief: testBrief, copyVersions: copies.map((_, index) => copyVersions[index] ?? null) } : null,
       });
@@ -983,6 +994,9 @@ export function CreatePage() {
                     Testar formatos
                   </label>
                 </div>
+                {!testing && account?.defaults.visualStyle && account.defaults.visualStyle === styles[0] && (
+                  <p className="mb-3 text-xs text-faint">Padrão da conta{account.defaults.source ? `, vencedor do teste "${account.defaults.source}"` : ''}.</p>
+                )}
                 {testing && <p className="mb-3 text-xs text-faint">Marque de 2 a 4 estilos. Cada um vira uma versão com o mesmo texto e as mesmas fotos, pra você postar e comparar na área Testes.</p>}
                 <StylePicker
                   label={testing ? 'Formatos do teste' : 'Modelo dos slides'}
@@ -1191,7 +1205,15 @@ export function CreatePage() {
                       ))}
                     </Select>
                   </Field>
+                  {!testsTimeNow && (
+                    <Field label="Horário" htmlFor="posting-time">
+                      <Input id="posting-time" type="time" value={postingTime} onChange={(e) => setPostingTime(e.target.value)} disabled={generating} />
+                    </Field>
+                  )}
                 </div>
+                {!testsTimeNow && postingTime && account?.defaults.postingTime === postingTime && (
+                  <p className="text-xs text-faint">Horário padrão da conta{account.defaults.source ? `, vencedor do teste "${account.defaults.source}"` : ''}.</p>
+                )}
                 {plannedDays.length > 0 ? (
                   <div className="text-xs" aria-live="polite">
                     <p className="font-medium text-ink">

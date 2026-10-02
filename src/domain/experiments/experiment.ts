@@ -68,6 +68,8 @@ export interface Experiment {
   times: string[];
   /** What was learned, written by the user when concluding. */
   learning: string;
+  /** What "Aplicar o vencedor" changed, e.g. "Horário padrão da conta: 19:00". Null until applied. */
+  appliedWinner: string | null;
   concludedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -80,7 +82,7 @@ export const EXPERIMENT_LIMITS = { name: 80, hypothesis: 400, version: 300, lear
 const text = (value: unknown, max: number) => (typeof value === 'string' ? value.trim().slice(0, max) : '');
 
 export function emptyExperiment(accountId: string | null, variable: TestVariable = 'gancho'): ExperimentInput {
-  return { name: '', accountId, variable, variables: [variable], details: {}, hypothesis: '', control: '', variation: '', goalMetric: 'score', times: [], learning: '', concludedAt: null };
+  return { name: '', accountId, variable, variables: [variable], details: {}, hypothesis: '', control: '', variation: '', goalMetric: 'score', times: [], learning: '', appliedWinner: null, concludedAt: null };
 }
 
 const isVariable = (value: unknown): value is TestVariable => TEST_VARIABLES.includes(value as TestVariable);
@@ -117,6 +119,7 @@ export function sanitizeExperimentInput(raw: Partial<ExperimentInput>): Experime
     goalMetric: TEST_METRICS.includes(raw.goalMetric as TestMetric) ? (raw.goalMetric as TestMetric) : 'score',
     times: sanitizeTimes(raw.times),
     learning: text(raw.learning, EXPERIMENT_LIMITS.learning),
+    appliedWinner: typeof raw.appliedWinner === 'string' && raw.appliedWinner.trim() ? raw.appliedWinner.trim().slice(0, EXPERIMENT_LIMITS.learning) : null,
     concludedAt: typeof raw.concludedAt === 'string' ? raw.concludedAt : null,
   };
 }
@@ -156,6 +159,7 @@ export function allExperiments(entities: Experiment[], carousels: Carousel[]): E
       goalMetric: 'score',
       times: [],
       learning: '',
+      appliedWinner: null,
       concludedAt: null,
       createdAt: carousel.createdAt,
       updatedAt: carousel.updatedAt,
@@ -198,7 +202,9 @@ export interface ExperimentResult {
 }
 
 /** With fewer posts than this per variant, any pattern is anecdotal. */
-const SOLID_SAMPLES = 3;
+export const SOLID_SAMPLES = 3;
+/** Measured posts per variant for a medium confidence. */
+export const MEDIUM_SAMPLES = 2;
 const DAYS_TO_WAIT = 7;
 
 const mean = (values: number[]) => (values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null);
@@ -242,7 +248,7 @@ export function evaluateExperiment(experiment: Experiment, members: AnalyticsIte
   if (leader) {
     const minSamples = Math.min(...ranked.map((variant) => variant.measured));
     const { clear, visible } = goalGap(experiment.goalMetric ?? 'score', goal(ranked[0]) ?? 0, goal(ranked[1]) ?? 0);
-    confidence = minSamples >= SOLID_SAMPLES && clear ? 'alta' : minSamples >= 2 && visible ? 'media' : 'baixa';
+    confidence = minSamples >= SOLID_SAMPLES && clear ? 'alta' : minSamples >= MEDIUM_SAMPLES && visible ? 'media' : 'baixa';
     message =
       confidence === 'baixa'
         ? 'Esse padrão apareceu neste teste, mas ainda existem poucos dados para considerá-lo um padrão consolidado.'

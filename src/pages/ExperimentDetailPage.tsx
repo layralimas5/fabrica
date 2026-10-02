@@ -14,12 +14,19 @@ import { useExperimentLab } from '../experiments/useExperimentLab';
 import { Alert, Badge, Button, Dialog, EmptyState, Field, Input, Spinner, Textarea } from '../ui/primitives';
 import { useAddMetrics } from '../winners/useAddMetrics';
 import { EXPERIMENT_STATUS_TONES, postingLabel } from '../experiments/ExperimentViews';
+import { ApplyWinner } from '../experiments/ApplyWinner';
+import { useServices } from '../app/services';
+import { normalizeAccountDefaults } from '../domain/account';
+import { awaitsMeasurement, MEASURE_AFTER_DAYS, pendingMeasurements, sampleProgress } from '../domain/experiments/followUp';
+import type { DimensionLeader, WinnerPlan } from '../domain/experiments/winner';
+import { addDays, todayIso } from '../domain/schedule';
 
 export function ExperimentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const lab = useExperimentLab();
   const scope = useAccountScope();
   const navigate = useNavigate();
+  const services = useServices();
   const metrics = useAddMetrics((saved) => lab.library.records.setData((current) => [saved, ...current.filter((item) => item.id !== saved.id)]));
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -40,6 +47,16 @@ export function ExperimentDetailPage() {
   const members = lab.membersOf(experiment.id);
   const account = scope.accounts.find((item) => item.id === experiment.accountId);
   const draftLearning = learning ?? experiment.learning;
+  const today = todayIso();
+  const toMeasure = new Set(pendingMeasurements(members, [experiment], today).map(({ item }) => item.record.id));
+  // Each part of the test read on its own, so the winning time, model and copy are applied separately.
+  const leaders: DimensionLeader[] = dimensions.flatMap((part) => {
+    const byPart = dimensions.length > 1 ? lab.resultOf(experiment, (item) => versionPart(variantOf(item), part.index)) : lab.resultOf(experiment);
+    const leader = byPart.leader;
+    if (!leader) return [];
+    const others = byPart.variants.filter((variant) => variant.label !== leader.label);
+    return [{ dimension: part, leader: leader.label, runnerUp: others.length === 1 ? others[0].label : null, confidence: byPart.confidence }];
+  });
 
   const attempt = async (task: () => Promise<unknown>) => {
     setError(null);
@@ -49,6 +66,22 @@ export function ExperimentDetailPage() {
       setError(errorMessage(cause));
     }
   };
+  const applyWinner = async (plan: WinnerPlan) => {
+    if (account && Object.keys(plan.defaults).length > 0) {
+      const { id: accountId, createdAt: _c, updatedAt: _u, ...input } = account;
+      await services.accounts.update(accountId, { ...input, defaults: { ...normalizeAccountDefaults(account.defaults), ...plan.defaults } });
+      await scope.reload();
+    }
+    const saved = await lab.save(experiment, {
+      ...toExperimentInput(experiment),
+      learning: [experiment.learning, plan.learning].filter(Boolean).join(' '),
+      appliedWinner: plan.changes.join(' · '),
+      concludedAt: experiment.concludedAt ?? new Date().toISOString(),
+    });
+    setLearning(null);
+    if (saved.id !== experiment.id) navigate(`/testes/${saved.id}`, { replace: true });
+  };
+
   const saveExperiment = (patch: Partial<Experiment>) =>
     attempt(async () => {
       const saved = await lab.save(experiment, { ...toExperimentInput(experiment), ...patch });
@@ -187,6 +220,8 @@ export function ExperimentDetailPage() {
                 </p>
               )}
               <p className={clsx(result.leader ? 'mt-1 text-muted' : 'text-muted')}>{result.message}</p>
+              <p className="mt-1 text-xs text-faint">{sampleProgress(result)}</p>
+              <ApplyWinner experiment={experiment} leaders={leaders} hasAccount={account !== undefined} onApply={applyWinner} />
             </div>
           </>
         )}
@@ -206,6 +241,8 @@ export function ExperimentDetailPage() {
                   </Link>
                   <p className="text-xs text-faint">
                     <span className="font-medium text-muted">{variantOf(item)}</span> · {postingLabel(item)} · {item.carousel ? statusLabel(item.carousel) : ''}
+                    {toMeasure.has(item.record.id) && <span className="ml-2 rounded-md bg-amber-100 px-1.5 py-0.5 font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">Falta medir</span>}
+                    {awaitsMeasurement(item, today) && item.record.publishedAt && <span className="ml-2 text-faint">· medir a partir de {formatDay(addDays(item.record.publishedAt, MEASURE_AFTER_DAYS))}</span>}
                   </p>
                 </div>
                 {item.carousel && (

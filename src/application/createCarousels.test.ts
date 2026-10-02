@@ -557,6 +557,21 @@ describe('createCarousels with a ficha do teste', () => {
     expect(services.saved).toHaveLength(0);
   });
 
+  it('a scheduled time test spreads the weekdays over the times', async () => {
+    const services = fakeServices();
+    const eight = Array.from({ length: 8 }, (_, index) => `Slide 1, post ${index}\nSlide 2, mais`);
+    await createCarousels(services, request({ texts: eight, schedule: { startDate: '2026-10-02', perDay: 1 }, test: { brief: defaultBrief(['horario']), copyVersions: [] } }));
+    const weekdays = (time: string) => new Set(services.saved.filter((carousel) => carousel.source.scheduledTime === time).map((carousel) => new Date(`${carousel.scheduledFor}T12:00:00Z`).getUTCDay()));
+    expect(weekdays('08:00').size).toBe(4);
+    expect(weekdays('19:00').size).toBe(4);
+  });
+
+  it('uses the account posting time when no test or plan sets one', async () => {
+    const services = fakeServices();
+    await createCarousels(services, request({ texts: four.slice(0, 2), defaultTime: '19:00' }));
+    expect(services.saved.every((carousel) => carousel.source.scheduledTime === '19:00')).toBe(true);
+  });
+
   it('refuses a time test with fewer carousels than times', async () => {
     const services = fakeServices();
     const run = createCarousels(services, request({ texts: four.slice(0, 1), test: { brief: { ...defaultBrief(['horario']), times: ['08:00', '12:00', '19:00'] }, copyVersions: [] } }));

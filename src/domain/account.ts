@@ -1,4 +1,5 @@
-import type { Platform } from './carousel';
+import { normalizeTime, type Platform } from './carousel';
+import { VISUAL_STYLES, type VisualStyle } from './brandKit';
 
 /** A social profile the user posts for: shown in the header of post-style slides. */
 export interface Account {
@@ -17,8 +18,29 @@ export interface Account {
   /** Paused accounts stay in history and analytics but leave the pickers. */
   status: AccountStatus;
   notes: string;
+  /** What the account's tests proved: used by the create screen until another test says otherwise. */
+  defaults: AccountDefaults;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AccountDefaults {
+  /** Posting time that won a time test, filled in when scheduling. */
+  postingTime: string | null;
+  /** Slide model that won a format test, preselected on the create screen. */
+  visualStyle: VisualStyle | null;
+  /** Test that set these defaults, shown next to them. */
+  source: string | null;
+}
+
+export const EMPTY_ACCOUNT_DEFAULTS: AccountDefaults = { postingTime: null, visualStyle: null, source: null };
+
+export function normalizeAccountDefaults(raw: Partial<AccountDefaults> | null | undefined): AccountDefaults {
+  return {
+    postingTime: normalizeTime(raw?.postingTime),
+    visualStyle: VISUAL_STYLES.includes(raw?.visualStyle as VisualStyle) ? (raw?.visualStyle as VisualStyle) : null,
+    source: typeof raw?.source === 'string' && raw.source.trim() ? raw.source.trim().slice(0, 120) : null,
+  };
 }
 
 export type AccountInput = Omit<Account, 'id' | 'createdAt' | 'updatedAt'>;
@@ -39,6 +61,7 @@ export function normalizeAccount(account: Account): Account {
     project: typeof account.project === 'string' ? account.project : '',
     status: account.status === 'paused' ? 'paused' : 'active',
     notes: typeof account.notes === 'string' ? account.notes : '',
+    defaults: normalizeAccountDefaults(account.defaults),
   };
 }
 
@@ -68,7 +91,7 @@ export function normalizeHandle(raw: string): string {
 }
 
 export function emptyAccount(platform: Platform): AccountInput {
-  return { name: '', handle: '', platform, avatar: null, brandKitId: null, project: '', status: 'active', notes: '' };
+  return { name: '', handle: '', platform, avatar: null, brandKitId: null, project: '', status: 'active', notes: '', defaults: EMPTY_ACCOUNT_DEFAULTS };
 }
 
 export function identityOf(account: Pick<Account, 'name' | 'handle' | 'avatar'>): AccountIdentity {
