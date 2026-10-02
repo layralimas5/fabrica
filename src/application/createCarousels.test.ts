@@ -224,6 +224,53 @@ describe('createCarousels product image picked at creation', () => {
   });
 });
 
+describe('createCarousels app image per copy', () => {
+  const withProduct: BrandKit = { ...brand, product: { name: 'Momentumm', pitch: 'Deixa o progresso visível.', imageAssetId: 'a0' } };
+  const appScript = (hook: string) => `Slide 1, ${hook}
+Slide 2 — APP
+O Momentumm mostra o porquê.
+Slide 3, Comece pelo motivo.`;
+
+  it('each copy shows its own app image in the APP slide and the image stays out of the photo pool', async () => {
+    const services = fakeServices();
+    await createCarousels(
+      services,
+      request({
+        brand: withProduct,
+        texts: [appScript('Você trava na quarta.'), appScript('Seu dia some no celular.')],
+        includeProduct: true,
+        copySettings: [
+          { objective: null, contentType: null, productImageAssetId: 'a4' },
+          { objective: null, contentType: null, productImageAssetId: 'a5' },
+        ],
+      }),
+    );
+    const [first, second] = services.saved;
+    expect(first.slides.find((slide) => slide.role === 'product')?.assetId).toBe('a4');
+    expect(second.slides.find((slide) => slide.role === 'product')?.assetId).toBe('a5');
+    const others = services.saved.flatMap((carousel) => carousel.slides.filter((slide) => slide.role !== 'product'));
+    expect(others.some((slide) => slide.assetId === 'a4' || slide.assetId === 'a5')).toBe(false);
+  });
+
+  it('a copy without its own image falls back to the batch image', async () => {
+    const services = fakeServices();
+    await createCarousels(services, request({ brand: withProduct, texts: [appScript('Você trava na quarta.')], includeProduct: true, copySettings: [] }));
+    expect(services.saved[0].slides.find((slide) => slide.role === 'product')?.assetId).toBe('a0');
+  });
+
+  it('uses the copy image even when the brand has no product set', async () => {
+    const services = fakeServices();
+    await createCarousels(services, request({ texts: [appScript('Você trava na quarta.')], includeProduct: false, copySettings: [{ objective: null, contentType: null, productImageAssetId: 'a3' }] }));
+    expect(services.saved[0].slides.find((slide) => slide.role === 'product')?.assetId).toBe('a3');
+  });
+
+  it('refuses to create an APP slide without the app image instead of filling it with a random photo', async () => {
+    const services = fakeServices();
+    await expect(createCarousels(services, request({ texts: ['Slide 1, oi', appScript('Você trava na quarta.')], includeProduct: false }))).rejects.toThrow('A copy 2 tem slide do app');
+    expect(services.saved).toHaveLength(0);
+  });
+});
+
 describe('createCarousels proportion', () => {
   it('uses the chosen proportion whatever the visual style', async () => {
     const services = fakeServices();
