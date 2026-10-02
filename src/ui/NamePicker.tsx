@@ -5,7 +5,7 @@ import { Input } from './primitives';
 
 export interface NameOption {
   name: string;
-  count: number;
+  count?: number;
 }
 
 interface NamePickerProps {

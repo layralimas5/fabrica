@@ -113,3 +113,22 @@ describe('splitCopies', () => {
   });
 });
 
+describe('parseScript product slide markers', () => {
+  it('accepts APP and PRINT after the number', () => {
+    expect(parseScript('Slide 1, gancho\nSLIDE 2 — APP\nO app mostra o progresso.')[0].productIndex).toBe(1);
+    expect(parseScript('Slide 1, gancho\nSlide 2 - print: veja como fica')[0]).toMatchObject({ productIndex: 1, slides: ['gancho', 'veja como fica'] });
+  });
+
+  it('accepts a product slide without a number', () => {
+    const [carousel] = parseScript('Slide 1, gancho\nSLIDE - PRODUTO\nFoi essa lógica que eu levei pro app.\nSlide 3, fechamento');
+    expect(carousel.slides).toEqual(['gancho', 'Foi essa lógica que eu levei pro app.', 'fechamento']);
+    expect(carousel.productIndex).toBe(1);
+  });
+
+  it('does not take text that starts with "app" as a marker', () => {
+    const [carousel] = parseScript('Slide 1, gancho\nSlide 2, app que eu uso todo dia');
+    expect(carousel.productIndex).toBeNull();
+    expect(carousel.slides[1]).toBe('app que eu uso todo dia');
+  });
+});
+

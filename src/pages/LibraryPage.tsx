@@ -10,6 +10,7 @@ import { errorMessage } from '../app/useResource';
 import { ACCEPTED_IMAGE_TYPES, ASSET_KINDS, isAcceptedImage, isPhotoLike, parseTags, UNSORTED_FOLDER, UPLOAD_RULES_MESSAGE, type Asset, type AssetKind } from '../domain/asset';
 import { renameFolder } from '../application/renameFolder';
 import { FolderList } from '../library/FolderList';
+import { NamePicker } from '../ui/NamePicker';
 import { AssetThumb } from '../ui/AssetThumb';
 import { Alert, Button, Dialog, EmptyState, Field, Input, PageHeader, Select, Spinner } from '../ui/primitives';
 
@@ -116,15 +117,19 @@ export function LibraryPage() {
         onDrop={onDrop}
         className={clsx('mb-8 rounded-2xl border border-dashed p-5 transition-colors', dragOver ? 'border-accent bg-accent/5' : 'border-line bg-surface')}
       >
-        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_160px_auto] sm:items-end">
-          <Field label="Pasta" htmlFor="upload-folder">
-            <Input id="upload-folder" list="folder-options" value={uploadFolder} onChange={(e) => setUploadFolder(e.target.value)} />
-            <datalist id="folder-options">
-              {folders.map((name) => (
-                <option key={name} value={name} />
-              ))}
-            </datalist>
-          </Field>
+        <div className="mb-4">
+          <NamePicker
+            label="Salvar as imagens na pasta"
+            options={[...folderCounts.entries()].map(([name, count]) => ({ name, count }))}
+            value={uploadFolder}
+            onChange={setUploadFolder}
+            createLabel="Nova pasta"
+            placeholder="Nome da pasta, ex: Ella, Aura, Pinterest"
+            hint={uploadFolder.trim() ? `As próximas imagens vão pra "${uploadFolder.trim()}".` : `Sem escolher, vão pra "${UNSORTED_FOLDER}".`}
+            disabled={uploading !== null}
+          />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-[1fr_160px_auto] sm:items-end">
           <Field label="Tags para este envio" htmlFor="upload-tags">
             <Input id="upload-tags" value={uploadTags} onChange={(e) => setUploadTags(e.target.value)} placeholder="produtividade, foco" />
           </Field>
@@ -171,7 +176,17 @@ export function LibraryPage() {
       {(error ?? assets.error) && <div className="mb-4"><Alert>{error ?? assets.error}</Alert></div>}
 
       <div className="grid gap-6 md:grid-cols-[180px_minmax(0,1fr)]">
-        <FolderList counts={folderCounts} total={assets.data.length} selected={folder} onSelect={setFolder} onRename={handleRename} />
+        <FolderList
+          counts={folderCounts}
+          total={assets.data.length}
+          selected={folder}
+          onSelect={(name) => {
+            setFolder(name);
+            // Browsing a folder makes it the upload destination too.
+            if (name) setUploadFolder(name);
+          }}
+          onRename={handleRename}
+        />
 
         <div className="min-w-0">
           <div className="relative mb-4">
@@ -284,14 +299,14 @@ function AssetEditor({ asset, folders, onClose, onSaved, onRemoved }: AssetEdito
           <Field label="Nome" htmlFor="asset-name">
             <Input id="asset-name" value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
-          <Field label="Pasta" htmlFor="asset-folder">
-            <Input id="asset-folder" list="asset-folder-options" value={folder} onChange={(e) => setFolder(e.target.value)} />
-            <datalist id="asset-folder-options">
-              {folders.map((option) => (
-                <option key={option} value={option} />
-              ))}
-            </datalist>
-          </Field>
+          <NamePicker
+            label="Pasta"
+            options={folders.map((option) => ({ name: option }))}
+            value={folder}
+            onChange={setFolder}
+            createLabel="Nova pasta"
+            placeholder="Nome da pasta"
+          />
           <Field label="Tipo" htmlFor="asset-kind">
             <Select id="asset-kind" value={kind} onChange={(e) => setKind(e.target.value as AssetKind)}>
               {ASSET_KINDS.map((option) => (

@@ -3,8 +3,9 @@
  *
  * Numbered slides (same as the content prompt output):
  *   Slide 1: texto   ·   Slide 1, texto   ·   "SLIDE 1 — GANCHO" alone with the text on the next lines
- *   An uppercase label after the number (GANCHO, PRODUTO…) is not text; PRODUTO marks the product slide,
- *   and so does a bracketed note like [INSERIR PRINT DO APP AQUI].
+ *   An uppercase label after the number (GANCHO, PRODUTO…) is not text. PRODUTO, APP or PRINT marks the
+ *   product slide, with or without a number ("SLIDE 6 — APP", "SLIDE - PRODUTO"), and so does a bracketed
+ *   note like [INSERIR PRINT DO APP AQUI].
  *   Blank lines inside a slide are kept as paragraph breaks. `---` lines are ignored; a new carousel starts
  *   when the numbering restarts at Slide 1.
  *   Tema do carrossel: / Título: name of the carousel · Legenda: post caption
@@ -29,7 +30,26 @@ export interface ScriptCarousel {
 
 const CAROUSEL_SEPARATOR = /^\s*---+\s*$/;
 const LINE_BREAK = /\s*\/\/\s*/g;
-const SLIDE_HEADER = /^slide\s*(\d+)\s*(?:\([^)]*\))?\s*(?:[:,.\-–—]\s*)?(.*)$/i;
+const NUMBERED_SLIDE = /^slide\s*(\d+)\s*(?:\([^)]*\))?\s*(?:[:,.\-–—]\s*)?(.*)$/i;
+/** "SLIDE - PRODUTO", "Slide: app": a product slide written without a number. */
+const TAGGED_SLIDE = /^slide\s*(?:[:,.\-–—]\s*)?((?:produto|app|aplicativo|print)\s*(?:$|[:,.\-–—].*$))/i;
+/** The tag alone or followed by a separator: "APP", "produto: texto". Not "app que eu uso", which is text. */
+const PRODUCT_TAG = /^(?:produto|app|aplicativo|print)\s*(?:$|[:,.\-–—]\s*(.*)$)/i;
+
+interface SlideHeader {
+  /** Null for a product slide written without a number. */
+  number: number | null;
+  rest: string;
+}
+
+function slideHeader(line: string): SlideHeader | null {
+  const numbered = NUMBERED_SLIDE.exec(line);
+  if (numbered) return { number: Number(numbered[1]), rest: numbered[2].trim() };
+  const tagged = TAGGED_SLIDE.exec(line);
+  return tagged ? { number: null, rest: tagged[1].trim() } : null;
+}
+
+const isSlideHeader = (line: string) => slideHeader(line) !== null;
 const LABEL = /^(tema do carrossel|tema|t[íi]tulo do carrossel|t[íi]tulo|legenda curta sugerida|legenda sugerida|legenda|objetivo|ideia visual geral|ideia visual|instru[çc][ãa]o visual|formato da resposta)\s*:\s*(.*)$/i;
 const BRACKET_NOTE = /^\[[^\]]*\]$/;
 const CAROUSEL_HEADER = /^carrossel\s*\d+\s*(?:[:.,\-–—]\s*(.*))?$/i;
@@ -46,13 +66,13 @@ const LABEL_TARGETS: Record<string, Target> = {
 
 /** True when the copy uses "Slide 1, Slide 2…" markers: the user already decided where each slide starts. */
 export function hasNumberedSlides(raw: string): boolean {
-  return raw.split(/\r?\n/).some((line) => SLIDE_HEADER.test(clean(line)));
+  return raw.split(/\r?\n/).some((line) => isSlideHeader(clean(line)));
 }
 
 export function parseScript(raw: string): ScriptCarousel[] {
   const lines = raw.split(/\r?\n/).map(clean);
   const blocks = splitAtCarouselHeaders(lines).flatMap((section) =>
-    section.some((line) => SLIDE_HEADER.test(line)) ? splitAtRestart(section) : splitAtSeparator(section),
+    section.some(isSlideHeader) ? splitAtRestart(section) : splitAtSeparator(section),
   );
   return blocks.map(parseBlock).filter((carousel) => carousel.slides.length > 0);
 }
@@ -61,7 +81,7 @@ export function parseScript(raw: string): ScriptCarousel[] {
 export function splitCopies(raw: string): string[] {
   const lines = raw.split(/\r?\n/).map(clean);
   return splitAtCarouselHeaders(lines)
-    .flatMap((section) => (section.some((line) => SLIDE_HEADER.test(line)) ? splitAtRestart(section) : splitAtSeparator(section)))
+    .flatMap((section) => (section.some(isSlideHeader) ? splitAtRestart(section) : splitAtSeparator(section)))
     .map((block) => block.join('\n').trim())
     .filter((text) => parseScript(text).length > 0);
 }
@@ -98,8 +118,8 @@ function splitAtRestart(lines: string[]): string[][] {
   let seenSlide = false;
   for (const line of lines) {
     if (CAROUSEL_SEPARATOR.test(line)) continue;
-    const header = SLIDE_HEADER.exec(line);
-    if (header && Number(header[1]) === 1 && seenSlide) blocks.push([]);
+    const header = slideHeader(line);
+    if (header?.number === 1 && seenSlide) blocks.push([]);
     if (header) seenSlide = true;
     blocks[blocks.length - 1].push(line);
   }
@@ -117,7 +137,7 @@ function isRoleTag(text: string): boolean {
 }
 
 function parseBlock(lines: string[]): ScriptCarousel {
-  return lines.some((line) => SLIDE_HEADER.test(line)) ? parseNumbered(lines) : parsePlain(lines.filter(Boolean));
+  return lines.some(isSlideHeader) ? parseNumbered(lines) : parsePlain(lines.filter(Boolean));
 }
 
 function parseNumbered(lines: string[]): ScriptCarousel {
@@ -138,15 +158,16 @@ function parseNumbered(lines: string[]): ScriptCarousel {
   };
 
   for (const line of lines) {
-    const header = SLIDE_HEADER.exec(line);
+    const header = slideHeader(line);
     if (header) {
       slides.push([]);
       target = 'slide';
-      const rest = header[2].trim();
-      if (isRoleTag(rest)) {
-        if (/^produto\b/i.test(rest)) productIndex = slides.length - 1;
-      } else if (rest) {
-        push(rest);
+      const productTag = PRODUCT_TAG.exec(header.rest);
+      if (productTag) {
+        productIndex = slides.length - 1;
+        if (productTag[1]?.trim()) push(productTag[1].trim());
+      } else if (header.rest && !isRoleTag(header.rest)) {
+        push(header.rest);
       }
       continue;
     }

@@ -556,7 +556,7 @@ export function CreatePage() {
                     {mode === 'ai' ? (
                       <span className="font-medium text-ink">Você já numerou os slides, então a ferramenta respeita a sua divisão e não muda o texto. </span>
                     ) : null}
-                    <code className="text-muted">Slide 1</code> começa o slide 1 (só o texto aparece) · <code className="text-muted">SLIDE 6 — PRODUTO</code> recebe o print · linha em branco vira espaço entre parágrafos · sem "Slide N", cada linha é um slide · <code className="text-muted">Legenda:</code> e <code className="text-muted">Tema do carrossel:</code> são lidos à parte
+                    <code className="text-muted">Slide 1</code> começa o slide 1 (só o texto aparece) · <code className="text-muted">SLIDE 6 — PRODUTO</code> ou <code className="text-muted">SLIDE - APP</code> recebe o print · linha em branco vira espaço entre parágrafos · sem "Slide N", cada linha é um slide · <code className="text-muted">Legenda:</code> e <code className="text-muted">Tema do carrossel:</code> são lidos à parte
                   </p>
                   <p className="shrink-0 font-medium text-muted" aria-live="polite">
                     {blocks} {blocks === 1 ? 'carrossel' : 'carrosséis'} · {stats.slides} slides
@@ -692,8 +692,8 @@ export function CreatePage() {
                         Mostrar o {product.name} num slide, como parte da solução
                         <span className="block text-xs text-faint">
                         {mode === 'ai' && !numbered
-                          ? 'A IA coloca um slide com a imagem do produto. As outras fotos nunca repetem ela.'
-                          : 'A imagem entra no slide marcado como PRODUTO (ex: SLIDE 6 — PRODUTO) ou com [INSERIR PRINT].'}
+                          ? 'A IA escolhe o slide do produto. Pra escolher você mesma, marque na copy: SLIDE - APP ou SLIDE 6 — PRODUTO.'
+                          : 'Marque na copy qual é o slide: SLIDE 6 — PRODUTO, SLIDE 6 — APP ou só SLIDE - APP. A imagem do produto entra nesse slide.'}
                       </span>
                       </span>
                     </label>
