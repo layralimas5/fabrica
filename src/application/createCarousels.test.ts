@@ -180,3 +180,14 @@ describe('createCarousels shade', () => {
     expect(services.saved.every((carousel) => carousel.source.shade?.style === 'vignette' && carousel.source.shade.intensity === 0.6)).toBe(true);
   });
 });
+
+describe('createCarousels photo context', () => {
+  it('leaves a slide without photo when no library photo relates to it', async () => {
+    const services = fakeServices();
+    const beach: Asset = { ...photos[0], id: 'beach', tags: ['praia', 'mar'] };
+    await createCarousels(services, request({ library: [beach], text: 'treino pesado na academia\nférias na praia', styles: ['tiktok'] }));
+    const slides = services.saved[0].slides;
+    expect(slides[0].assetId).toBeNull();
+    expect(slides[1].assetId).toBe('beach');
+  });
+});

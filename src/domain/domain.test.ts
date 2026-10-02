@@ -28,6 +28,9 @@ const asset = (id: string, tags: string[], kind: Asset['kind'] = 'foto'): Asset 
   createdAt: '2026-10-01T00:00:00Z',
 });
 
+/** Tags that relate to every sentence of COPY, so each slide has a photo that fits. */
+const COPY_TAGS = ['motivação', 'problema', 'vontade', 'disciplina', 'rotina', 'ambiente', 'constância'];
+
 const request = (overrides: Partial<DraftRequest> = {}): DraftRequest => ({
   copy: COPY,
   contentType: 'educativo',
@@ -106,7 +109,7 @@ describe('composeSlides', () => {
 describe('post style', () => {
   it('puts an image on every content slide and uses only post layouts', async () => {
     const draft = await new HeuristicAi().draftCarousel(request({ visualStyle: 'post', slideCount: 5 }));
-    const assets = ['a', 'b', 'c', 'd', 'e'].map((id) => asset(id, ['motivação']));
+    const assets = ['a', 'b', 'c', 'd', 'e'].map((id) => asset(id, COPY_TAGS));
     const slides = composeSlides(draft, { objective: 'engajamento', assets, visualStyle: 'post' });
     expect(slides.slice(0, -1).every((slide) => slide.layout === 'post_image' && slide.assetId)).toBe(true);
     expect(slides.at(-1)?.layout).toBe('post_text');
@@ -116,7 +119,7 @@ describe('post style', () => {
 describe('tiktok style', () => {
   it('uses one sentence per slide and a full photo on every slide, CTA included', async () => {
     const draft = await new HeuristicAi().draftCarousel(request({ visualStyle: 'tiktok' }));
-    const assets = Array.from({ length: 12 }, (_, i) => asset(`p${i}`, ['rotina']));
+    const assets = Array.from({ length: 12 }, (_, i) => asset(`p${i}`, [...COPY_TAGS, 'salva', 'voltar']));
     const slides = composeSlides(draft, { objective: 'salvamento', assets, visualStyle: 'tiktok' });
     expect(slides.length).toBe(splitSentences(COPY).length + 1);
     expect(slides.every((slide) => slide.layout === 'native_photo' && slide.assetId)).toBe(true);
@@ -125,6 +128,11 @@ describe('tiktok style', () => {
 });
 
 describe('matchImages', () => {
+  it('never puts a photo that has nothing to do with the slide', () => {
+    const assets = [asset('beach', ['praia', 'mar', 'férias'])];
+    expect(matchImages(['Foco no trabalho todo dia', 'Férias na praia'], assets, () => 0)).toEqual([null, 'beach']);
+  });
+
   it('prefers images whose tags match the slide and avoids repeats', () => {
     const assets = [asset('desk', ['trabalho', 'notebook', 'foco']), asset('gym', ['treino', 'academia']), asset('logo', ['marca'], 'logo')];
     const result = matchImages(['Foco no trabalho todo dia', 'Treino na academia', null], assets, () => 0);
@@ -181,5 +189,13 @@ describe('product slide', () => {
     expect(slides[1].assetId).toBe('print');
     expect(slides.filter((slide) => slide.assetId === 'print')).toHaveLength(1);
     expect(LAYOUTS[slides[1].layout].needsImage).toBe(true);
+  });
+});
+
+describe('HeuristicAi.matchImages', () => {
+  it('returns null for slides without a related photo', async () => {
+    const assets = [{ id: 'cafe', name: 'cafe.jpg', folder: 'Geral', kind: 'foto', tags: ['café', 'manhã'] }];
+    const result = await new HeuristicAi().matchImages({ slides: [{ text: 'Meu café da manhã' }, { text: 'Treino pesado' }], assets });
+    expect(result).toEqual(['cafe', null]);
   });
 });

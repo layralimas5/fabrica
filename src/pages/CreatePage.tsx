@@ -14,7 +14,7 @@ import { DEFAULT_SHADE, type ImageShade } from '../domain/shade';
 import { ImagePickerDialog } from '../editor/ImagePickerDialog';
 import { AssetThumb } from '../ui/AssetThumb';
 import { ACCEPTED_IMAGE_TYPES, inFolders, isAcceptedImage, isPhotoLike, PRODUCT_FOLDER, UPLOAD_RULES_MESSAGE } from '../domain/asset';
-import { MOMENTUMM_STARTER, productOf, type VisualStyle } from '../domain/brandKit';
+import { MOMENTUMM_STARTER, photoFoldersOf, productOf, type VisualStyle } from '../domain/brandKit';
 import { PLATFORM_FORMATS, PLATFORM_LABELS, PLATFORMS, type CopyMode, type Platform } from '../domain/carousel';
 import {
   CONTENT_TYPE_LABELS,
@@ -105,6 +105,7 @@ export function CreatePage() {
     setStyles([brand.visualStyle]);
     setTesting(false);
     setProductImageId(productOf(brand)?.imageAssetId ?? null);
+    setFolders(photoFoldersOf(brand));
   }, [brand?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const changeMode = (next: CopyMode) => {
@@ -218,8 +219,8 @@ export function CreatePage() {
 
       {brands.data.length === 0 || !brand ? (
         <div className="rounded-2xl border border-line bg-surface p-8 text-center shadow-sm">
-          <p className="text-sm font-semibold text-ink">Primeiro, uma marca</p>
-          <p className="mx-auto mt-1 max-w-md text-sm text-muted">Todo carrossel segue um Brand Kit: cores, fontes e estilo. Começa com o do Momentumm ou cria o seu.</p>
+          <p className="text-sm font-semibold text-ink">Primeiro, uma conta</p>
+          <p className="mx-auto mt-1 max-w-md text-sm text-muted">Cada conta que você produz tem um Brand Kit: cores, fontes, tom de voz, produto e pastas de fotos. Cria o primeiro ou começa por um modelo.</p>
           <div className="mt-5 flex flex-wrap justify-center gap-2">
             <Button variant="primary" loading={creatingStarter} onClick={() => void createStarterBrand()}>
               Usar o kit Momentumm

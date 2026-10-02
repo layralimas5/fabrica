@@ -50,6 +50,11 @@ export interface BrandProduct {
 
 export const EMPTY_PRODUCT: BrandProduct = { name: '', pitch: '', imageAssetId: null };
 
+/** Older brand kits were saved before photo folders existed. */
+export function photoFoldersOf(brand: Pick<BrandKit, 'photoFolders'>): string[] {
+  return brand.photoFolders ?? [];
+}
+
 /** The brand's product, or null when none is set. Older brand kits were saved before products existed. */
 export function productOf(brand: Pick<BrandKit, 'product'>): BrandProduct | null {
   const product = brand.product;
@@ -85,6 +90,8 @@ export interface BrandKit {
   avatarAssetId: string | null;
   photoText: PhotoText;
   product: BrandProduct;
+  /** Library folders this account's photos come from. Empty means every folder. */
+  photoFolders: string[];
   colors: BrandColors;
   typography: BrandTypography;
   visualStyle: VisualStyle;
@@ -123,6 +130,7 @@ export function defaultBrandKit(overrides: Partial<BrandKitInput> = {}): BrandKi
     avatarAssetId: null,
     photoText: { ...DEFAULT_PHOTO_TEXT },
     product: { ...EMPTY_PRODUCT },
+    photoFolders: [],
     colors: {
       primary: '#111111',
       secondary: '#6d5dfc',

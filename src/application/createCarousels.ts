@@ -2,7 +2,8 @@ import { inFolders, type Asset } from '../domain/asset';
 import type { CarouselDraft } from '../domain/aiContract';
 import { productOf, VISUAL_STYLE_LABELS, type BrandKit, type BrandProduct, type VisualStyle } from '../domain/brandKit';
 import { PLATFORM_FORMATS, type Carousel, type CopyMode, type ExperimentRef, type Platform, type Slide } from '../domain/carousel';
-import { composeSlides } from '../domain/composeCarousel';
+import { composeSlides, slidesWantingImages, slideText } from '../domain/composeCarousel';
+import { isPhotoLike } from '../domain/asset';
 import type { ContentType, Objective, SlideCountOption } from '../domain/content';
 import { parseScript } from '../domain/script';
 import type { ImageShade } from '../domain/shade';
@@ -61,7 +62,9 @@ export async function createCarousels(services: Services, request: CreateRequest
   const carousels: Carousel[] = [];
   const experimentIds: string[] = [];
 
-  for (const { draft, caption, copy } of copies) {
+  for (const prepared of copies) {
+    const { caption, copy } = prepared;
+    const draft = await withMatchedPhotos(services, prepared.draft, assets, styles);
     const experimentId = isTest ? crypto.randomUUID() : null;
     if (experimentId) experimentIds.push(experimentId);
     let previous: Slide[] | null = null;
@@ -78,6 +81,7 @@ export async function createCarousels(services: Services, request: CreateRequest
         preserveText: request.mode === 'manual',
         addCta: request.mode === 'ai' || request.addCta,
         productAssetId: product?.imageAssetId ?? null,
+        autoMatch: false,
       });
       previous = slides;
 
@@ -108,6 +112,35 @@ export async function createCarousels(services: Services, request: CreateRequest
   }
 
   return { carousels, experimentIds };
+}
+
+/**
+ * Every slide that wants a photo (in any of the chosen styles) gets one that fits its text, or none.
+ * Photos the AI already picked while drafting are kept.
+ */
+async function withMatchedPhotos(services: Services, draft: CarouselDraft, assets: Asset[], styles: VisualStyle[]): Promise<CarouselDraft> {
+  const photos = assets.filter(isPhotoLike);
+  const known = new Set(photos.map((asset) => asset.id));
+  const wants = styles.map((style) => slidesWantingImages(draft, style));
+  const pending = draft.slides
+    .map((slide, index) => ({ slide, index }))
+    .filter(({ slide, index }) => slide.role !== 'product' && wants.some((list) => list[index]) && !(slide.assetId && known.has(slide.assetId)));
+  if (pending.length === 0 || photos.length === 0) return draft;
+
+  const alreadyUsed = new Set(draft.slides.map((slide) => slide.assetId).filter(Boolean));
+  const candidates = photos.filter((asset) => !alreadyUsed.has(asset.id));
+  if (candidates.length === 0) return draft;
+
+  const matched = await services.ai.matchImages({
+    slides: pending.map(({ slide }) => ({ text: slideText(slide) })),
+    assets: candidates.slice(0, ASSET_CONTEXT_LIMIT).map(({ id, name, folder, kind, tags }) => ({ id, name, folder, kind, tags })),
+  });
+  const slides = draft.slides.map((slide) => ({ ...slide }));
+  pending.forEach(({ index }, position) => {
+    slides[index].assetId = matched[position] ?? null;
+    if (slides[index].assetId) slides[index].wantsImage = true;
+  });
+  return { ...draft, slides };
 }
 
 function productForRequest(request: CreateRequest): BrandProduct | null {

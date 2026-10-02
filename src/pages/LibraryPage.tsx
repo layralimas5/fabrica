@@ -1,11 +1,13 @@
 import clsx from 'clsx';
-import { Search, Upload } from 'lucide-react';
+import { Search, Sparkles, Upload } from 'lucide-react';
 import { useMemo, useRef, useState, type DragEvent } from 'react';
+import { toAiImage } from '../app/aiImage';
 import { forgetAsset } from '../app/imageCache';
+import { tagAsset } from '../application/tagAsset';
 import { useAssets } from '../app/data';
 import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
-import { ACCEPTED_IMAGE_TYPES, ASSET_KINDS, isAcceptedImage, parseTags, UNSORTED_FOLDER, UPLOAD_RULES_MESSAGE, type Asset, type AssetKind } from '../domain/asset';
+import { ACCEPTED_IMAGE_TYPES, ASSET_KINDS, isAcceptedImage, isPhotoLike, parseTags, UNSORTED_FOLDER, UPLOAD_RULES_MESSAGE, type Asset, type AssetKind } from '../domain/asset';
 import { renameFolder } from '../application/renameFolder';
 import { FolderList } from '../library/FolderList';
 import { AssetThumb } from '../ui/AssetThumb';
@@ -25,6 +27,8 @@ export function LibraryPage() {
   const [dragOver, setDragOver] = useState(false);
   const [editing, setEditing] = useState<Asset | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [analyzing, setAnalyzing] = useState<{ done: number; total: number } | null>(null);
+  const canSeeImages = services.ai.engine === 'claude';
 
   const folderCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -46,6 +50,29 @@ export function LibraryPage() {
     );
   }, [assets.data, folder, query]);
 
+  const replaceAsset = (updated: Asset) => assets.setData((current) => current.map((asset) => (asset.id === updated.id ? updated : asset)));
+
+  /** The AI looks at the photo and adds tags for what it shows and which themes it illustrates. */
+  const analyze = async (asset: Asset, blob: Blob): Promise<void> => {
+    if (!canSeeImages || !isPhotoLike(asset)) return;
+    replaceAsset(await tagAsset(services, asset, await toAiImage(blob)));
+  };
+
+  const analyzeLibrary = async () => {
+    const targets = assets.data.filter(isPhotoLike);
+    setError(null);
+    setAnalyzing({ done: 0, total: targets.length });
+    for (const [index, asset] of targets.entries()) {
+      try {
+        await analyze(asset, await services.assets.fetchBlob(asset));
+      } catch (cause) {
+        setError(`Não consegui analisar ${asset.name}: ${errorMessage(cause)}`);
+      }
+      setAnalyzing({ done: index + 1, total: targets.length });
+    }
+    setAnalyzing(null);
+  };
+
   const upload = async (files: File[]) => {
     const valid = files.filter(isAcceptedImage);
     const skipped = files.length - valid.length;
@@ -58,6 +85,7 @@ export function LibraryPage() {
       try {
         const asset = await services.assets.upload({ file, folder: uploadFolder.trim() || UNSORTED_FOLDER, kind: uploadKind, tags });
         assets.setData((current) => [asset, ...current]);
+        await analyze(asset, file).catch((cause: unknown) => setError(`${asset.name} subiu, mas a análise da IA falhou: ${errorMessage(cause)}`));
       } catch (cause) {
         setError(errorMessage(cause));
       }
@@ -114,7 +142,19 @@ export function LibraryPage() {
             {uploading ? `Enviando ${uploading.done}/${uploading.total}` : 'Enviar imagens'}
           </Button>
         </div>
-        <p className="mt-3 text-xs text-faint">Tags separadas por vírgula (ex.: produtividade, foco, notebook). Você também pode arrastar as imagens pra cá.</p>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-faint">
+            {canSeeImages
+              ? 'A IA olha cada foto enviada e cria as tags sozinha (o que aparece e que temas ela ilustra). As suas tags são opcionais. Dá pra arrastar as imagens pra cá.'
+              : 'Modo sem Claude: só entra foto num slide quando alguma tag dela bate com a frase. Capricha nas tags (ex.: café, manhã, rotina, foco). Dá pra arrastar as imagens pra cá.'}
+          </p>
+          {canSeeImages && assets.data.length > 0 && (
+            <Button size="sm" variant="secondary" className="shrink-0" loading={analyzing !== null} onClick={() => void analyzeLibrary()}>
+              {!analyzing && <Sparkles className="size-4" aria-hidden />}
+              {analyzing ? `Analisando ${analyzing.done}/${analyzing.total}` : 'Analisar fotos com IA'}
+            </Button>
+          )}
+        </div>
         <input
           ref={fileInput}
           type="file"

@@ -1,4 +1,4 @@
-import type { CarouselDraft, DraftRequest, HooksRequest, RewriteRequest, SlideText } from '../domain/aiContract';
+import type { CarouselDraft, DraftRequest, HooksRequest, MatchRequest, RewriteRequest, SlideText, TagImageRequest } from '../domain/aiContract';
 import type { Asset, AssetUpload } from '../domain/asset';
 import type { BrandKit, BrandKitInput } from '../domain/brandKit';
 import type { Carousel, CarouselInput } from '../domain/carousel';
@@ -47,6 +47,10 @@ export interface AiService {
   draftCarousel(request: DraftRequest): Promise<CarouselDraft>;
   rewriteSlide(request: RewriteRequest): Promise<SlideText>;
   generateHooks(request: HooksRequest): Promise<string[]>;
+  /** Tags describing what a photo shows and which themes it illustrates. Empty when the engine cannot see images. */
+  tagImage(request: TagImageRequest): Promise<string[]>;
+  /** One photo id per slide, or null when no photo in the library fits that slide. */
+  matchImages(request: MatchRequest): Promise<(string | null)[]>;
 }
 
 export interface Services {

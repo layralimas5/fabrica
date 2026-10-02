@@ -12,6 +12,10 @@ export const ASSET_KINDS = [
 ] as const;
 export type AssetKind = (typeof ASSET_KINDS)[number];
 
+export function isAssetKind(value: string): value is AssetKind {
+  return (ASSET_KINDS as readonly string[]).includes(value);
+}
+
 export interface Asset {
   id: string;
   name: string;
@@ -50,6 +54,13 @@ export function parseTags(raw: string): string[] {
   return [...new Set(raw.split(/[,;\n]/).map(normalizeTag).filter(Boolean))];
 }
 
+export const MAX_TAGS = 24;
+
+/** Adds new tags after the existing ones, without duplicates. */
+export function mergeTags(existing: string[], added: string[]): string[] {
+  return [...new Set([...existing, ...added.map(normalizeTag).filter(Boolean)])].slice(0, MAX_TAGS);
+}
+
 export const MAX_FOLDER_LENGTH = 60;
 
 export function normalizeFolder(raw: string): string {
@@ -60,6 +71,6 @@ export function inFolders(asset: Asset, folders: readonly string[]): boolean {
   return folders.length === 0 || folders.includes(asset.folder);
 }
 
-export function isPhotoLike(asset: Asset): boolean {
+export function isPhotoLike(asset: Pick<Asset, 'kind'>): boolean {
   return asset.kind !== 'icone' && asset.kind !== 'logo';
 }

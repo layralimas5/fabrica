@@ -4,15 +4,21 @@ import type { ZodType } from 'npm:zod@4';
 import {
   DRAFT_JSON_SCHEMA,
   HOOKS_JSON_SCHEMA,
+  MATCH_JSON_SCHEMA,
   SLIDE_TEXT_JSON_SCHEMA,
+  TAGS_JSON_SCHEMA,
   draftRequest,
   draftResponse,
   hooksRequest,
   hooksResponse,
+  matchRequest,
+  matchResponse,
   rewriteRequest,
   rewriteResponse,
+  tagImageRequest,
+  tagImageResponse,
 } from '../_shared/contract.ts';
-import { HOOKS_INSTRUCTIONS, REWRITE_INSTRUCTIONS, SYSTEM_PROMPT } from '../_shared/prompts.ts';
+import { HOOKS_INSTRUCTIONS, MATCH_SYSTEM_PROMPT, REWRITE_INSTRUCTIONS, SYSTEM_PROMPT, TAG_SYSTEM_PROMPT } from '../_shared/prompts.ts';
 
 const MODEL = 'claude-opus-5-5';
 const HOURLY_LIMIT = Number(Deno.env.get('AI_HOURLY_LIMIT') ?? '120');
@@ -31,13 +37,19 @@ class HttpError extends Error {
   }
 }
 
-type Action = 'draft' | 'rewrite' | 'hooks';
+type Action = 'draft' | 'rewrite' | 'hooks' | 'tag' | 'match';
+
+type UserContent =
+  | string
+  | Array<{ type: 'text'; text: string } | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }>;
 
 interface CallSpec<T> {
   effort: 'low' | 'medium' | 'high';
   schema: object;
   validator: ZodType<T>;
-  userContent: string;
+  userContent: UserContent;
+  /** Defaults to the carousel system prompt. */
+  system?: string;
 }
 
 Deno.serve(async (request) => {
@@ -124,6 +136,29 @@ function buildCall(action: Action, payload: unknown): CallSpec<unknown> {
         userContent: `${HOOKS_INSTRUCTIONS}\nGere exatamente ${input.count} ganchos.\n<pedido>${JSON.stringify(input)}</pedido>`,
       };
     }
+    case 'tag': {
+      const input = parse(tagImageRequest, payload);
+      return {
+        effort: 'low',
+        schema: TAGS_JSON_SCHEMA,
+        validator: tagImageResponse,
+        system: TAG_SYSTEM_PROMPT,
+        userContent: [
+          { type: 'image', source: { type: 'base64', media_type: input.mediaType, data: input.image } },
+          { type: 'text', text: `Dica: ${input.hint || 'nenhuma'}` },
+        ],
+      };
+    }
+    case 'match': {
+      const input = parse(matchRequest, payload);
+      return {
+        effort: 'medium',
+        schema: MATCH_JSON_SCHEMA,
+        validator: matchResponse,
+        system: MATCH_SYSTEM_PROMPT,
+        userContent: `Escolha a foto de cada um dos ${input.slides.length} slides.\n<pedido>${JSON.stringify(input)}</pedido>`,
+      };
+    }
     default:
       throw new HttpError(400, 'Ação desconhecida.');
   }
@@ -143,7 +178,7 @@ async function callClaude<T>(spec: CallSpec<T>): Promise<T> {
     betas: ['server-side-fallback-2026-07-01'],
     fallbacks: 'default',
     output_config: { effort: spec.effort, format: { type: 'json_schema', schema: spec.schema } },
-    system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+    system: [{ type: 'text', text: spec.system ?? SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: spec.userContent }],
   };
   // deno-lint-ignore no-explicit-any -- `fallbacks: "default"` is newer than some SDK type releases

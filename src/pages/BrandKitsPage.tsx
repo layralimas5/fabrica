@@ -12,6 +12,7 @@ import {
   FONT_CHOICES,
   PHOTO_TEXT_STYLE_LABELS,
   PHOTO_TEXT_STYLES,
+  photoFoldersOf,
   photoTextOf,
   TIKTOK_STARTER,
   type PhotoText,
@@ -29,6 +30,7 @@ import { DEFAULT_SHADE } from '../domain/shade';
 import { Alert, Button, Dialog, EmptyState, Field, Input, PageHeader, Select, Spinner, Textarea } from '../ui/primitives';
 import { SlideCanvas } from '../ui/SlideCanvas';
 import { StylePicker } from '../brand/StylePicker';
+import { FolderPicker } from '../ui/FolderPicker';
 
 const COLOR_FIELDS: { key: keyof BrandColors; label: string }[] = [
   { key: 'primary', label: 'Principal' },
@@ -119,7 +121,7 @@ export function BrandKitsPage() {
 
 function toInput(brand: BrandKit): BrandKitInput {
   const { id: _id, createdAt: _c, updatedAt: _u, ...input } = brand;
-  return { ...input, avatarAssetId: input.avatarAssetId ?? null, photoText: photoTextOf(input), product: input.product ?? { ...EMPTY_PRODUCT } };
+  return { ...input, avatarAssetId: input.avatarAssetId ?? null, photoText: photoTextOf(input), product: input.product ?? { ...EMPTY_PRODUCT }, photoFolders: photoFoldersOf(input) };
 }
 
 interface BrandKitEditorProps {
@@ -157,6 +159,11 @@ function BrandKitEditor({ id, initial, assets, inUse, onClose, onSave, onDelete 
   };
 
   const logos = assets.filter((asset) => asset.kind === 'logo');
+  const folderCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const asset of assets) counts.set(asset.folder, (counts.get(asset.folder) ?? 0) + 1);
+    return new Map([...counts.entries()].sort((a, b) => a[0].localeCompare(b[0])));
+  }, [assets]);
 
   return (
     <Dialog
@@ -218,6 +225,13 @@ function BrandKitEditor({ id, initial, assets, inUse, onClose, onSave, onDelete 
               <Textarea id="bk-voice" rows={3} value={draft.voice} onChange={(e) => patch('voice', e.target.value)} placeholder="Minimalista, moderno, pouco texto, forte contraste…" />
             </Field>
           </fieldset>
+
+          {folderCounts.size > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <FolderPicker label="Pastas de fotos desta conta" counts={folderCounts} selected={draft.photoFolders} onChange={(folders) => patch('photoFolders', folders)} />
+              <p className="text-xs text-faint">Já vêm marcadas na tela Criar quando você escolhe esta marca. Assim as fotos de uma conta não aparecem na outra.</p>
+            </div>
+          )}
 
           <fieldset className="grid gap-3 sm:grid-cols-2">
             <legend className="mb-3 text-xs font-semibold uppercase tracking-wider text-faint">Produto (opcional)</legend>

@@ -23,12 +23,25 @@ interface ComposeOptions {
   addCta?: boolean;
   /** Product screenshot: always used by the product slide, never picked for other slides. */
   productAssetId?: string | null;
+  /** Fill slides that want a photo by keyword matching. Off when photos were already matched by the AI. */
+  autoMatch?: boolean;
+}
+
+/** Which slides of a draft get a photo in a visual style (platform-native styles want one everywhere). */
+export function slidesWantingImages(draft: CarouselDraft, visualStyle?: VisualStyle): boolean[] {
+  const fixed = visualStyle ? FIXED_LAYOUTS[visualStyle] : undefined;
+  return draft.slides.map((slide) => (fixed ? fixed.imageOnCta || slide.role !== 'cta' : slide.wantsImage));
+}
+
+/** Text a photo has to relate to. */
+export function slideText(slide: Pick<SlideDraft, 'title' | 'subtitle' | 'body' | 'bullets'>): string {
+  return [slide.title, slide.subtitle, slide.body, ...slide.bullets].filter(Boolean).join(' ');
 }
 
 /** Turns an AI draft into renderable slides: enforces readability, the CTA ending, image choice and layout rhythm. */
 export function composeSlides(
   draft: CarouselDraft,
-  { objective, assets, visualStyle, preserveText = false, addCta = true, productAssetId = null }: ComposeOptions,
+  { objective, assets, visualStyle, preserveText = false, addCta = true, productAssetId = null, autoMatch = true }: ComposeOptions,
 ): Slide[] {
   const fixed = visualStyle ? FIXED_LAYOUTS[visualStyle] : undefined;
   const readable = preserveText ? draft.slides.slice(0, MAX_SLIDES) : draft.slides.slice(0, MAX_SLIDES).map(enforceReadability);
@@ -40,7 +53,7 @@ export function composeSlides(
   const showsProduct = (slide: SlideDraft) => slide.role === 'product' && productAssetId !== null;
 
   const imageRequests = drafts.map((slide) =>
-    slide.wantsImage && !showsProduct(slide) && !(slide.assetId && knownIds.has(slide.assetId)) ? slideText(slide) : null,
+    autoMatch && slide.wantsImage && !showsProduct(slide) && !(slide.assetId && knownIds.has(slide.assetId)) ? slideText(slide) : null,
   );
   const matched = matchImages(imageRequests, library.filter((asset) => !drafts.some((slide) => slide.assetId === asset.id)));
 
@@ -100,6 +113,3 @@ function ensureCta(slides: SlideDraft[], objective: Objective): SlideDraft[] {
   return [...slides.slice(0, MAX_SLIDES - 1), cta];
 }
 
-function slideText(slide: SlideDraft): string {
-  return [slide.title, slide.subtitle, slide.body, ...slide.bullets].filter(Boolean).join(' ');
-}

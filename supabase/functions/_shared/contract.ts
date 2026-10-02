@@ -35,6 +35,19 @@ export const rewriteRequest = z.object({
   brand,
 });
 
+const assetSummary = z.object({ id: z.string(), name: z.string(), folder: z.string(), kind: z.string(), tags: z.array(z.string()) });
+
+export const tagImageRequest = z.object({
+  image: z.string().min(1).max(2_000_000),
+  mediaType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+  hint: z.string().max(300),
+});
+
+export const matchRequest = z.object({
+  slides: z.array(z.object({ text: z.string().max(2000) })).min(1).max(12),
+  assets: z.array(assetSummary).min(1).max(400),
+});
+
 export const hooksRequest = z.object({ hook: z.string().min(1), copy: z.string().max(20000), brand, count: z.number().int().min(1).max(10) });
 
 export const draftResponse = z.object({
@@ -51,6 +64,8 @@ export const draftResponse = z.object({
 });
 export const rewriteResponse = slideText;
 export const hooksResponse = z.object({ hooks: z.array(z.string()).min(1) });
+export const tagImageResponse = z.object({ tags: z.array(z.string()) });
+export const matchResponse = z.object({ assetIds: z.array(z.string().nullable()) });
 
 const nullableString = { type: ['string', 'null'] };
 const slideTextProperties = {
@@ -98,4 +113,18 @@ export const HOOKS_JSON_SCHEMA = {
   additionalProperties: false,
   required: ['hooks'],
   properties: { hooks: { type: 'array', items: { type: 'string' } } },
+};
+
+export const TAGS_JSON_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['tags'],
+  properties: { tags: { type: 'array', items: { type: 'string' } } },
+};
+
+export const MATCH_JSON_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['assetIds'],
+  properties: { assetIds: { type: 'array', items: { type: ['string', 'null'] } } },
 };

@@ -90,3 +90,25 @@ export const hooksRequestSchema = z.object({
 export type HooksRequest = z.infer<typeof hooksRequestSchema>;
 
 export const hooksResponseSchema = z.object({ hooks: z.array(z.string()).min(1) });
+
+/** About 1.5 MB of JPEG once base64-encoded; the client downsizes photos before sending. */
+export const MAX_AI_IMAGE_CHARS = 2_000_000;
+
+export const tagImageRequestSchema = z.object({
+  image: z.string().min(1).max(MAX_AI_IMAGE_CHARS),
+  mediaType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+  /** File name and folder, which often say what the photo is about. */
+  hint: z.string().max(300),
+});
+export type TagImageRequest = z.infer<typeof tagImageRequestSchema>;
+
+export const tagImageResponseSchema = z.object({ tags: z.array(z.string()) });
+
+export const matchRequestSchema = z.object({
+  slides: z.array(z.object({ text: z.string().max(2000) })).min(1).max(12),
+  assets: z.array(assetSummarySchema).min(1).max(400),
+});
+export type MatchRequest = z.infer<typeof matchRequestSchema>;
+
+/** One entry per slide: the photo that fits it, or null when no photo fits. */
+export const matchResponseSchema = z.object({ assetIds: z.array(z.string().nullable()) });

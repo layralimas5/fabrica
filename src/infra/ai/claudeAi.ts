@@ -4,12 +4,16 @@ import type { AiService } from '../../application/ports';
 import {
   carouselDraftSchema,
   hooksResponseSchema,
+  matchResponseSchema,
   slideTextSchema,
+  tagImageResponseSchema,
   type CarouselDraft,
   type DraftRequest,
   type HooksRequest,
+  type MatchRequest,
   type RewriteRequest,
   type SlideText,
+  type TagImageRequest,
 } from '../../domain/aiContract';
 
 const FUNCTION_NAME = 'carousel-ai';
@@ -30,6 +34,20 @@ export class ClaudeAi implements AiService {
 
   async generateHooks(request: HooksRequest): Promise<string[]> {
     return (await this.call('hooks', request, hooksResponseSchema)).hooks;
+  }
+
+  async tagImage(request: TagImageRequest): Promise<string[]> {
+    return (await this.call('tag', request, tagImageResponseSchema)).tags;
+  }
+
+  async matchImages(request: MatchRequest): Promise<(string | null)[]> {
+    const { assetIds } = await this.call('match', request, matchResponseSchema);
+    const known = new Set(request.assets.map((asset) => asset.id));
+    // Never trust ids blindly: unknown ids and missing entries become "no photo".
+    return request.slides.map((_, index) => {
+      const id = assetIds[index] ?? null;
+      return id && known.has(id) ? id : null;
+    });
   }
 
   private async call<T>(action: string, payload: unknown, schema: ZodType<T>): Promise<T> {
