@@ -1,8 +1,8 @@
 import clsx from 'clsx';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { ArrowRight, FileText, FlaskConical, ImageIcon, Sparkles, Upload } from 'lucide-react';
+import { ArrowRight, FileText, FlaskConical, ImageIcon, Sparkles, Trophy, Upload } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAccounts, useAssets, useBrandKits, useCarousels, usePresets } from '../app/data';
 import { PresetBar } from '../create/PresetBar';
 import { TextStylePanel } from '../create/TextStylePanel';
@@ -10,6 +10,8 @@ import type { CreateSettings, Preset } from '../domain/preset';
 import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
 import { createCarousels, MAX_TEST_VARIANTS } from '../application/createCarousels';
+import { readHandoff } from '../application/winnerHandoff';
+import type { ContentOrigin } from '../domain/winners/record';
 import { ShadePicker } from '../brand/ShadePicker';
 import { StylePicker } from '../brand/StylePicker';
 import type { RenderContext } from '../app/slideRendering';
@@ -116,15 +118,19 @@ export function CreatePage() {
   const accounts = useAccounts();
   const savedCarousels = useCarousels();
   const presets = usePresets();
+  const location = useLocation();
+  /** Copies and settings sent by a winner (Usar como modelo, Criar variações, Família). Read once. */
+  const [handoff] = useState(() => readHandoff(location.state));
+  const [origin, setOrigin] = useState<ContentOrigin | null>(handoff?.origin ?? null);
 
   const [platform, setPlatform] = useState<Platform>(() => readStored(PLATFORM_STORAGE_KEY, PLATFORMS, 'instagram'));
   const [format, setFormat] = useState<CarouselFormat>(() => {
     const stored = readStored(FORMAT_STORAGE_KEY, CAROUSEL_FORMATS, defaultFormatFor(platform));
     return formatFitsPlatform(stored, platform) ? stored : defaultFormatFor(platform);
   });
-  const [mode, setMode] = useState<CopyMode>(() => readStored(MODE_STORAGE_KEY, ['manual', 'ai'] as const, 'manual'));
+  const [mode, setMode] = useState<CopyMode>(() => (handoff ? 'manual' : readStored(MODE_STORAGE_KEY, ['manual', 'ai'] as const, 'manual')));
   /** One entry per copy box; each copy becomes a carousel. */
-  const [copies, setCopies] = useState<string[]>(['']);
+  const [copies, setCopies] = useState<string[]>(() => (handoff?.copies.length ? handoff.copies.slice(0, MAX_COPIES) : ['']));
   const [brandId, setBrandId] = useState('');
   const [accountId, setAccountId] = useState<string | null>(() => readStoredText(ACCOUNT_STORAGE_KEY));
   const [contentType, setContentType] = useState<ContentType>('auto');
@@ -279,9 +285,36 @@ export function CreatePage() {
   useEffect(() => {
     if (restoredPreset.current || presets.loading || brands.loading || accounts.loading) return;
     restoredPreset.current = true;
+    if (handoff) return applyHandoff();
     const last = presets.data.find((preset) => preset.id === presetId);
     if (last) choosePreset(last);
   }, [presets.loading, brands.loading, accounts.loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** The winner's network, account, brand and look come along; the rest of the screen keeps what the user had. */
+  const applyHandoff = () => {
+    if (!handoff) return;
+    // Opening the screen again (back, reload) must not bring the same copies back.
+    navigate(location.pathname, { replace: true, state: null });
+    const { settings } = handoff;
+    const nextPlatform = settings.platform ?? platform;
+    setPlatform(nextPlatform);
+    const nextFormat = settings.format && formatFitsPlatform(settings.format, nextPlatform) ? settings.format : formatFitsPlatform(format, nextPlatform) ? format : defaultFormatFor(nextPlatform);
+    setFormat(nextFormat);
+    if (settings.accountId && accounts.data.some((item) => item.id === settings.accountId)) setAccountId(settings.accountId);
+    const targetBrand = brands.data.find((kit) => kit.id === settings.brandKitId) ?? brand;
+    if (!targetBrand) return;
+    setBrandId(targetBrand.id);
+    setPendingPreset({
+      ...currentSettings(),
+      platform: nextPlatform,
+      format: nextFormat,
+      mode: 'manual',
+      brandKitId: targetBrand.id,
+      styles: settings.style ? [settings.style] : [targetBrand.visualStyle],
+      folders: photoFoldersOf(targetBrand),
+      scheduling: false,
+    });
+  };
 
   const savePreset = async (name: string, overwriteId: string | null) => {
     const input = { name, settings: currentSettings() };
@@ -407,6 +440,7 @@ export function CreatePage() {
         project: project.trim() || defaultProject,
         folder,
         schedule: scheduling ? { startDate, perDay: effectivePerDay } : null,
+        origin,
       });
       if (scheduling) navigate('/agenda', { state: { created: result.carousels.length } });
       else if (result.experimentIds.length === 1) navigate(`/testes/${result.experimentIds[0]}`);
@@ -458,6 +492,18 @@ export function CreatePage() {
         </div>
       ) : (
         <div className="overflow-hidden rounded-3xl border border-line bg-surface shadow-sm">
+          {origin && (
+            <div className="flex flex-wrap items-center gap-3 border-b border-line bg-amber-500/[0.07] px-5 py-3">
+              <Trophy className="size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
+              <p className="min-w-0 flex-1 text-sm text-ink">
+                Criando a partir do vencedor <span className="font-medium">“{origin.modelTitle}”</span>
+                {origin.family ? ` · ${origin.family}` : ''}. Os carrosséis ficam ligados a ele pra comparar depois.
+              </p>
+              <Button variant="ghost" size="sm" onClick={() => setOrigin(null)}>
+                Desvincular
+              </Button>
+            </div>
+          )}
           <PresetBar presets={presets.data} selectedId={presetId} onSelect={choosePreset} onSave={savePreset} onDelete={deletePreset} disabled={generating} />
           <Step number={1} title="Onde vai postar">
             <div role="radiogroup" aria-label="Rede social" className="grid grid-cols-2 gap-1 rounded-2xl bg-subtle p-1">

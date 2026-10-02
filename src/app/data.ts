@@ -4,6 +4,7 @@ import type { Asset } from '../domain/asset';
 import type { Preset } from '../domain/preset';
 import type { BrandKit } from '../domain/brandKit';
 import type { Carousel } from '../domain/carousel';
+import type { ContentRecord } from '../domain/winners/record';
 import { useServices } from './services';
 import { useResource } from './useResource';
 
@@ -30,4 +31,9 @@ export function useAccounts() {
 export function usePresets() {
   const { presets } = useServices();
   return useResource<Preset[]>(useCallback(() => presets.list(), [presets]), []);
+}
+
+export function useContentRecords() {
+  const { contentRecords } = useServices();
+  return useResource<ContentRecord[]>(useCallback(() => contentRecords.list(), [contentRecords]), []);
 }

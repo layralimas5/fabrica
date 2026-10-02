@@ -2,7 +2,7 @@ import { isIsoDate } from '../domain/schedule';
 import { identityOf, type Account } from '../domain/account';
 import { CAROUSEL_FORMATS, formatSizeLabel, PLATFORM_LABELS } from '../domain/carousel';
 import { shadeOf } from '../domain/shade';
-import { ArrowLeft, Check, CloudOff, Eye, Loader2, Wand2 } from 'lucide-react';
+import { ArrowLeft, Check, CloudOff, Eye, Loader2, Star, Wand2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAccounts, useAssets, useBrandKits } from '../app/data';
@@ -23,6 +23,7 @@ import { SlideStage } from '../editor/SlideStage';
 import { useCarouselEditor, type SaveState } from '../editor/useCarouselEditor';
 import { CarouselViewer } from '../ui/CarouselViewer';
 import { Alert, Button, EmptyState, Field, Input, Select, Spinner, Textarea } from '../ui/primitives';
+import { useMarkWinner } from '../winners/useMarkWinner';
 
 export function EditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -61,6 +62,7 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
   const [previewOpen, setPreviewOpen] = useState(false);
   const [aiBusy, setAiBusy] = useState<'shorten' | 'variation' | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
+  const winner = useMarkWinner();
 
   const index = Math.max(0, carousel.slides.findIndex((slide) => slide.id === editor.selectedId));
   const slide = carousel.slides[index];
@@ -153,6 +155,10 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
           <Button variant="secondary" onClick={() => setHooksOpen(true)}>
             <Wand2 className="size-4" aria-hidden /> Novos ganchos
           </Button>
+          <Button variant="secondary" disabled={!winner.ready} onClick={() => winner.mark(carousel)}>
+            <Star className={winner.isWinner(carousel) ? 'size-4 fill-amber-400 text-amber-500' : 'size-4'} aria-hidden />
+            {winner.isWinner(carousel) ? 'Vencedor' : 'Marcar como vencedor'}
+          </Button>
           <ExportMenu context={context} carousel={carousel} selectedIndex={index} onExported={() => carousel.status !== 'published' && editor.setStatus('ready')} />
         </div>
       </header>
@@ -218,6 +224,7 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
           setPickerOpen(false);
         }}
       />
+      {winner.dialog}
       <CarouselViewer open={previewOpen} onClose={() => setPreviewOpen(false)} context={context} carousel={carousel} />
       <HooksDialog
         open={hooksOpen}

@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { CalendarDays, Download, Eye, Folder, FolderOpen, Search, Trash2 } from 'lucide-react';
+import { CalendarDays, Download, Eye, Folder, FolderOpen, Search, Star, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { renderContextFor } from '../app/renderContextFor';
@@ -12,6 +12,7 @@ import { Alert, Badge, Button, EmptyState, Input, PageHeader, Select, Spinner } 
 import { CarouselViewer } from '../ui/CarouselViewer';
 import { CarouselCover } from '../ui/CarouselCover';
 import { formatDay } from '../domain/schedule';
+import { useMarkWinner } from '../winners/useMarkWinner';
 
 const STATUS_TONE: Record<CarouselStatus, 'neutral' | 'accent' | 'success' | 'warning'> = {
   draft: 'neutral',
@@ -35,6 +36,7 @@ export function ProjectsPage() {
   const [error, setError] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState<Carousel | null>(null);
   const [exporting, setExporting] = useState<{ done: number; total: number } | null>(null);
+  const winner = useMarkWinner();
   const created = (useLocation().state as { created?: number } | null)?.created;
 
   const filtered = useMemo(() => {
@@ -179,6 +181,7 @@ export function ProjectsPage() {
                     {(carousel.project || carousel.folder) && <p className="mt-1 truncate text-xs text-faint">{[carousel.project, carousel.folder].filter(Boolean).join(' / ')}</p>}
                     <div className="mt-3 flex flex-wrap items-center gap-1.5">
                       <Badge tone={STATUS_TONE[carousel.status]}>{STATUS_LABELS[carousel.status]}</Badge>
+                      {winner.isWinner(carousel) && <Badge tone="warning">⭐ Vencedor</Badge>}
                       {carousel.scheduledFor && (
                         <Badge>
                           <CalendarDays className="mr-1 size-3" aria-hidden />
@@ -189,6 +192,16 @@ export function ProjectsPage() {
                   </div>
                 </Link>
                 <div className="absolute right-3 top-3 flex gap-1.5 opacity-100 sm:opacity-0 sm:focus-within:opacity-100 sm:group-hover:opacity-100">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={!winner.ready}
+                    aria-label={winner.isWinner(carousel) ? `Ver ${carousel.title} nos vencedores` : `Marcar ${carousel.title} como vencedor`}
+                    title={winner.isWinner(carousel) ? 'Vencedor' : 'Marcar como vencedor'}
+                    onClick={() => winner.mark(carousel)}
+                  >
+                    <Star className={winner.isWinner(carousel) ? 'size-3.5 fill-amber-400 text-amber-500' : 'size-3.5'} aria-hidden />
+                  </Button>
                   <Button variant="secondary" size="sm" aria-label={`Ver prévia de ${carousel.title}`} onClick={() => setPreviewing(carousel)}>
                     <Eye className="size-3.5" aria-hidden />
                   </Button>
@@ -204,6 +217,7 @@ export function ProjectsPage() {
       </div>
       </div>
 
+      {winner.dialog}
       {previewing && previewContext && <CarouselViewer open onClose={() => setPreviewing(null)} context={previewContext} carousel={previewing} />}
     </div>
   );
