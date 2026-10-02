@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAccounts, useAssets, useBrandKits, useCarousels, usePresets } from '../app/data';
 import { PresetBar } from '../create/PresetBar';
+import { TextStylePanel } from '../create/TextStylePanel';
 import type { CreateSettings, Preset } from '../domain/preset';
 import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
@@ -29,8 +30,10 @@ import {
   PLATFORM_LABELS,
   PLATFORMS,
   type CarouselFormat,
+  DEFAULT_TEXT_STYLE,
   type CopyMode,
   type Platform,
+  type TextStyle,
 } from '../domain/carousel';
 import {
   CONTENT_TYPE_LABELS,
@@ -139,6 +142,7 @@ export function CreatePage() {
   const [folders, setFolders] = useState<string[]>([]);
   const [shade, setShade] = useState<ImageShade>(DEFAULT_SHADE);
   const [postWithImages, setPostWithImages] = useState(true);
+  const [textStyle, setTextStyle] = useState<TextStyle>(DEFAULT_TEXT_STYLE);
   const [project, setProject] = useState('');
   const [folder, setFolder] = useState('');
   const [scheduling, setScheduling] = useState(false);
@@ -167,6 +171,13 @@ export function CreatePage() {
   const carouselsIn = (info: (typeof copyInfo)[number]) => (mode === 'manual' || info.numbered ? info.stats.carousels : info.copy.trim() ? 1 : 0);
   const blocks = copyInfo.reduce((sum, info) => sum + carouselsIn(info), 0);
   /** Slides of written copies (loose AI copies only know their size after generating). */
+  const sampleText = useMemo(() => {
+    for (const copy of copies) {
+      const first = parseScript(copy)[0]?.slides[0];
+      if (first) return first;
+    }
+    return null;
+  }, [copies]);
   const knownSlides = copyInfo.reduce((sum, info) => sum + (mode === 'manual' || info.numbered ? info.stats.slides : 0), 0);
   const maxPerDay = Math.max(1, Math.min(MAX_PER_DAY, blocks || MAX_PER_DAY));
   const effectivePerDay = Math.min(perDay, maxPerDay);
@@ -214,6 +225,7 @@ export function CreatePage() {
     setStyles(pendingPreset.styles);
     setTesting(pendingPreset.styles.length > 1);
     setPostWithImages(pendingPreset.postWithImages);
+    setTextStyle(pendingPreset.textStyle);
     setShade(pendingPreset.shade);
     setFolders(pendingPreset.folders);
     setIncludeProduct(pendingPreset.includeProduct);
@@ -236,6 +248,7 @@ export function CreatePage() {
     slideCount,
     styles,
     postWithImages,
+    textStyle,
     shade,
     folders,
     includeProduct,
@@ -390,6 +403,7 @@ export function CreatePage() {
         includeProduct: product !== null && includeProduct,
         productImageAssetId: productImageId,
         postWithImages,
+        textStyle,
         project: project.trim() || defaultProject,
         folder,
         schedule: scheduling ? { startDate, perDay: effectivePerDay } : null,
@@ -655,6 +669,19 @@ export function CreatePage() {
                 <p className="mb-3 text-xs font-medium text-muted">Sombreamento das fotos (vale pra todas)</p>
                 {shadeContext && <ShadePicker context={shadeContext} photo={photo} value={shade} onChange={setShade} disabled={generating} />}
               </div>
+              {shadeContext && (
+                <div>
+                  <p className="mb-3 text-xs font-medium text-muted">Texto dos slides (vale pra todos)</p>
+                  <TextStylePanel
+                    context={{ ...shadeContext, shade }}
+                    photoId={styles[0] === 'post' && !postWithImages ? null : (photo?.id ?? null)}
+                    sampleText={sampleText}
+                    value={textStyle}
+                    onChange={setTextStyle}
+                    disabled={generating}
+                  />
+                </div>
+              )}
 
               {product && (
                 <div className="rounded-2xl border border-line p-4">

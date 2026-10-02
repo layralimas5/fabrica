@@ -132,11 +132,27 @@ export interface Carousel {
 export type CarouselInput = Omit<Carousel, 'id' | 'createdAt' | 'updatedAt'>;
 
 /** Title size range in the editor, relative to the brand kit size. */
+/** Carousel-wide text shape: the same on every slide. */
+export type TextStyle = Pick<SlideStyle, 'fontScale' | 'textWidth' | 'lineHeight'>;
+
 export const FONT_SCALE_RANGE = { min: 0.3, max: 1.6, step: 0.05 } as const;
 export const TEXT_WIDTH_RANGE = { min: 0.4, max: 1, step: 0.05 } as const;
 export const LINE_HEIGHT_RANGE = { min: 0.8, max: 2, step: 0.05 } as const;
 
 export const DEFAULT_SLIDE_STYLE: SlideStyle = { fontScale: 1, textWidth: 1, lineHeight: 1, offsetX: 0, offsetY: 0, headingFont: null };
+export const DEFAULT_TEXT_STYLE: TextStyle = { fontScale: 1, textWidth: 1, lineHeight: 1 };
+
+const clampTo = (range: { min: number; max: number }, value: unknown, fallback: number) =>
+  typeof value === 'number' && Number.isFinite(value) ? Math.min(range.max, Math.max(range.min, value)) : fallback;
+
+/** Keeps a stored text style inside the ranges the editor offers. */
+export function normalizeTextStyle(raw: Partial<TextStyle> | undefined): TextStyle {
+  return {
+    fontScale: clampTo(FONT_SCALE_RANGE, raw?.fontScale, 1),
+    textWidth: clampTo(TEXT_WIDTH_RANGE, raw?.textWidth, 1),
+    lineHeight: clampTo(LINE_HEIGHT_RANGE, raw?.lineHeight, 1),
+  };
+}
 
 export function newSlideId(): string {
   return crypto.randomUUID();

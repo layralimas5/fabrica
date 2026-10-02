@@ -1,7 +1,7 @@
 import { inFolders, type Asset } from '../domain/asset';
 import type { CarouselDraft } from '../domain/aiContract';
 import { productOf, VISUAL_STYLE_LABELS, type BrandKit, type BrandProduct, type VisualStyle } from '../domain/brandKit';
-import type { Carousel, CarouselFormat, CopyMode, ExperimentRef, Platform, Slide } from '../domain/carousel';
+import type { Carousel, CarouselFormat, CopyMode, ExperimentRef, Platform, Slide, TextStyle } from '../domain/carousel';
 import { composeSlides, slidesWantingImages, slideText } from '../domain/composeCarousel';
 import { isPhotoLike } from '../domain/asset';
 import type { ContentType, Objective, SlideCountOption } from '../domain/content';
@@ -37,6 +37,8 @@ export interface CreateRequest {
   shade: ImageShade;
   /** Post model only: false keeps the text alone in the center, under the profile header. */
   postWithImages: boolean;
+  /** Text size, width and line spacing for every slide. */
+  textStyle: TextStyle;
   /** Where the carousels are filed in Projetos. */
   project: string;
   folder: string;
@@ -107,6 +109,7 @@ export async function createCarousels(services: Services, request: CreateRequest
         productAssetId: product?.imageAssetId ?? null,
         autoMatch: false,
         textOnly: textOnly(style),
+        textStyle: request.textStyle,
       });
       previous = slides;
 

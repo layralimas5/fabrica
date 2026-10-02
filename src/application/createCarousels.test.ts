@@ -71,6 +71,7 @@ const request = (overrides: Partial<CreateRequest> = {}): CreateRequest => ({
   includeProduct: false,
   shade: { style: 'bottom', intensity: 0.5 },
   postWithImages: true,
+  textStyle: { fontScale: 1, textWidth: 1, lineHeight: 1 },
   project: '',
   folder: '',
   schedule: null,
@@ -314,6 +315,16 @@ describe('createCarousels photos across copies', () => {
     expect(counts.size).toBe(4);
     expect(Math.max(...counts.values()) - Math.min(...counts.values())).toBeLessThanOrEqual(1);
     for (const carousel of services.saved) expect(new Set(carousel.slides.map((slide) => slide.assetId)).size).toBe(2);
+  });
+});
+
+describe('createCarousels text style', () => {
+  it('applies the chosen text size, width and line spacing to every slide', async () => {
+    const services = fakeServices();
+    await createCarousels(services, request({ textStyle: { fontScale: 0.7, textWidth: 0.6, lineHeight: 1.3 } }));
+    for (const carousel of services.saved) {
+      expect(carousel.slides.every((slide) => slide.style.fontScale === 0.7 && slide.style.textWidth === 0.6 && slide.style.lineHeight === 1.3)).toBe(true);
+    }
   });
 });
 

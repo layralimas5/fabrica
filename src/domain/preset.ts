@@ -1,5 +1,5 @@
 import { VISUAL_STYLES, type VisualStyle } from './brandKit';
-import { CAROUSEL_FORMATS, PLATFORMS, type CarouselFormat, type CopyMode, type Platform } from './carousel';
+import { CAROUSEL_FORMATS, DEFAULT_TEXT_STYLE, normalizeTextStyle, PLATFORMS, type CarouselFormat, type CopyMode, type Platform, type TextStyle } from './carousel';
 import { CONTENT_TYPES, OBJECTIVES, SLIDE_COUNT_OPTIONS, type ContentType, type Objective, type SlideCountOption } from './content';
 import { MAX_PER_DAY } from './schedule';
 import { DEFAULT_SHADE, SHADE_STYLES, type ImageShade } from './shade';
@@ -16,6 +16,7 @@ export interface CreateSettings {
   slideCount: SlideCountOption;
   styles: VisualStyle[];
   postWithImages: boolean;
+  textStyle: TextStyle;
   shade: ImageShade;
   folders: string[];
   includeProduct: boolean;
@@ -49,6 +50,7 @@ export const DEFAULT_CREATE_SETTINGS: CreateSettings = {
   slideCount: 'auto',
   styles: ['minimalista'],
   postWithImages: true,
+  textStyle: DEFAULT_TEXT_STYLE,
   shade: DEFAULT_SHADE,
   folders: [],
   includeProduct: true,
@@ -81,6 +83,7 @@ export function normalizeSettings(raw: Partial<CreateSettings>): CreateSettings 
     slideCount: oneOf(SLIDE_COUNT_OPTIONS, raw.slideCount, base.slideCount),
     styles: styles.length > 0 ? styles : base.styles,
     postWithImages: raw.postWithImages ?? base.postWithImages,
+    textStyle: normalizeTextStyle(raw.textStyle),
     shade,
     folders: Array.isArray(raw.folders) ? raw.folders : base.folders,
     includeProduct: raw.includeProduct ?? base.includeProduct,

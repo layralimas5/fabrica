@@ -1,6 +1,6 @@
 import type { Asset } from './asset';
 import type { CarouselDraft, SlideDraft } from './aiContract';
-import { DEFAULT_SLIDE_STYLE, newSlideId, type Slide } from './carousel';
+import { DEFAULT_SLIDE_STYLE, DEFAULT_TEXT_STYLE, newSlideId, type Slide, type TextStyle } from './carousel';
 import { CTA_BY_OBJECTIVE, MAX_SLIDES, TEXT_LIMITS, type Objective } from './content';
 import { matchImages } from './imageMatching';
 import type { VisualStyle } from './brandKit';
@@ -27,6 +27,8 @@ interface ComposeOptions {
   autoMatch?: boolean;
   /** Post model with text only: no photos, except the product image on the product slide. */
   textOnly?: boolean;
+  /** Text size, width and line spacing applied to every slide. */
+  textStyle?: TextStyle;
 }
 
 /** Which slides of a draft get a photo in a visual style (platform-native styles want one everywhere). */
@@ -44,7 +46,7 @@ export function slideText(slide: Pick<SlideDraft, 'title' | 'subtitle' | 'body' 
 /** Turns an AI draft into renderable slides: enforces readability, the CTA ending, image choice and layout rhythm. */
 export function composeSlides(
   draft: CarouselDraft,
-  { objective, assets, visualStyle, preserveText = false, addCta = true, productAssetId = null, autoMatch = true, textOnly = false }: ComposeOptions,
+  { objective, assets, visualStyle, preserveText = false, addCta = true, productAssetId = null, autoMatch = true, textOnly = false, textStyle = DEFAULT_TEXT_STYLE }: ComposeOptions,
 ): Slide[] {
   const fixed = visualStyle ? FIXED_LAYOUTS[visualStyle] : undefined;
   const readable = preserveText ? draft.slides.slice(0, MAX_SLIDES) : draft.slides.slice(0, MAX_SLIDES).map(enforceReadability);
@@ -87,7 +89,7 @@ export function composeSlides(
     bullets: slide.bullets,
     assetId: assetIds[index],
     layout: layouts[index],
-    style: { ...DEFAULT_SLIDE_STYLE },
+    style: { ...DEFAULT_SLIDE_STYLE, ...textStyle },
   }));
 }
 
