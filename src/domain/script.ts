@@ -14,6 +14,9 @@
  *   one line = one slide, `legenda:` lines become the caption, `---` starts a new carousel
  *
  * In both, `//` breaks a line inside the same slide.
+ *
+ * Many carousels at once: a line like "CARROSSEL 2" or "Carrossel 2: título" starts a new carousel
+ * (the text after it becomes its name). Without those headers, restarting at Slide 1 or `---` also works.
  */
 export interface ScriptCarousel {
   /** Carousel name from "Tema do carrossel:" or "Título:", empty when not given. */
@@ -29,6 +32,7 @@ const LINE_BREAK = /\s*\/\/\s*/g;
 const SLIDE_HEADER = /^slide\s*(\d+)\s*(?:\([^)]*\))?\s*(?:[:,.\-–—]\s*)?(.*)$/i;
 const LABEL = /^(tema do carrossel|tema|t[íi]tulo do carrossel|t[íi]tulo|legenda curta sugerida|legenda sugerida|legenda|objetivo|ideia visual geral|ideia visual|instru[çc][ãa]o visual|formato da resposta)\s*:\s*(.*)$/i;
 const BRACKET_NOTE = /^\[[^\]]*\]$/;
+const CAROUSEL_HEADER = /^carrossel\s*\d+\s*(?:[:.,\-–—]\s*(.*))?$/i;
 const PRODUCT_NOTE = /print|produto|tela do|screenshot|mockup/i;
 const MAX_LABEL_WORDS = 3;
 
@@ -47,8 +51,31 @@ export function hasNumberedSlides(raw: string): boolean {
 
 export function parseScript(raw: string): ScriptCarousel[] {
   const lines = raw.split(/\r?\n/).map(clean);
-  const blocks = lines.some((line) => SLIDE_HEADER.test(line)) ? splitAtRestart(lines) : splitAtSeparator(lines);
+  const blocks = splitAtCarouselHeaders(lines).flatMap((section) =>
+    section.some((line) => SLIDE_HEADER.test(line)) ? splitAtRestart(section) : splitAtSeparator(section),
+  );
   return blocks.map(parseBlock).filter((carousel) => carousel.slides.length > 0);
+}
+
+/** Raw text of each carousel in a big paste or file, ready to go into one copy box each. */
+export function splitCopies(raw: string): string[] {
+  const lines = raw.split(/\r?\n/).map(clean);
+  return splitAtCarouselHeaders(lines)
+    .flatMap((section) => (section.some((line) => SLIDE_HEADER.test(line)) ? splitAtRestart(section) : splitAtSeparator(section)))
+    .map((block) => block.join('\n').trim())
+    .filter((text) => parseScript(text).length > 0);
+}
+
+/** "CARROSSEL 2: título" lines start a new carousel; the title becomes its name. */
+function splitAtCarouselHeaders(lines: string[]): string[][] {
+  if (!lines.some((line) => CAROUSEL_HEADER.test(line))) return [lines];
+  const sections: string[][] = [[]];
+  for (const line of lines) {
+    const header = CAROUSEL_HEADER.exec(line);
+    if (!header) sections[sections.length - 1].push(line);
+    else sections.push(header[1]?.trim() ? [`Tema do carrossel: ${header[1].trim()}`] : []);
+  }
+  return sections;
 }
 
 /** Removes markdown emphasis and headings that come along when copying from a chat. Keeps quotes and the words. */
@@ -157,12 +184,14 @@ function joinParagraphs(lines: string[]): string {
 function parsePlain(lines: string[]): ScriptCarousel {
   const slides: string[] = [];
   const caption: string[] = [];
+  let title = '';
   for (const line of lines) {
     const label = LABEL.exec(line);
-    if (label && labelTarget(label[1]) === 'caption') caption.push(label[2]);
-    else slides.push(line.replace(LINE_BREAK, '\n'));
+    if (!label) slides.push(line.replace(LINE_BREAK, '\n'));
+    else if (labelTarget(label[1]) === 'caption') caption.push(label[2]);
+    else if (labelTarget(label[1]) === 'title') title = label[2].trim();
   }
-  return { title: '', slides, caption: caption.join('\n'), productIndex: null };
+  return { title, slides, caption: caption.join('\n'), productIndex: null };
 }
 
 export function scriptStats(carousels: ScriptCarousel[]): { carousels: number; slides: number } {

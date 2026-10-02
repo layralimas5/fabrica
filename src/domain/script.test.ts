@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasNumberedSlides, parseScript } from './script';
+import { hasNumberedSlides, parseScript, splitCopies } from './script';
 
 /** Real copy pasted from a chat: bold markdown, role tags, `---` between slides, a product note. */
 const CHAT_COPY = `**SLIDE 1 — GANCHO**
@@ -78,3 +78,38 @@ describe('parseScript with copy pasted from a chat', () => {
     expect(parseScript('Slide 1, a\nSlide 2, b\n---\nSlide 1, c')).toHaveLength(2);
   });
 });
+
+describe('parseScript mass production', () => {
+  const BATCH = [
+    'CARROSSEL 1: Organizar por objetivo',
+    'Slide 1, eu parei de organizar minha vida por tarefas',
+    'Slide 2, comecei pelo lugar onde quero chegar',
+    'Legenda: salva pra lembrar',
+    '',
+    '**CARROSSEL 2 — Constância**',
+    'Slide 1, ninguém te conta isso sobre constância',
+    'Slide 2, você não precisa de motivação',
+    '',
+    'Carrossel 3',
+    'rotina boa sobrevive ao dia ruim',
+    'comece pela menor ação possível',
+  ].join('\n');
+
+  it('splits at CARROSSEL headers and uses the text after them as the name', () => {
+    const carousels = parseScript(BATCH);
+    expect(carousels.map((carousel) => carousel.title)).toEqual(['Organizar por objetivo', 'Constância', '']);
+    expect(carousels.map((carousel) => carousel.slides.length)).toEqual([2, 2, 2]);
+    expect(carousels[0].caption).toBe('salva pra lembrar');
+    expect(carousels[2].slides).toEqual(['rotina boa sobrevive ao dia ruim', 'comece pela menor ação possível']);
+  });
+});
+
+describe('splitCopies', () => {
+  it('cuts a batch into one copy per carousel, keeping each name', () => {
+    const copies = splitCopies('CARROSSEL 1: Um\nSlide 1, a\nSlide 2, b\n\nCARROSSEL 2: Dois\nSlide 1, c');
+    expect(copies).toHaveLength(2);
+    expect(parseScript(copies[0])[0]).toMatchObject({ title: 'Um', slides: ['a', 'b'] });
+    expect(parseScript(copies[1])[0]).toMatchObject({ title: 'Dois', slides: ['c'] });
+  });
+});
+

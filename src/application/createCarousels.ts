@@ -23,7 +23,8 @@ export interface CreateRequest {
   brand: BrandKit;
   library: Asset[];
   mode: CopyMode;
-  text: string;
+  /** One entry per copy box. Each written script may hold several carousels; each loose copy becomes one. */
+  texts: string[];
   contentType: ContentType;
   objective: Objective;
   slideCount: SlideCountOption;
@@ -56,6 +57,8 @@ interface PreparedCopy {
   draft: CarouselDraft;
   caption: string;
   copy: string;
+  /** 'manual' keeps every word as written; 'ai' was structured by the engine. */
+  mode: CopyMode;
 }
 
 /** Creates every carousel the request implies: one per script block (batch) times one per style (format test). */
@@ -63,12 +66,15 @@ export async function createCarousels(services: Services, request: CreateRequest
   const styles = [...new Set(request.styles)].slice(0, MAX_TEST_VARIANTS);
   if (styles.length === 0) throw new Error('Escolha pelo menos um estilo visual.');
 
-  // Numbered slides mean the user already split the copy: keep their slides even in AI mode.
-  const mode: CopyMode = request.mode === 'manual' || hasNumberedSlides(request.text) ? 'manual' : 'ai';
   const product = request.includeProduct ? productForRequest(request) : null;
   const brandOnly = new Set([request.brand.logoAssetId, request.brand.avatarAssetId, product?.imageAssetId].filter(Boolean));
   const assets = request.library.filter((asset) => !brandOnly.has(asset.id) && inFolders(asset, request.folders));
-  const copies = mode === 'manual' ? manualCopies(request.text) : [await aiCopy(services, request, styles[0], assets, product)];
+  const copies: PreparedCopy[] = [];
+  for (const text of request.texts.map((item) => item.trim()).filter(Boolean)) {
+    // Numbered slides mean the user already split the copy: keep their slides even in AI mode.
+    if (request.mode === 'manual' || hasNumberedSlides(text)) copies.push(...manualCopies(text));
+    else copies.push(await aiCopy(services, request, text, styles[0], assets, product));
+  }
   if (copies.length === 0) throw new Error('Escreva pelo menos uma linha de texto.');
 
   const isTest = styles.length > 1;
@@ -94,8 +100,8 @@ export async function createCarousels(services: Services, request: CreateRequest
         objective: request.objective,
         assets,
         visualStyle: style,
-        preserveText: mode === 'manual',
-        addCta: mode === 'ai' || request.addCta,
+        preserveText: prepared.mode === 'manual',
+        addCta: prepared.mode === 'ai' || request.addCta,
         productAssetId: product?.imageAssetId ?? null,
         autoMatch: false,
         textOnly: textOnly(style),
@@ -116,7 +122,7 @@ export async function createCarousels(services: Services, request: CreateRequest
             visualStyle: style,
             slideCount: request.slideCount,
             folders: request.folders,
-            copyMode: mode,
+            copyMode: prepared.mode,
             shade: request.shade,
             accountId: request.accountId,
           },
@@ -196,6 +202,7 @@ function productForRequest(request: CreateRequest): BrandProduct | null {
 
 function manualCopies(text: string): PreparedCopy[] {
   return parseScript(text).map((block) => ({
+    mode: 'manual' as const,
     caption: block.caption,
     copy: block.slides.join('\n'),
     draft: {
@@ -218,12 +225,13 @@ function manualCopies(text: string): PreparedCopy[] {
 async function aiCopy(
   services: Services,
   request: CreateRequest,
+  text: string,
   style: VisualStyle,
   assets: Asset[],
   product: BrandProduct | null,
 ): Promise<PreparedCopy> {
   const draft = await services.ai.draftCarousel({
-    copy: request.text,
+    copy: text,
     contentType: request.contentType,
     objective: request.objective,
     visualStyle: style,
@@ -232,5 +240,5 @@ async function aiCopy(
     product: product ? { name: product.name.trim(), pitch: product.pitch.trim(), hasImage: product.imageAssetId !== null } : null,
     assets: assets.slice(0, ASSET_CONTEXT_LIMIT).map(({ id, name, folder, kind, tags }) => ({ id, name, folder, kind, tags })),
   });
-  return { draft: { ...draft, title: draft.title || draft.slides[0].title }, caption: draft.caption, copy: request.text };
+  return { mode: 'ai', draft: { ...draft, title: draft.title || draft.slides[0].title }, caption: draft.caption, copy: text };
 }

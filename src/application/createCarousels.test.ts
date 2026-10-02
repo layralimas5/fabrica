@@ -60,7 +60,7 @@ const request = (overrides: Partial<CreateRequest> = {}): CreateRequest => ({
   brand,
   library: photos,
   mode: 'manual',
-  text: SCRIPT,
+  texts: [SCRIPT],
   contentType: 'auto',
   objective: 'salvamento',
   slideCount: 'auto',
@@ -144,7 +144,7 @@ describe('createCarousels with a product', () => {
 
   it('shows the product screenshot in one AI slide and keeps it out of the other slides', async () => {
     const services = fakeServices();
-    await createCarousels(services, request({ brand: withProduct, mode: 'ai', text: copy, contentType: 'dor', includeProduct: true }));
+    await createCarousels(services, request({ brand: withProduct, mode: 'ai', texts: [copy], contentType: 'dor', includeProduct: true }));
     const slides = services.saved[0].slides;
     const product = slides.filter((slide) => slide.role === 'product');
     expect(product).toHaveLength(1);
@@ -155,7 +155,7 @@ describe('createCarousels with a product', () => {
 
   it('leaves the product out when the toggle is off', async () => {
     const services = fakeServices();
-    await createCarousels(services, request({ brand: withProduct, mode: 'ai', text: copy, includeProduct: false }));
+    await createCarousels(services, request({ brand: withProduct, mode: 'ai', texts: [copy], includeProduct: false }));
     expect(services.saved[0].slides.some((slide) => slide.role === 'product')).toBe(false);
   });
 });
@@ -165,7 +165,7 @@ describe('createCarousels product image picked at creation', () => {
     const services = fakeServices();
     const withProduct: BrandKit = { ...brand, product: { name: 'Momentumm', pitch: 'Deixa o progresso visível.', imageAssetId: 'a0' } };
     const copy = 'Você não precisa de mais motivação. Motivação some nos dias ruins. Disciplina é decidir antes. Comece pequeno.';
-    await createCarousels(services, request({ brand: withProduct, mode: 'ai', text: copy, includeProduct: true, productImageAssetId: 'a5' }));
+    await createCarousels(services, request({ brand: withProduct, mode: 'ai', texts: [copy], includeProduct: true, productImageAssetId: 'a5' }));
     const slides = services.saved[0].slides;
     expect(slides.find((slide) => slide.role === 'product')?.assetId).toBe('a5');
     expect(slides.filter((slide) => slide.assetId === 'a5')).toHaveLength(1);
@@ -193,7 +193,7 @@ describe('createCarousels photo context', () => {
   it('leaves a slide without photo when no library photo relates to it', async () => {
     const services = fakeServices();
     const beach: Asset = { ...photos[0], id: 'beach', tags: ['praia', 'mar'] };
-    await createCarousels(services, request({ library: [beach], text: 'treino pesado na academia\nférias na praia', styles: ['tiktok'] }));
+    await createCarousels(services, request({ library: [beach], texts: ['treino pesado na academia\nférias na praia'], styles: ['tiktok'] }));
     const slides = services.saved[0].slides;
     expect(slides[0].assetId).toBeNull();
     expect(slides[1].assetId).toBe('beach');
@@ -242,7 +242,7 @@ describe('parseScript numbered slides', () => {
 describe('createCarousels folder as photo context', () => {
   it('fills every slide from the chosen folder when no tag matches the text', async () => {
     const services = fakeServices();
-    await createCarousels(services, request({ text: 'Slide 1, primeira frase\nSlide 2, segunda frase', folders: ['Pinterest'], styles: ['tiktok'] }));
+    await createCarousels(services, request({ texts: ['Slide 1, primeira frase\nSlide 2, segunda frase'], folders: ['Pinterest'], styles: ['tiktok'] }));
     const slides = services.saved[0].slides;
     expect(slides.every((slide) => slide.assetId && ['a0', 'a1', 'a2'].includes(slide.assetId))).toBe(true);
     expect(new Set(slides.map((slide) => slide.assetId)).size).toBe(slides.length);
@@ -250,7 +250,7 @@ describe('createCarousels folder as photo context', () => {
 
   it('keeps unmatched slides text-only when every folder is selected', async () => {
     const services = fakeServices();
-    await createCarousels(services, request({ text: 'Slide 1, primeira frase', folders: [], styles: ['tiktok'] }));
+    await createCarousels(services, request({ texts: ['Slide 1, primeira frase'], folders: [], styles: ['tiktok'] }));
     expect(services.saved[0].slides[0].assetId).toBeNull();
   });
 });
@@ -259,22 +259,38 @@ describe('createCarousels planning', () => {
   it('files carousels in the project and folder and spreads them over days', async () => {
     const services = fakeServices();
     const text = 'um\n---\ndois\n---\ntres';
-    await createCarousels(services, request({ text, project: ' Aura ', folder: 'Outubro', schedule: { startDate: '2026-10-05', perDay: 2 } }));
+    await createCarousels(services, request({ texts: [text], project: ' Aura ', folder: 'Outubro', schedule: { startDate: '2026-10-05', perDay: 2 } }));
     expect(services.saved.map((carousel) => carousel.scheduledFor)).toEqual(['2026-10-05', '2026-10-05', '2026-10-06']);
     expect(services.saved.every((carousel) => carousel.project === 'Aura' && carousel.folder === 'Outubro')).toBe(true);
   });
 
   it('format test variants share the same day', async () => {
     const services = fakeServices();
-    await createCarousels(services, request({ text: 'um', styles: ['minimalista', 'tiktok'], schedule: { startDate: '2026-10-05', perDay: 1 } }));
+    await createCarousels(services, request({ texts: ['um'], styles: ['minimalista', 'tiktok'], schedule: { startDate: '2026-10-05', perDay: 1 } }));
     expect(services.saved.map((carousel) => carousel.scheduledFor)).toEqual(['2026-10-05', '2026-10-05']);
   });
 
   it('post model with text only has no photos', async () => {
     const services = fakeServices();
-    await createCarousels(services, request({ text: 'um\ndois', styles: ['post'], folders: ['Pinterest'], postWithImages: false }));
+    await createCarousels(services, request({ texts: ['um\ndois'], styles: ['post'], folders: ['Pinterest'], postWithImages: false }));
     const slides = services.saved[0].slides;
     expect(slides.every((slide) => slide.assetId === null && slide.layout === 'post_text')).toBe(true);
+  });
+});
+
+describe('createCarousels several copy boxes', () => {
+  it('makes one carousel per loose copy in AI mode and keeps written scripts as written', async () => {
+    const services = fakeServices();
+    await createCarousels(
+      services,
+      request({
+        mode: 'ai',
+        texts: ['Motivação some nos dias ruins. Disciplina é decidir antes. Comece pequeno.', '', 'Slide 1, já separado\nSlide 2, pela Lay'],
+      }),
+    );
+    expect(services.saved).toHaveLength(2);
+    expect(services.saved[0].source.copyMode).toBe('ai');
+    expect(services.saved[1].slides.map((slide) => slide.title)).toEqual(['já separado', 'pela Lay']);
   });
 });
 

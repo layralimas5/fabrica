@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { ArrowRight, FlaskConical, ImageIcon, Sparkles, Upload } from 'lucide-react';
+import { ArrowRight, FileText, FlaskConical, ImageIcon, Sparkles, Upload } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAccounts, useAssets, useBrandKits, useCarousels } from '../app/data';
@@ -40,13 +40,16 @@ import {
   type Objective,
   type SlideCountOption,
 } from '../domain/content';
-import { hasNumberedSlides, parseScript, scriptStats } from '../domain/script';
+import { hasNumberedSlides, parseScript, scriptStats, splitCopies } from '../domain/script';
 import { FolderPicker } from '../ui/FolderPicker';
+import { NamePicker, type NameOption } from '../ui/NamePicker';
 import { Alert, Button, Field, Input, Select, Spinner, Textarea } from '../ui/primitives';
 
 const AI_STEPS = ['Analisando a copy', 'Encontrando o gancho', 'Estruturando os slides', 'Escolhendo imagens da biblioteca', 'Montando o design'];
 const MANUAL_STEPS = ['Lendo seus textos', 'Escolhendo imagens da biblioteca', 'Montando os slides'];
 const MIN_AI_COPY_LENGTH = 20;
+const MAX_COPY_FILE_BYTES = 1_000_000;
+const MAX_COPIES = 30;
 const AI_PLACEHOLDER = 'Cole sua copy ou só o tema. Ex: Metas sem sistema são só desejos com prazo.';
 const MODE_STORAGE_KEY = 'fabrica:copy-mode';
 const PLATFORM_STORAGE_KEY = 'fabrica:platform';
@@ -113,7 +116,8 @@ export function CreatePage() {
     return formatFitsPlatform(stored, platform) ? stored : defaultFormatFor(platform);
   });
   const [mode, setMode] = useState<CopyMode>(() => readStored(MODE_STORAGE_KEY, ['manual', 'ai'] as const, 'manual'));
-  const [text, setText] = useState('');
+  /** One entry per copy box; each copy becomes a carousel. */
+  const [copies, setCopies] = useState<string[]>(['']);
   const [brandId, setBrandId] = useState('');
   const [accountId, setAccountId] = useState<string | null>(() => readStoredText(ACCOUNT_STORAGE_KEY));
   const [contentType, setContentType] = useState<ContentType>('auto');
@@ -127,6 +131,7 @@ export function CreatePage() {
   const [pickingProductImage, setPickingProductImage] = useState(false);
   const [uploadingProductImage, setUploadingProductImage] = useState(false);
   const productFileInput = useRef<HTMLInputElement>(null);
+  const copyFileInput = useRef<HTMLInputElement>(null);
   const [folders, setFolders] = useState<string[]>([]);
   const [shade, setShade] = useState<ImageShade>(DEFAULT_SHADE);
   const [postWithImages, setPostWithImages] = useState(true);
@@ -146,16 +151,24 @@ export function CreatePage() {
   const product = brand ? productOf(brand) : null;
   const folderCounts = useMemo(() => countByFolder(assets.data), [assets.data]);
   const availableImages = assets.data.filter((asset) => inFolders(asset, folders)).length;
-  const stats = useMemo(() => scriptStats(parseScript(text)), [text]);
-  const numbered = useMemo(() => hasNumberedSlides(text), [text]);
-  const blocks = mode === 'manual' || numbered ? stats.carousels : text.trim() ? 1 : 0;
+  const copyInfo = useMemo(() => copies.map((copy) => ({ copy, numbered: hasNumberedSlides(copy), stats: scriptStats(parseScript(copy)) })), [copies]);
+  const stats = useMemo(
+    () => copyInfo.reduce((sum, info) => ({ carousels: sum.carousels + info.stats.carousels, slides: sum.slides + info.stats.slides }), { carousels: 0, slides: 0 }),
+    [copyInfo],
+  );
+  const numbered = copyInfo.some((info) => info.numbered);
+  const carouselsIn = (info: (typeof copyInfo)[number]) => (mode === 'manual' || info.numbered ? info.stats.carousels : info.copy.trim() ? 1 : 0);
+  const blocks = copyInfo.reduce((sum, info) => sum + carouselsIn(info), 0);
+  const maxPerDay = Math.max(1, Math.min(MAX_PER_DAY, blocks || MAX_PER_DAY));
+  const effectivePerDay = Math.min(perDay, maxPerDay);
   const total = blocks * styles.length;
-  const knownProjects = useMemo(() => uniqueSorted(savedCarousels.data.map((carousel) => carousel.project)), [savedCarousels.data]);
+  const knownProjects = useMemo(() => namesWithCounts(savedCarousels.data.map((carousel) => carousel.project)), [savedCarousels.data]);
   const knownFolders = useMemo(
-    () => uniqueSorted(savedCarousels.data.filter((carousel) => carousel.project === project.trim()).map((carousel) => carousel.folder)),
+    () => namesWithCounts(savedCarousels.data.filter((carousel) => carousel.project === project.trim()).map((carousel) => carousel.folder)),
     [savedCarousels.data, project],
   );
-  const plannedDays = scheduling && blocks > 0 ? countByDay(distributeDates(blocks, { startDate, perDay })) : [];
+  const defaultProject = account?.name ?? brand?.name ?? '';
+  const plannedDays = scheduling && blocks > 0 ? countByDay(distributeDates(blocks, { startDate, perDay: effectivePerDay })) : [];
 
   useEffect(() => {
     if (!brand) return;
@@ -241,6 +254,21 @@ export function CreatePage() {
     }
   };
 
+  /** Mass production: a .txt or .md file with every carousel, same format as pasting. */
+  const loadCopyFile = async (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > MAX_COPY_FILE_BYTES) return setError('Esse arquivo é grande demais. Divida em arquivos de até 1 MB.');
+    try {
+      const content = await file.text();
+      const parts = splitCopies(content);
+      // A file with several carousels fills one box per carousel.
+      setCopies(parts.length > 1 ? parts.slice(0, MAX_COPIES) : [content]);
+      setError(parts.length > MAX_COPIES ? `O arquivo tem ${parts.length} carrosséis; entraram os primeiros ${MAX_COPIES}.` : null);
+    } catch (cause) {
+      setError(`Não consegui ler o arquivo: ${errorMessage(cause)}`);
+    }
+  };
+
   const generate = async () => {
     if (!brand) return;
     setGenerating(true);
@@ -253,7 +281,7 @@ export function CreatePage() {
         brand,
         library: assets.data,
         mode,
-        text: text.trim(),
+        texts: copies,
         contentType,
         objective,
         slideCount,
@@ -264,9 +292,9 @@ export function CreatePage() {
         includeProduct: product !== null && includeProduct,
         productImageAssetId: productImageId,
         postWithImages,
-        project: project.trim() || (account?.name ?? brand.name),
+        project: project.trim() || defaultProject,
         folder,
-        schedule: scheduling ? { startDate, perDay } : null,
+        schedule: scheduling ? { startDate, perDay: effectivePerDay } : null,
       });
       if (scheduling) navigate('/agenda', { state: { created: result.carousels.length } });
       else if (result.experimentIds.length === 1) navigate(`/testes/${result.experimentIds[0]}`);
@@ -287,7 +315,10 @@ export function CreatePage() {
 
   if (brands.loading) return <Spinner />;
 
-  const ready = mode === 'manual' ? stats.slides > 0 : text.trim().length >= MIN_AI_COPY_LENGTH;
+  const ready = copyInfo.some((info) => (mode === 'manual' || info.numbered ? info.stats.slides > 0 : info.copy.trim().length >= MIN_AI_COPY_LENGTH));
+  const changeCopyCount = (count: number) =>
+    setCopies((current) => (count <= current.length ? current.slice(0, count) : [...current, ...Array.from({ length: count - current.length }, () => '')]));
+  const updateCopy = (index: number, value: string) => setCopies((current) => current.map((copy, position) => (position === index ? value : copy)));
   const photo = assets.data.find((asset) => isPhotoLike(asset) && asset.id !== productImageId);
   const productImage = assets.data.find((asset) => asset.id === productImageId);
 
@@ -352,19 +383,59 @@ export function CreatePage() {
               <ChoiceCard active={mode === 'ai'} onClick={() => changeMode('ai')} title="Separar pra mim" detail="Cola a copy inteira e a ferramenta divide nos slides" />
               <ChoiceCard active={mode === 'manual'} onClick={() => changeMode('manual')} title="Já separei" detail="Slide 1, texto · Slide 2, texto, sem mudar nenhuma palavra" />
             </div>
+            <div className="mb-3 flex flex-wrap items-end gap-3">
+              <Field label="Quantas copys" htmlFor="copy-count" className="w-44">
+                <Select id="copy-count" value={copies.length} onChange={(e) => changeCopyCount(Number(e.target.value))} disabled={generating}>
+                  {Array.from({ length: MAX_COPIES }, (_, index) => index + 1).map((count) => (
+                    <option key={count} value={count}>
+                      {count} {count === 1 ? 'copy' : 'copys'}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <p className="pb-2.5 text-xs text-faint">Cada copy vira um carrossel. A quantidade também define quantos você programa por dia no passo 5.</p>
+            </div>
             <div className="rounded-2xl border border-line">
-              <label htmlFor="copy" className="sr-only">
-                {mode === 'manual' ? 'Textos dos carrosséis' : 'Copy ou ideia'}
-              </label>
-              <Textarea
-                id="copy"
-                value={text}
-                onChange={(event) => setText(event.target.value)}
-                placeholder={mode === 'manual' ? MANUAL_PLACEHOLDER : AI_PLACEHOLDER}
-                rows={11}
-                className={clsx('min-h-60 border-0 bg-transparent px-4 py-3 text-base focus-visible:ring-0', mode === 'manual' && 'font-mono text-[14px]')}
-                disabled={generating}
-              />
+              {copies.length === 1 ? (
+                <>
+                  <label htmlFor="copy" className="sr-only">
+                    {mode === 'manual' ? 'Textos dos carrosséis' : 'Copy ou ideia'}
+                  </label>
+                  <Textarea
+                    id="copy"
+                    value={copies[0]}
+                    onChange={(event) => updateCopy(0, event.target.value)}
+                    placeholder={mode === 'manual' ? MANUAL_PLACEHOLDER : AI_PLACEHOLDER}
+                    rows={11}
+                    className={clsx('min-h-60 border-0 bg-transparent px-4 py-3 text-base focus-visible:ring-0', mode === 'manual' && 'font-mono text-[14px]')}
+                    disabled={generating}
+                  />
+                </>
+              ) : (
+                <ol className="divide-y divide-line">
+                  {copyInfo.map((info, index) => (
+                    <li key={index} className="px-4 py-3">
+                      <div className="mb-1.5 flex items-center justify-between gap-3">
+                        <label htmlFor={`copy-${index}`} className="text-xs font-semibold text-ink">
+                          Copy {index + 1}
+                        </label>
+                        <span className="text-[11px] text-faint">
+                          {info.copy.trim() ? (mode === 'manual' || info.numbered ? `${info.stats.slides} slides` : 'a ferramenta divide') : 'vazia'}
+                        </span>
+                      </div>
+                      <Textarea
+                        id={`copy-${index}`}
+                        value={info.copy}
+                        onChange={(event) => updateCopy(index, event.target.value)}
+                        placeholder={mode === 'manual' ? 'Slide 1, texto\nSlide 2, texto' : 'Cole a copy ou o tema deste carrossel'}
+                        rows={5}
+                        className={clsx('text-sm', mode === 'manual' && 'font-mono text-[13px]')}
+                        disabled={generating}
+                      />
+                    </li>
+                  ))}
+                </ol>
+              )}
 
               {(mode === 'manual' || numbered) && (
                 <div className="flex flex-col gap-1 px-4 pb-3 text-xs text-faint sm:flex-row sm:items-center sm:justify-between">
@@ -375,11 +446,27 @@ export function CreatePage() {
                     <code className="text-muted">Slide 1</code> começa o slide 1 (só o texto aparece) · <code className="text-muted">SLIDE 6 — PRODUTO</code> recebe o print · linha em branco vira espaço entre parágrafos · sem "Slide N", cada linha é um slide · <code className="text-muted">Legenda:</code> e <code className="text-muted">Tema do carrossel:</code> são lidos à parte
                   </p>
                   <p className="shrink-0 font-medium text-muted" aria-live="polite">
-                    {stats.carousels} {stats.carousels === 1 ? 'carrossel' : 'carrosséis'} · {stats.slides} slides
+                    {blocks} {blocks === 1 ? 'carrossel' : 'carrosséis'} · {stats.slides} slides
                   </p>
                 </div>
               )}
 
+            </div>
+            <div className="mt-2 flex justify-end">
+              <Button size="sm" variant="ghost" onClick={() => copyFileInput.current?.click()} disabled={generating}>
+                <FileText className="size-4" aria-hidden /> Abrir arquivo .txt
+              </Button>
+              <input
+                ref={copyFileInput}
+                type="file"
+                accept=".txt,.md,text/plain,text/markdown"
+                className="hidden"
+                aria-label="Arquivo com as copys"
+                onChange={(event) => {
+                  void loadCopyFile(event.target.files?.[0]);
+                  event.target.value = '';
+                }}
+              />
             </div>
           </Step>
 
@@ -558,23 +645,31 @@ export function CreatePage() {
           </Step>
 
           <Step number={5} title="Onde salvar e quando postar">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Projeto" htmlFor="project" hint="Ex: Aura, Ella Refina. Vira uma pasta em Projetos.">
-                <Input id="project" list="project-options" value={project} onChange={(e) => setProject(e.target.value)} placeholder={account?.name ?? brand.name} maxLength={60} disabled={generating} />
-                <datalist id="project-options">
-                  {knownProjects.map((name) => (
-                    <option key={name} value={name} />
-                  ))}
-                </datalist>
-              </Field>
-              <Field label="Pasta (opcional)" htmlFor="folder" hint="Ex: Outubro, Série hábitos.">
-                <Input id="folder" list="folder-name-options" value={folder} onChange={(e) => setFolder(e.target.value)} placeholder="Sem pasta" maxLength={60} disabled={generating} />
-                <datalist id="folder-name-options">
-                  {knownFolders.map((name) => (
-                    <option key={name} value={name} />
-                  ))}
-                </datalist>
-              </Field>
+            <div className="flex flex-col gap-5">
+              <NamePicker
+                label="Projeto"
+                options={knownProjects}
+                value={project}
+                onChange={(name) => {
+                  setProject(name);
+                  setFolder('');
+                }}
+                createLabel="Novo projeto"
+                placeholder={`Nome do projeto, ex: ${defaultProject || 'Aura'}`}
+                hint={project.trim() ? undefined : `Sem escolher, vai pro projeto "${defaultProject}".`}
+                disabled={generating}
+              />
+              <NamePicker
+                key={project.trim() || '__no-project__'}
+                label="Pasta"
+                options={knownFolders.filter((option) => option.name)}
+                value={folder}
+                onChange={setFolder}
+                createLabel="Nova pasta"
+                placeholder="Nome da pasta, ex: Outubro"
+                noneLabel="Sem pasta"
+                disabled={generating}
+              />
             </div>
 
             <label className="mt-5 flex items-center gap-2 text-sm text-ink">
@@ -588,8 +683,8 @@ export function CreatePage() {
                     <Input id="start-date" type="date" value={startDate} min={todayIso()} onChange={(e) => e.target.value && setStartDate(e.target.value)} disabled={generating} />
                   </Field>
                   <Field label="Quantos por dia" htmlFor="per-day">
-                    <Select id="per-day" value={perDay} onChange={(e) => setPerDay(Number(e.target.value))} disabled={generating}>
-                      {Array.from({ length: MAX_PER_DAY }, (_, index) => index + 1).map((count) => (
+                    <Select id="per-day" value={effectivePerDay} onChange={(e) => setPerDay(Number(e.target.value))} disabled={generating}>
+                      {Array.from({ length: maxPerDay }, (_, index) => index + 1).map((count) => (
                         <option key={count} value={count}>
                           {count} {count === 1 ? 'carrossel' : 'carrosséis'} por dia
                         </option>
@@ -598,9 +693,13 @@ export function CreatePage() {
                   </Field>
                 </div>
                 {plannedDays.length > 0 ? (
-                  <p className="text-xs text-muted" aria-live="polite">
-                    {plannedDays.map(({ date, count }) => `${formatDay(date)}: ${count}`).join(' · ')}
-                  </p>
+                  <div className="text-xs" aria-live="polite">
+                    <p className="font-medium text-ink">
+                      {blocks} {blocks === 1 ? 'carrossel' : 'carrosséis'} · {effectivePerDay} por dia = {plannedDays.length} {plannedDays.length === 1 ? 'dia' : 'dias'}
+                      {plannedDays.length > 1 && ` (de ${formatDay(plannedDays[0].date)} a ${formatDay(plannedDays[plannedDays.length - 1].date)})`}
+                    </p>
+                    <p className="mt-1 text-muted">{plannedDays.map(({ date, count }) => `${formatDay(date)}: ${count}`).join(' · ')}</p>
+                  </div>
                 ) : (
                   <p className="text-xs text-faint">Cole a copy pra ver como os carrosséis se dividem nos dias. Vários carrosséis de uma vez: separe com --- ou recomece no Slide 1.</p>
                 )}
@@ -718,8 +817,11 @@ function GenerationSteps({ steps }: { steps: string[] }) {
   );
 }
 
-function uniqueSorted(values: string[]): string[] {
-  return [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+/** Distinct non-empty names with how many carousels use each, alphabetically. */
+function namesWithCounts(values: string[]): NameOption[] {
+  const counts = new Map<string, number>();
+  for (const value of values.map((item) => item.trim()).filter(Boolean)) counts.set(value, (counts.get(value) ?? 0) + 1);
+  return [...counts.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function countByFolder(assets: { folder: string }[]): Map<string, number> {
