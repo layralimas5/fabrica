@@ -1,11 +1,15 @@
 import clsx from 'clsx';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { ArrowRight, FileText, FlaskConical, ImageIcon, Sparkles, Trophy, Upload } from 'lucide-react';
+import { ArrowRight, CalendarDays, FileText, FlaskConical, ImageIcon, Sparkles, Trophy, Upload } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAccounts, useAssets, useBrandKits, useCarousels, usePresets } from '../app/data';
 import { PresetBar } from '../create/PresetBar';
 import { AnalyticsAssist, useRecommendations } from '../create/AnalyticsAssist';
+import { checkCopies, SimilarityDialog, type CopyWarning } from '../create/SimilarityCheck';
+import { useSimilaritySettings } from '../app/planningSettings';
+import { useContentRecords } from '../app/data';
+import { recordFromCarousel } from '../domain/winners/fromCarousel';
 import { EXPLORATION_LEVELS, guidanceFor, planCopies, type ExplorationLevel } from '../domain/analytics/intelligence';
 import { TextStylePanel } from '../create/TextStylePanel';
 import type { CreateSettings, Preset } from '../domain/preset';
@@ -13,6 +17,7 @@ import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
 import { createCarousels, MAX_TEST_VARIANTS, type CopySetting } from '../application/createCarousels';
 import { readHandoff } from '../application/winnerHandoff';
+import { readPlan } from '../application/calendarPlan';
 import type { ContentOrigin } from '../domain/winners/record';
 import { ShadePicker } from '../brand/ShadePicker';
 import { StylePicker } from '../brand/StylePicker';
@@ -130,6 +135,8 @@ export function CreatePage() {
   /** Copies and settings sent by a winner (Usar como modelo, Criar variações, Família). Read once. */
   const [handoff] = useState(() => readHandoff(location.state));
   const [origin, setOrigin] = useState<ContentOrigin | null>(handoff?.origin ?? null);
+  /** Planned on the calendar ("Gerar conteúdo agora"): day, time, theme, category, objective and test come along. */
+  const [calendarPlan, setCalendarPlan] = useState(() => (handoff ? null : readPlan(location.state)));
 
   const [platform, setPlatform] = useState<Platform>(() => readStored(PLATFORM_STORAGE_KEY, PLATFORMS, 'instagram'));
   const [format, setFormat] = useState<CarouselFormat>(() => {
@@ -180,6 +187,10 @@ export function CreatePage() {
   const platformAccounts = accountsFor(accounts.data.filter(isActiveAccount), platform);
   const account = platformAccounts.find((item) => item.id === accountId) ?? platformAccounts[0] ?? null;
   const intelligence = useRecommendations(account?.id ?? null);
+  const records = useContentRecords();
+  const { settings: similaritySettings } = useSimilaritySettings();
+  /** Detector de Similaridade: warnings shown before creating; null when nothing to show. */
+  const [warnings, setWarnings] = useState<CopyWarning[] | null>(null);
   const accountIdentity = useMemo(() => (account ? identityOf(account) : null), [account]);
   const product = brand ? productOf(brand) : null;
   const folderCounts = useMemo(() => countByFolder(assets.data), [assets.data]);
@@ -313,6 +324,7 @@ export function CreatePage() {
     if (restoredPreset.current || presets.loading || brands.loading || accounts.loading || scope.loading) return;
     restoredPreset.current = true;
     if (handoff) return applyHandoff();
+    if (calendarPlan) return applyCalendarPlan();
     const last = presets.data.find((preset) => preset.id === presetId);
     if (last) choosePreset(last);
     // The account picked at the top ("Conta atual") wins over the one saved in the preset.
@@ -347,6 +359,21 @@ export function CreatePage() {
       folders: photoFoldersOf(targetBrand),
       scheduling: false,
     });
+  };
+
+  const applyCalendarPlan = () => {
+    if (!calendarPlan) return;
+    navigate(location.pathname, { replace: true, state: null });
+    const planned = accounts.data.find((item) => item.id === calendarPlan.accountId) ?? null;
+    const nextPlatform = planned?.platform ?? calendarPlan.platform;
+    setPlatform(nextPlatform);
+    if (!formatFitsPlatform(format, nextPlatform)) setFormat(defaultFormatFor(nextPlatform));
+    if (planned) chooseAccount(planned.id);
+    if (calendarPlan.objective) setObjective(calendarPlan.objective);
+    if (calendarPlan.title) setCopies([`Tema do carrossel: ${calendarPlan.title}\nSlide 1, ${calendarPlan.title}`]);
+    setScheduling(true);
+    setStartDate(calendarPlan.date);
+    setPerDay(MAX_PER_DAY);
   };
 
   const savePreset = async (name: string, overwriteId: string | null) => {
@@ -460,8 +487,38 @@ export function CreatePage() {
       };
     });
 
-  const generate = async () => {
+  /** "Criar nova versão": the similar carousel becomes the model of a remix (its record is created if needed). */
+  const newVersionOf = async (carouselId: string) => {
+    const similar = savedCarousels.data.find((item) => item.id === carouselId);
+    if (!similar) return;
+    try {
+      const existing = records.data.find((record) => record.carouselId === carouselId);
+      const owner = accounts.data.find((item) => item.id === similar.source.accountId) ?? null;
+      const record = existing ?? (await services.contentRecords.create({ ...recordFromCarousel(similar, owner, product?.name ?? null), winner: false }));
+      navigate(`/vencedores/${record.id}`, { state: { remix: 'model' } });
+    } catch (cause) {
+      setError(errorMessage(cause));
+    }
+  };
+
+  const generate = async (confirmed = false) => {
     if (!brand) return;
+    if (!confirmed) {
+      const found = checkCopies({
+        copies,
+        manual: mode === 'manual',
+        account,
+        carousels: savedCarousels.data,
+        records: records.data,
+        theme: calendarPlan?.theme ?? '',
+        day: scheduling ? startDate : null,
+        originId: origin?.modelId ?? null,
+        today: todayIso(),
+        settings: similaritySettings,
+      });
+      if (found.length > 0) return setWarnings(found);
+    }
+    setWarnings(null);
     setGenerating(true);
     setError(null);
     try {
@@ -474,6 +531,8 @@ export function CreatePage() {
         mode,
         texts: copies,
         copySettings: useAnalytics ? withAnalytics(copySettings) : copySettings,
+        plan: calendarPlan ? { theme: calendarPlan.theme, category: calendarPlan.category, scheduledTime: calendarPlan.time } : undefined,
+        experiment: calendarPlan?.experimentId ? { id: calendarPlan.experimentId, name: calendarPlan.title || calendarPlan.theme || 'Teste', variant: calendarPlan.variant || 'Variação' } : null,
         contentType,
         objective,
         slideCount,
@@ -491,7 +550,9 @@ export function CreatePage() {
         schedule: scheduling ? { startDate, perDay: effectivePerDay } : null,
         origin,
       });
-      if (scheduling) navigate('/agenda', { state: { created: result.carousels.length } });
+      // The planned entry is replaced by the carousels just created.
+      if (calendarPlan?.entryId) await services.calendarEntries.remove(calendarPlan.entryId).catch(() => undefined);
+      if (scheduling) navigate(`/calendario?visao=semana&data=${startDate}`, { state: { created: result.carousels.length } });
       else if (result.experimentIds.length === 1) navigate(`/testes/${result.experimentIds[0]}`);
       else if (result.experimentIds.length > 1) navigate('/testes', { state: { created: result.carousels.length } });
       else if (result.carousels.length === 1) navigate(`/carrossel/${result.carousels[0].id}`);
@@ -551,6 +612,20 @@ export function CreatePage() {
         </div>
       ) : (
         <div className="overflow-hidden rounded-3xl border border-line bg-surface shadow-sm">
+          {calendarPlan && (
+            <div className="flex flex-wrap items-center gap-3 border-b border-line bg-accent/[0.06] px-5 py-3">
+              <CalendarDays className="size-4 shrink-0 text-accent" aria-hidden />
+              <p className="min-w-0 flex-1 text-sm text-ink">
+                Planejado no calendário pra <span className="font-medium">{formatDay(calendarPlan.date)}</span>
+                {calendarPlan.time ? ` às ${calendarPlan.time}` : ''}
+                {calendarPlan.theme ? ` · tema ${calendarPlan.theme}` : ''}
+                {calendarPlan.experimentId ? ' · conteúdo de teste' : ''}.
+              </p>
+              <Button variant="ghost" size="sm" onClick={() => setCalendarPlan(null)}>
+                Desvincular
+              </Button>
+            </div>
+          )}
           {origin && (
             <div className="flex flex-wrap items-center gap-3 border-b border-line bg-amber-500/[0.07] px-5 py-3">
               <Trophy className="size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
@@ -1017,6 +1092,7 @@ export function CreatePage() {
         {error && <Alert>{error}</Alert>}
         <AnimatePresence>{generating && <GenerationSteps steps={mode === 'ai' ? AI_STEPS : MANUAL_STEPS} />}</AnimatePresence>
       </div>
+      {warnings && <SimilarityDialog warnings={warnings} account={account} onClose={() => setWarnings(null)} onContinue={() => void generate(true)} onNewVersion={(id) => void newVersionOf(id)} />}
     </div>
   );
 }

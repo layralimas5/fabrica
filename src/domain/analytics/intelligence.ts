@@ -38,6 +38,8 @@ export interface Recommendations {
   untestedTypes: Exclude<ContentType, 'auto'>[];
   /** Measured contents behind the recommendations. */
   measured: number;
+  /** Learnings saved from this account's tests, newest first. */
+  learnings: string[];
 }
 
 function winners<T extends string>(records: ContentRecord[], keyOf: Parameters<typeof groupStats>[1], scoreOf: ScoreOf, parse: (key: string) => T | null): Pattern<T>[] {
@@ -64,7 +66,7 @@ function leastUsed<T extends string>(options: readonly T[], used: (T | null)[]):
  * @param measured contents of the account with numbers (they set the winners)
  * @param all every content of the account, measured or not (they set what is untested)
  */
-export function recommend(measured: ContentRecord[], all: ContentRecord[], scoreOf: ScoreOf): Recommendations {
+export function recommend(measured: ContentRecord[], all: ContentRecord[], scoreOf: ScoreOf, learnings: string[] = []): Recommendations {
   const slides = winners(measured, exactSlides, scoreOf, (key) => key);
   return {
     template: winners(measured, GROUP_KEYS.template, scoreOf, oneOf(PLATFORM_STYLES))[0] ?? null,
@@ -75,11 +77,12 @@ export function recommend(measured: ContentRecord[], all: ContentRecord[], score
     untestedTemplates: leastUsed(PLATFORM_STYLES, all.map((record) => record.visualStyle)).slice(0, 3),
     untestedTypes: leastUsed(TYPES, all.map((record) => record.contentType)).slice(0, 3),
     measured: measured.length,
+    learnings: learnings.slice(0, 3),
   };
 }
 
 export function hasRecommendations(recommendations: Recommendations): boolean {
-  return Boolean(recommendations.template || recommendations.contentType || recommendations.slideCount || recommendations.hooks.length || recommendations.themes.length);
+  return Boolean(recommendations.template || recommendations.contentType || recommendations.slideCount || recommendations.hooks.length || recommendations.themes.length || recommendations.learnings.length);
 }
 
 /** Choices for one copy box. Undefined keeps what the user chose on the screen. */
@@ -131,6 +134,7 @@ export function guidanceFor(recommendations: Recommendations, plan: CopyPlan): s
     recommendations.themes.length ? `Temas vencedores: ${recommendations.themes.map((theme) => theme.label).join(', ')}.` : null,
     recommendations.contentType ? `Estrutura vencedora: ${CONTENT_TYPE_LABELS[recommendations.contentType.value].toLowerCase()}.` : null,
     recommendations.slideCount ? `Quantidade de slides que performa melhor: ${recommendations.slideCount.value}.` : null,
+    recommendations.learnings.length ? `Aprendizados dos testes: ${recommendations.learnings.join(' ')}` : null,
   ].filter(Boolean);
   return lines.length ? `Dados do Analytics da conta (use como direção, sem copiar conteúdos anteriores): ${lines.join(' ')}` : null;
 }

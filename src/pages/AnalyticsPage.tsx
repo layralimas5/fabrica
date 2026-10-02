@@ -1,4 +1,4 @@
-import { Gauge } from 'lucide-react';
+import { AlertTriangle, Gauge, Recycle } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAccountScope } from '../app/accountScope';
@@ -18,6 +18,8 @@ import {
   isPublished,
   kpis,
   pooledRate,
+  recycleCandidates,
+  themeFrequency,
   scoredItems,
   templateStats,
   weeklyChampion,
@@ -35,6 +37,9 @@ import { InsightsPanel, ScoreSettingsDialog } from '../winners/InsightsPanel';
 import { useAddMetrics } from '../winners/useAddMetrics';
 import { useWinnerActions } from '../winners/useWinnerActions';
 import { accountLabelOf, useWinnerLibrary } from '../winners/useWinnerLibrary';
+import { useExperimentLab } from '../experiments/useExperimentLab';
+import { useSimilaritySettings } from '../app/planningSettings';
+import { ExperimentCard, Learnings, TestMap } from '../experiments/ExperimentViews';
 
 const KPI_KEYS: PerformanceKey[] = ['views', 'likes', 'shares', 'saves', 'comments', 'follows', 'clicks', 'signups', 'sales'];
 const TOP_WINNERS = 6;
@@ -59,6 +64,8 @@ export function AnalyticsPage() {
   });
   const [filters, setFilters] = useState<Omit<AnalyticsFilters, 'accountId'>>({ platform: 'all', period: '30', from: '', to: '', kind: 'all' });
   const [scoreOpen, setScoreOpen] = useState(false);
+  const lab = useExperimentLab();
+  const { settings: similarity } = useSimilaritySettings();
   const [error, setError] = useState<string | null>(null);
   const today = todayIso();
   const { items, brands, assets, accounts, score } = library;
@@ -113,6 +120,13 @@ export function AnalyticsPage() {
   const showcase = (entry: Scored) => ({ entry, thumb: thumb(entry.item), accountLabel: accountOf(entry.item), scoreDetail: scoreDetail(entry.item), onView: () => view(entry.item), onVary: () => void vary(entry.item) });
 
   const kpiValues = kpis(measured, KPI_KEYS);
+  const themes = themeFrequency(published);
+  const recyclable = recycleCandidates(applyAnalyticsFilters(items, { ...full, period: 'all' }, today), library.scoreValue, today, similarity.lowDays).slice(0, 3);
+  const scopedExperiments = lab.experiments.filter((experiment) => !scope.current || !experiment.accountId || experiment.accountId === scope.current.id);
+  const experimentAccount = (accountId: string | null) => {
+    const account = scope.accounts.find((item) => item.id === accountId);
+    return account ? labelOfAccount(account) : 'Várias contas';
+  };
   const rates: Partial<Record<PerformanceKey, number | null>> = { shares: pooledRate(measured, 'shares'), saves: pooledRate(measured, 'saves'), follows: pooledRate(measured, 'follows'), likes: pooledRate(measured, 'likes'), comments: pooledRate(measured, 'comments') };
   const winnerTemplate = templates.find((stat) => stat.uses >= MIN_TEMPLATE_USES && stat.averageScore !== null)?.template ?? null;
 
@@ -255,6 +269,79 @@ export function AnalyticsPage() {
               </ul>
             </section>
           )}
+
+          <section aria-labelledby="experiments-title">
+            <SectionTitle hint="Cada teste com hipótese, variável e resultado. Conclusões de amostra pequena aparecem com confiança baixa." action={<Link to="/testes" className="text-xs font-medium text-muted underline-offset-4 hover:text-ink hover:underline">Ver todos os testes</Link>}>
+              <span id="experiments-title">Experimentos</span>
+            </SectionTitle>
+            <TestMap experiments={scopedExperiments} />
+            {scopedExperiments.length > 0 && (
+              <ul className="mt-3 grid gap-3 md:grid-cols-2">
+                {scopedExperiments.slice(0, 4).map((experiment) => (
+                  <li key={experiment.id}>
+                    <ExperimentCard experiment={experiment} result={lab.resultOf(experiment)} accountName={experimentAccount(experiment.accountId)} />
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Learnings experiments={scopedExperiments} accountName={experimentAccount} />
+          </section>
+
+          <div className="grid gap-5 lg:grid-cols-2">
+            <section aria-labelledby="themes-title" className="rounded-2xl border border-line bg-surface p-5">
+              <SectionTitle hint="Quantos conteúdos publicados de cada tema no período.">
+                <span id="themes-title">Frequência de temas</span>
+              </SectionTitle>
+              {themes.length === 0 ? (
+                <p className="text-sm text-faint">Nenhum conteúdo com tema no período. O tema fica no editor e no Calendário.</p>
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {themes.slice(0, 8).map((theme) => (
+                    <li key={theme.theme} className="flex items-baseline justify-between gap-3 text-sm">
+                      <span className="flex items-center gap-1.5 text-ink">
+                        {theme.overused && <AlertTriangle className="size-3.5 text-amber-600" aria-label="Tema usado em excesso" />}
+                        {theme.theme}
+                      </span>
+                      <span className="tabular-nums text-muted">
+                        {theme.count} {theme.count === 1 ? 'conteúdo' : 'conteúdos'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {themes.some((theme) => theme.overused) && (
+                <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
+                  {themes.filter((theme) => theme.overused).map((theme) => theme.theme).join(', ')} {themes.filter((theme) => theme.overused).length === 1 ? 'ocupa' : 'ocupam'} boa parte do período. Vale alternar pra não soar repetitivo.
+                </p>
+              )}
+            </section>
+
+            <section aria-labelledby="recycle-title" className="rounded-2xl border border-line bg-surface p-5">
+              <SectionTitle hint={`Conteúdos com score ${60}+ publicados há ${similarity.lowDays} dias ou mais.`}>
+                <span id="recycle-title">♻️ Bons candidatos para reciclagem</span>
+              </SectionTitle>
+              {recyclable.length === 0 ? (
+                <p className="text-sm text-faint">Nenhum conteúdo antigo e bom o bastante ainda.</p>
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {recyclable.map((entry) => (
+                    <li key={entry.item.record.id} className="flex items-center gap-3 rounded-xl bg-subtle px-3 py-2.5">
+                      <Recycle className="size-4 shrink-0 text-emerald-600" aria-hidden />
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-1 text-sm font-medium text-ink">“{entry.item.record.hook || entry.item.record.title}”</p>
+                        <p className="text-xs text-faint">
+                          Score {entry.score} · há {entry.ageDays} dias
+                        </p>
+                      </div>
+                      <Button size="sm" variant="secondary" onClick={() => void vary(entry.item)}>
+                        Criar nova versão
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </div>
 
           {comparison.length > 1 && (
             <section aria-labelledby="accounts-title" className="rounded-2xl border border-line bg-surface p-5">

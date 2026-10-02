@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import { ArrowLeft, Copy, Eye, Heart, PenLine, Pencil, Sparkles, Trophy, Users } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { winnerContext } from '../application/winnerHandoff';
 import { productOf } from '../domain/brandKit';
 import { STATUS_LABELS } from '../domain/carousel';
@@ -53,6 +53,17 @@ export function WinnerDetailPage() {
   const { records, carousels, accounts, brands, assets } = library;
 
   const record = records.data.find((item) => item.id === id);
+  // "Criar nova versão" from the similarity detector lands here with the remix already open.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const autoRemix = useRef(false);
+  useEffect(() => {
+    const remix = (location.state as { remix?: 'model' | 'variations' } | null)?.remix;
+    if (!record || !remix || autoRemix.current) return;
+    autoRemix.current = true;
+    navigate(location.pathname + location.search, { replace: true, state: null });
+    actions.run(remix, record);
+  }, [record, location.state]); // eslint-disable-line react-hooks/exhaustive-deps
   if (library.loading) return <Spinner label="Abrindo o vencedor" />;
   if (!record) {
     return (

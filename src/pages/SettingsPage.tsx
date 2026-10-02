@@ -4,6 +4,7 @@ import { useServices, useSession } from '../app/services';
 import { errorMessage } from '../app/useResource';
 import type { BackupService } from '../application/ports';
 import { Alert, Badge, Button, PageHeader } from '../ui/primitives';
+import { PlanningSettings } from '../settings/PlanningSettings';
 
 export function SettingsPage() {
   const { auth, ai, backup } = useServices();
@@ -28,6 +29,7 @@ export function SettingsPage() {
         ))}
       </dl>
 
+      <PlanningSettings />
       {backup && <BackupSection backup={backup} />}
       {ai.engine === 'heuristic' && auth.mode === 'supabase' && <Badge tone="warning">IA local ativa (VITE_AI_ENGINE=heuristic)</Badge>}
 
@@ -75,7 +77,7 @@ function BackupSection({ backup }: { backup: BackupService }) {
       const summary = await backup.importAll(file);
       setMessage({
         tone: 'success',
-        text: `Restaurado: ${summary.presets} predefinições, ${summary.accounts} contas, ${summary.brandKits} marcas, ${summary.assets} fotos e ${summary.carousels} carrosséis. Recarregando…`,
+        text: `Restaurado: ${summary.presets} predefinições, ${summary.accounts} contas, ${summary.brandKits} marcas, ${summary.assets} fotos, ${summary.carousels} carrosséis, ${summary.contentRecords} resultados, ${summary.experiments} testes e ${summary.calendarEntries} itens do calendário. Recarregando…`,
       });
       setTimeout(() => window.location.reload(), 1200);
     } catch (cause) {

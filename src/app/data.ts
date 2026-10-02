@@ -5,6 +5,8 @@ import type { Preset } from '../domain/preset';
 import type { BrandKit } from '../domain/brandKit';
 import type { Carousel } from '../domain/carousel';
 import type { ContentRecord } from '../domain/winners/record';
+import type { Experiment } from '../domain/experiments/experiment';
+import type { CalendarEntry } from '../domain/calendar/calendar';
 import { useServices } from './services';
 import { useResource } from './useResource';
 
@@ -36,4 +38,14 @@ export function usePresets() {
 export function useContentRecords() {
   const { contentRecords } = useServices();
   return useResource<ContentRecord[]>(useCallback(() => contentRecords.list(), [contentRecords]), []);
+}
+
+export function useExperiments() {
+  const { experiments } = useServices();
+  return useResource<Experiment[]>(useCallback(() => experiments.list(), [experiments]), []);
+}
+
+export function useCalendarEntries() {
+  const { calendarEntries } = useServices();
+  return useResource<CalendarEntry[]>(useCallback(() => calendarEntries.list(), [calendarEntries]), []);
 }

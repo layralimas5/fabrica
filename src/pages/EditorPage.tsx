@@ -5,7 +5,9 @@ import { shadeOf } from '../domain/shade';
 import { ArrowLeft, BarChart3, Check, CloudOff, Eye, FolderDown, Loader2, Star, Wand2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useAccounts, useAssets, useBrandKits, useCarousels } from '../app/data';
+import { useAccounts, useAssets, useBrandKits, useCarousels, useContentRecords } from '../app/data';
+import { SimilarityNotice, TestPanel } from '../editor/EditorPanels';
+import { CONTENT_CATEGORIES, CONTENT_CATEGORY_LABELS, type ContentCategory } from '../domain/content';
 import { SaveToFolderDialog } from '../editor/SaveToFolderDialog';
 import { useServices } from '../app/services';
 import type { RenderContext } from '../app/slideRendering';
@@ -13,7 +15,7 @@ import { errorMessage } from '../app/useResource';
 import { brandContext } from '../application/brandContext';
 import type { Asset } from '../domain/asset';
 import { brandForCarousel, type BrandKit } from '../domain/brandKit';
-import { CAROUSEL_STATUSES, DEFAULT_CARD, isPosted, nextToReview, normalizeTags, STATUS_LABELS, type Carousel, type CarouselFormat, type CarouselStatus } from '../domain/carousel';
+import { CAROUSEL_STATUSES, categoryOf, DEFAULT_CARD, isPosted, nextToReview, normalizeTags, STATUS_LABELS, type Carousel, type CarouselFormat, type CarouselStatus } from '../domain/carousel';
 import { layoutWithImage } from '../domain/layouts';
 import { ExportMenu } from '../editor/ExportMenu';
 import { Filmstrip } from '../editor/Filmstrip';
@@ -65,6 +67,7 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
   const [previewOpen, setPreviewOpen] = useState(false);
   const [folderOpen, setFolderOpen] = useState(false);
   const allCarousels = useCarousels();
+  const records = useContentRecords();
   const navigate = useNavigate();
   const next = useMemo(() => nextToReview(carousel, allCarousels.data), [carousel, allCarousels.data]);
   const [aiBusy, setAiBusy] = useState<'shorten' | 'variation' | null>(null);
@@ -183,6 +186,10 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
         </div>
       </header>
 
+      <div className="mb-4 empty:hidden">
+        <SimilarityNotice carousel={carousel} carousels={allCarousels.data} records={records.data} />
+      </div>
+
       {editor.saveError && (
         <div className="mb-4">
           <Alert>Não salvou: {editor.saveError}</Alert>
@@ -203,7 +210,7 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
             <Field label="Pasta" htmlFor="carousel-folder">
               <Input id="carousel-folder" value={carousel.folder} onChange={(e) => editor.setPlan({ folder: e.target.value })} maxLength={60} placeholder="Sem pasta" />
             </Field>
-            <Field label="Dia de postar" htmlFor="carousel-date" hint="Aparece na Agenda.">
+            <Field label="Dia de postar" htmlFor="carousel-date" hint="Aparece no Calendário.">
               <Input id="carousel-date" type="date" value={carousel.scheduledFor ?? ''} onChange={(e) => editor.setPlan({ scheduledFor: isIsoDate(e.target.value) ? e.target.value : null })} />
             </Field>
           </div>
@@ -222,7 +229,20 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
                 placeholder="#dor, #identificação"
               />
             </Field>
+            <Field label="Categoria" htmlFor="carousel-category">
+              <Select id="carousel-category" value={categoryOf(carousel.source)} onChange={(e) => editor.setSchedule({ category: e.target.value as ContentCategory })}>
+                {CONTENT_CATEGORIES.map((category) => (
+                  <option key={category} value={category}>
+                    {CONTENT_CATEGORY_LABELS[category]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Horário" htmlFor="carousel-time" hint="Com horário, aparece como Agendado.">
+              <Input id="carousel-time" type="time" value={carousel.source.scheduledTime ?? ''} onChange={(e) => editor.setSchedule({ scheduledTime: e.target.value || null })} />
+            </Field>
           </div>
+          <TestPanel carousel={carousel} onChange={editor.setExperiment} />
         </div>
 
         <aside className="rounded-2xl border border-line bg-surface p-5 lg:sticky lg:top-8 lg:max-h-[calc(100dvh-4rem)] lg:overflow-y-auto">

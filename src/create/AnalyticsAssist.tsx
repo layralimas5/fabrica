@@ -6,14 +6,18 @@ import { EXPLORATION_INFO, EXPLORATION_LEVELS, hasRecommendations, recommend, te
 import { CONTENT_TYPE_LABELS } from '../domain/content';
 import { NOT_ENOUGH_DATA } from '../domain/winners/insights';
 import { useWinnerLibrary } from '../winners/useWinnerLibrary';
+import { useExperiments } from '../app/data';
+import { learnings } from '../domain/experiments/experiment';
 
 /** What the Analytics of an account recommends; all accounts when none is given. */
 export function useRecommendations(accountId: string | null): { recommendations: Recommendations; loading: boolean } {
   const library = useWinnerLibrary();
+  const experiments = useExperiments();
   const recommendations = useMemo(() => {
     const ofAccount = library.items.filter((item) => !accountId || item.record.accountId === accountId);
-    return recommend(ofAccount.filter(isMeasured).map((item) => item.record), ofAccount.map((item) => item.record), library.scoreValue);
-  }, [library.items, library.scoreValue, accountId]);
+    const lessons = learnings(experiments.data.filter((experiment) => !accountId || !experiment.accountId || experiment.accountId === accountId)).map((experiment) => experiment.learning);
+    return recommend(ofAccount.filter(isMeasured).map((item) => item.record), ofAccount.map((item) => item.record), library.scoreValue, lessons);
+  }, [library.items, library.scoreValue, accountId, experiments.data]);
   return { recommendations, loading: library.loading };
 }
 
@@ -36,6 +40,7 @@ export function AnalyticsAssist({ enabled, onEnabled, level, onLevel, recommenda
     recommendations.slideCount && `${recommendations.slideCount.value} slides (score ${recommendations.slideCount.score})`,
     recommendations.hooks.length > 0 && `Ganchos: ${recommendations.hooks.map((hook) => hook.label.toLowerCase()).join(', ')}`,
     recommendations.themes.length > 0 && `Temas: ${recommendations.themes.map((theme) => theme.label).join(', ')}`,
+    ...recommendations.learnings.map((learning) => `Aprendizado: ${learning}`),
   ].filter((fact): fact is string => Boolean(fact));
 
   return (

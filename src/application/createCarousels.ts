@@ -4,7 +4,7 @@ import { productOf, VISUAL_STYLE_LABELS, type BrandKit, type BrandProduct, type 
 import type { Carousel, CarouselFormat, CopyMode, ExperimentRef, Platform, ProductDisplay, Slide, TextStyle } from '../domain/carousel';
 import { composeSlides, slidesWantingImages, slideText } from '../domain/composeCarousel';
 import { isPhotoLike } from '../domain/asset';
-import type { ContentType, Objective, SlideCountOption } from '../domain/content';
+import type { ContentCategory, ContentType, Objective, SlideCountOption } from '../domain/content';
 import { hasNumberedSlides, parseScript } from '../domain/script';
 import type { ImageShade } from '../domain/shade';
 import type { ContentOrigin } from '../domain/winners/record';
@@ -57,6 +57,10 @@ export interface CreateRequest {
   productDisplay?: ProductDisplay;
   /** Set when the copies were created from a winner, so they show up in its family. */
   origin?: ContentOrigin | null;
+  /** Planned on the calendar: theme, category and time go with every carousel of the request. */
+  plan?: { theme?: string; category?: ContentCategory; scheduledTime?: string | null };
+  /** Joins every carousel to an experiment under this variant name. */
+  experiment?: ExperimentRef | null;
 }
 
 /** Objective and type picked for one copy box. */
@@ -149,7 +153,7 @@ export async function createCarousels(services: Services, request: CreateRequest
       });
       previous = slides;
 
-      const experiment: ExperimentRef | null = experimentId ? { id: experimentId, name: draft.title, variant: VISUAL_STYLE_LABELS[style] } : null;
+      const experiment: ExperimentRef | null = experimentId ? { id: experimentId, name: draft.title, variant: VISUAL_STYLE_LABELS[style] } : (request.experiment ?? null);
       carousels.push(
         await services.carousels.create({
           brandKitId: request.brand.id,
@@ -166,6 +170,7 @@ export async function createCarousels(services: Services, request: CreateRequest
             copyMode: prepared.mode,
             shade: request.shade,
             accountId: request.accountId,
+            ...(request.plan ?? {}),
           },
           slides,
           caption,

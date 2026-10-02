@@ -118,6 +118,12 @@ export function useCarouselEditor(repo: CarouselRepository, initial: Carousel) {
     (labels: { theme?: string; tags?: string[] }) => mutate((current) => ({ ...current, source: { ...current.source, ...labels } })),
     [mutate],
   );
+  /** Joins (or leaves, with null) an experiment, under a variant name such as "Controle" or "Gancho contrarian". */
+  const setExperiment = useCallback((experiment: Carousel['experiment']) => mutate((current) => ({ ...current, experiment })), [mutate]);
+  const setSchedule = useCallback(
+    (schedule: { scheduledTime?: string | null; category?: Carousel['source']['category'] }) => mutate((current) => ({ ...current, source: { ...current.source, ...schedule } })),
+    [mutate],
+  );
   const setShade = useCallback(
     (shade: ImageShade) => mutate((current) => ({ ...current, source: { ...current.source, shade } })),
     [mutate],
@@ -130,7 +136,7 @@ export function useCarouselEditor(repo: CarouselRepository, initial: Carousel) {
     setCarousel((current) => ({ ...current, status }));
   }, []);
 
-  return { carousel, selectedId, setSelectedId, saveState, saveError, updateSlide, setTextStyleForAll, setShade, setAccount, setPlan, setLabels, addSlide, duplicate, removeSlide, reorder, move, setTitle, setCaption, setFormat, setStatus };
+  return { carousel, selectedId, setSelectedId, saveState, saveError, updateSlide, setTextStyleForAll, setShade, setAccount, setPlan, setLabels, setExperiment, setSchedule, addSlide, duplicate, removeSlide, reorder, move, setTitle, setCaption, setFormat, setStatus };
 }
 
 export type CarouselEditor = ReturnType<typeof useCarouselEditor>;

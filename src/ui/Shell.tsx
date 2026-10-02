@@ -8,7 +8,7 @@ import { Badge, Button } from './primitives';
 
 const NAV = [
   { to: '/criar', label: 'Criar', icon: Sparkles },
-  { to: '/agenda', label: 'Agenda', icon: CalendarDays },
+  { to: '/calendario', label: 'Calendário', icon: CalendarDays },
   { to: '/projetos', label: 'Projetos', icon: FolderKanban },
   { to: '/analytics', label: 'Analytics', icon: BarChart3 },
   { to: '/vencedores', label: 'Modelos Vencedores', icon: Trophy },
