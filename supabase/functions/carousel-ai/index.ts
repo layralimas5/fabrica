@@ -98,7 +98,10 @@ function buildCall(action: Action, payload: unknown): CallSpec<unknown> {
         validator: draftResponse,
         userContent: [
           'Monte o carrossel a partir deste pedido.',
-          input.slideCount ? `Use exatamente ${input.slideCount} slides, contando o CTA.` : 'Escolha a quantidade de slides (entre 5 e 10) que a narrativa pedir.',
+          input.slideCount ? `Use exatamente ${input.slideCount} slides, contando o CTA.` : 'Escolha a quantidade de slides (entre 7 e 9) que a narrativa pedir.',
+          input.product
+            ? `Inclua exatamente um slide role=product mostrando o ${input.product.name}, na posição que o tipo de carrossel pede.`
+            : 'Não inclua slide de produto nem mencione produto.',
           `<pedido>${JSON.stringify(input)}</pedido>`,
         ].join('\n'),
       };

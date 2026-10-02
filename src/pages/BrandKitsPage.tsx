@@ -8,6 +8,7 @@ import { errorMessage } from '../app/useResource';
 import { isPhotoLike, type Asset } from '../domain/asset';
 import {
   defaultBrandKit,
+  EMPTY_PRODUCT,
   FONT_CHOICES,
   PHOTO_TEXT_STYLE_LABELS,
   PHOTO_TEXT_STYLES,
@@ -20,6 +21,7 @@ import {
   type BrandColors,
   type BrandKit,
   type BrandKitInput,
+  type BrandProduct,
   type Spacing,
 } from '../domain/brandKit';
 import { DEFAULT_SLIDE_STYLE, type Slide } from '../domain/carousel';
@@ -116,7 +118,7 @@ export function BrandKitsPage() {
 
 function toInput(brand: BrandKit): BrandKitInput {
   const { id: _id, createdAt: _c, updatedAt: _u, ...input } = brand;
-  return { ...input, avatarAssetId: input.avatarAssetId ?? null, photoText: photoTextOf(input) };
+  return { ...input, avatarAssetId: input.avatarAssetId ?? null, photoText: photoTextOf(input), product: input.product ?? { ...EMPTY_PRODUCT } };
 }
 
 interface BrandKitEditorProps {
@@ -136,6 +138,7 @@ function BrandKitEditor({ id, initial, assets, inUse, onClose, onSave, onDelete 
 
   const patch = <K extends keyof BrandKitInput>(key: K, value: BrandKitInput[K]) => setDraft((current) => ({ ...current, [key]: value }));
   const patchColor = (key: keyof BrandColors, value: string) => setDraft((current) => ({ ...current, colors: { ...current.colors, [key]: value } }));
+  const patchProduct = (patchValue: Partial<BrandProduct>) => setDraft((current) => ({ ...current, product: { ...current.product, ...patchValue } }));
   const patchPhotoText = (patchValue: Partial<PhotoText>) => setDraft((current) => ({ ...current, photoText: { ...current.photoText, ...patchValue } }));
   const patchType = <K extends keyof BrandKitInput['typography']>(key: K, value: BrandKitInput['typography'][K]) =>
     setDraft((current) => ({ ...current, typography: { ...current.typography, [key]: value } }));
@@ -215,6 +218,26 @@ function BrandKitEditor({ id, initial, assets, inUse, onClose, onSave, onDelete 
             </div>
             <Field label="Tom e características" htmlFor="bk-voice" hint="A IA usa isso pra escrever no tom da marca." className="sm:col-span-2">
               <Textarea id="bk-voice" rows={3} value={draft.voice} onChange={(e) => patch('voice', e.target.value)} placeholder="Minimalista, moderno, pouco texto, forte contraste…" />
+            </Field>
+          </fieldset>
+
+          <fieldset className="grid gap-3 sm:grid-cols-2">
+            <legend className="mb-3 text-xs font-semibold uppercase tracking-wider text-faint">Produto (opcional)</legend>
+            <Field label="Nome do produto" htmlFor="bk-product-name" hint="Deixe vazio se a marca não tem produto pra mostrar.">
+              <Input id="bk-product-name" value={draft.product.name} onChange={(e) => patchProduct({ name: e.target.value })} maxLength={80} placeholder="Ex: Momentumm" />
+            </Field>
+            <Field label="Print ou foto do produto" htmlFor="bk-product-image" hint="Entra no slide de produto dos carrosséis com IA.">
+              <Select id="bk-product-image" value={draft.product.imageAssetId ?? ''} onChange={(e) => patchProduct({ imageAssetId: e.target.value || null })}>
+                <option value="">Escolher depois</option>
+                {assets.map((asset) => (
+                  <option key={asset.id} value={asset.id}>
+                    {asset.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="O que ele resolve" htmlFor="bk-product-pitch" hint="A IA só usa o que está aqui pra falar do produto, sem inventar funções." className="sm:col-span-2">
+              <Textarea id="bk-product-pitch" rows={3} maxLength={1000} value={draft.product.pitch} onChange={(e) => patchProduct({ pitch: e.target.value })} placeholder="Pra quem é, que dor resolve e como, em 2 ou 3 frases." />
             </Field>
           </fieldset>
 

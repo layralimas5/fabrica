@@ -9,7 +9,7 @@ import { errorMessage } from '../app/useResource';
 import { createCarousels, MAX_TEST_VARIANTS } from '../application/createCarousels';
 import { StylePicker } from '../brand/StylePicker';
 import { inFolders, isPhotoLike } from '../domain/asset';
-import { MOMENTUMM_STARTER, type VisualStyle } from '../domain/brandKit';
+import { MOMENTUMM_STARTER, productOf, type VisualStyle } from '../domain/brandKit';
 import type { CopyMode } from '../domain/carousel';
 import {
   CONTENT_TYPE_LABELS,
@@ -28,6 +28,7 @@ import { Alert, Button, Field, Select, Spinner, Textarea } from '../ui/primitive
 const AI_STEPS = ['Analisando a copy', 'Encontrando o gancho', 'Estruturando os slides', 'Escolhendo imagens da biblioteca', 'Montando o design'];
 const MANUAL_STEPS = ['Lendo seus textos', 'Escolhendo imagens da biblioteca', 'Montando os slides'];
 const MIN_AI_COPY_LENGTH = 20;
+const AI_PLACEHOLDER = 'Cole sua copy ou só o tema. Ex: Metas sem sistema são só desejos com prazo.';
 const MODE_STORAGE_KEY = 'fabrica:copy-mode';
 
 const MANUAL_PLACEHOLDER = `ninguém te conta isso sobre disciplina
@@ -62,12 +63,14 @@ export function CreatePage() {
   const [testing, setTesting] = useState(false);
   const [objective, setObjective] = useState<Objective>('engajamento');
   const [addCta, setAddCta] = useState(false);
+  const [includeProduct, setIncludeProduct] = useState(true);
   const [folders, setFolders] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creatingStarter, setCreatingStarter] = useState(false);
 
   const brand = brands.data.find((kit) => kit.id === brandId) ?? brands.data[0];
+  const product = brand ? productOf(brand) : null;
   const folderCounts = useMemo(() => countByFolder(assets.data), [assets.data]);
   const availableImages = assets.data.filter((asset) => inFolders(asset, folders)).length;
   const stats = useMemo(() => scriptStats(parseScript(text)), [text]);
@@ -131,6 +134,7 @@ export function CreatePage() {
         folders,
         styles,
         addCta,
+        includeProduct: product !== null && includeProduct,
       });
       if (result.experimentIds.length === 1) navigate(`/testes/${result.experimentIds[0]}`);
       else if (result.experimentIds.length > 1) navigate('/testes', { state: { created: result.carousels.length } });
@@ -183,7 +187,7 @@ export function CreatePage() {
             id="copy"
             value={text}
             onChange={(event) => setText(event.target.value)}
-            placeholder={mode === 'manual' ? MANUAL_PLACEHOLDER : 'Cole sua copy ou ideia aqui…'}
+            placeholder={mode === 'manual' ? MANUAL_PLACEHOLDER : AI_PLACEHOLDER}
             rows={11}
             className={clsx('min-h-60 border-0 bg-transparent px-4 py-3 text-base focus-visible:ring-0', mode === 'manual' && 'font-mono text-[14px]')}
             disabled={generating}
@@ -247,6 +251,20 @@ export function CreatePage() {
               </label>
             )}
           </div>
+
+          {mode === 'ai' && product && (
+            <div className="border-t border-line p-4">
+              <label className="flex items-start gap-2 text-sm text-ink">
+                <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]" checked={includeProduct} onChange={(e) => setIncludeProduct(e.target.checked)} disabled={generating} />
+                <span>
+                  Mostrar o {product.name} num slide, como parte da solução
+                  <span className="block text-xs text-faint">
+                    {product.imageAssetId ? 'Entra com o print do produto cadastrado no Brand Kit.' : 'Sem print cadastrado no Brand Kit: o slide usa uma foto da biblioteca.'}
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
 
           {folderCounts.size > 0 && (
             <div className="border-t border-line p-4">

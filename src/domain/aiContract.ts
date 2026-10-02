@@ -22,6 +22,7 @@ export type SlideDraft = z.infer<typeof slideDraftSchema>;
 
 export const carouselDraftSchema = z.object({
   title: z.string(),
+  caption: z.string(),
   slides: z.array(slideDraftSchema).min(1),
 });
 export type CarouselDraft = z.infer<typeof carouselDraftSchema>;
@@ -43,6 +44,13 @@ export const assetSummarySchema = z.object({
 });
 export type AssetSummary = z.infer<typeof assetSummarySchema>;
 
+export const productContextSchema = z.object({
+  name: z.string().min(1).max(80),
+  pitch: z.string().max(1000),
+  hasImage: z.boolean(),
+});
+export type ProductContext = z.infer<typeof productContextSchema>;
+
 export const draftRequestSchema = z.object({
   copy: z.string().min(1).max(20000),
   contentType: z.enum(CONTENT_TYPES),
@@ -50,6 +58,8 @@ export const draftRequestSchema = z.object({
   visualStyle: z.enum(VISUAL_STYLES),
   slideCount: z.number().int().min(3).max(12).nullable(),
   brand: brandContextSchema,
+  /** Null when the carousel should not show a product. */
+  product: productContextSchema.nullable(),
   assets: z.array(assetSummarySchema).max(400),
 });
 export type DraftRequest = z.infer<typeof draftRequestSchema>;

@@ -1,6 +1,6 @@
 import { inFolders, type Asset } from '../domain/asset';
 import type { CarouselDraft } from '../domain/aiContract';
-import { VISUAL_STYLE_LABELS, type BrandKit, type VisualStyle } from '../domain/brandKit';
+import { productOf, VISUAL_STYLE_LABELS, type BrandKit, type BrandProduct, type VisualStyle } from '../domain/brandKit';
 import type { Carousel, CarouselFormat, CopyMode, ExperimentRef, Slide } from '../domain/carousel';
 import { composeSlides } from '../domain/composeCarousel';
 import type { ContentType, Objective, SlideCountOption } from '../domain/content';
@@ -25,6 +25,8 @@ export interface CreateRequest {
   styles: VisualStyle[];
   /** Manual mode only: append the objective CTA as a last slide. */
   addCta: boolean;
+  /** AI mode only: show the brand's product in one slide. */
+  includeProduct: boolean;
 }
 
 export interface CreateResult {
@@ -45,9 +47,10 @@ export async function createCarousels(services: Services, request: CreateRequest
   const styles = [...new Set(request.styles)].slice(0, MAX_TEST_VARIANTS);
   if (styles.length === 0) throw new Error('Escolha pelo menos um estilo visual.');
 
-  const brandOnly = new Set([request.brand.logoAssetId, request.brand.avatarAssetId].filter(Boolean));
+  const product = request.mode === 'ai' && request.includeProduct ? productOf(request.brand) : null;
+  const brandOnly = new Set([request.brand.logoAssetId, request.brand.avatarAssetId, product?.imageAssetId].filter(Boolean));
   const assets = request.library.filter((asset) => !brandOnly.has(asset.id) && inFolders(asset, request.folders));
-  const copies = request.mode === 'manual' ? manualCopies(request.text) : [await aiCopy(services, request, styles[0], assets)];
+  const copies = request.mode === 'manual' ? manualCopies(request.text) : [await aiCopy(services, request, styles[0], assets, product)];
   if (copies.length === 0) throw new Error('Escreva pelo menos uma linha de texto.');
 
   const isTest = styles.length > 1;
@@ -70,6 +73,7 @@ export async function createCarousels(services: Services, request: CreateRequest
         visualStyle: style,
         preserveText: request.mode === 'manual',
         addCta: request.mode === 'ai' || request.addCta,
+        productAssetId: product?.imageAssetId ?? null,
       });
       previous = slides;
 
@@ -107,6 +111,7 @@ function manualCopies(text: string): PreparedCopy[] {
     copy: block.slides.join('\n'),
     draft: {
       title: limitWords(stripTrailingPeriod(block.slides[0].replace(/\n/g, ' ')), 8),
+      caption: block.caption,
       slides: block.slides.map((line, index) => ({
         role: index === 0 ? 'hook' : 'point',
         title: line,
@@ -121,7 +126,13 @@ function manualCopies(text: string): PreparedCopy[] {
   }));
 }
 
-async function aiCopy(services: Services, request: CreateRequest, style: VisualStyle, assets: Asset[]): Promise<PreparedCopy> {
+async function aiCopy(
+  services: Services,
+  request: CreateRequest,
+  style: VisualStyle,
+  assets: Asset[],
+  product: BrandProduct | null,
+): Promise<PreparedCopy> {
   const draft = await services.ai.draftCarousel({
     copy: request.text,
     contentType: request.contentType,
@@ -129,7 +140,8 @@ async function aiCopy(services: Services, request: CreateRequest, style: VisualS
     visualStyle: style,
     slideCount: request.slideCount === 'auto' ? null : request.slideCount,
     brand: brandContext(request.brand),
+    product: product ? { name: product.name.trim(), pitch: product.pitch.trim(), hasImage: product.imageAssetId !== null } : null,
     assets: assets.slice(0, ASSET_CONTEXT_LIMIT).map(({ id, name, folder, kind, tags }) => ({ id, name, folder, kind, tags })),
   });
-  return { draft: { ...draft, title: draft.title || draft.slides[0].title }, caption: '', copy: request.text };
+  return { draft: { ...draft, title: draft.title || draft.slides[0].title }, caption: draft.caption, copy: request.text };
 }

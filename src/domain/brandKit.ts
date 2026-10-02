@@ -40,6 +40,22 @@ export function photoTextOf(brand: Pick<BrandKit, 'photoText'>): PhotoText {
   return { ...DEFAULT_PHOTO_TEXT, ...brand.photoText };
 }
 
+/** What the brand sells. AI carousels can show it in one slide as part of the solution. */
+export interface BrandProduct {
+  name: string;
+  pitch: string;
+  /** Screenshot or photo of the product, shown in the product slide. */
+  imageAssetId: string | null;
+}
+
+export const EMPTY_PRODUCT: BrandProduct = { name: '', pitch: '', imageAssetId: null };
+
+/** The brand's product, or null when none is set. Older brand kits were saved before products existed. */
+export function productOf(brand: Pick<BrandKit, 'product'>): BrandProduct | null {
+  const product = brand.product;
+  return product && product.name.trim() ? product : null;
+}
+
 export type Spacing = 'compact' | 'normal' | 'airy';
 
 export interface BrandColors {
@@ -68,6 +84,7 @@ export interface BrandKit {
   /** Profile picture shown in the post-style header. */
   avatarAssetId: string | null;
   photoText: PhotoText;
+  product: BrandProduct;
   colors: BrandColors;
   typography: BrandTypography;
   visualStyle: VisualStyle;
@@ -105,6 +122,7 @@ export function defaultBrandKit(overrides: Partial<BrandKitInput> = {}): BrandKi
     logoAssetId: null,
     avatarAssetId: null,
     photoText: { ...DEFAULT_PHOTO_TEXT },
+    product: { ...EMPTY_PRODUCT },
     colors: {
       primary: '#111111',
       secondary: '#6d5dfc',
@@ -153,6 +171,12 @@ export const MOMENTUMM_STARTER: BrandKitInput = defaultBrandKit({
   },
   visualStyle: 'minimalista',
   voice: 'Minimalista, moderno, tecnológico e aspiracional. Pouco texto, frases curtas, forte contraste. Fala de produtividade sem culpa.',
+  product: {
+    name: 'Momentumm',
+    pitch:
+      'App para quem tem metas mas sofre com falta de constância, organização e disciplina. Conecta metas a ações do dia, dá propósito aos hábitos e deixa o progresso visível, pra manter a rotina sem depender de motivação e recomeçar sem culpa.',
+    imageAssetId: null,
+  },
 });
 
 export const TIKTOK_STARTER: BrandKitInput = defaultBrandKit({

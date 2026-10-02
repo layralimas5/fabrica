@@ -1,7 +1,7 @@
 import type { AiService } from '../../application/ports';
-import type { CarouselDraft, DraftRequest, HooksRequest, RewriteRequest, SlideDraft, SlideText } from '../../domain/aiContract';
+import type { CarouselDraft, DraftRequest, HooksRequest, ProductContext, RewriteRequest, SlideDraft, SlideText } from '../../domain/aiContract';
 import type { VisualStyle } from '../../domain/brandKit';
-import { CTA_BY_OBJECTIVE, MAX_SLIDES, NARRATIVES, type ContentType, type SlideRole } from '../../domain/content';
+import { CTA_BY_OBJECTIVE, MAX_SLIDES, NARRATIVES, PRODUCT_PLACEMENT, productSlideIndex, type ContentType, type SlideRole } from '../../domain/content';
 import { limitWords, splitSentences, stripTrailingPeriod, wordCount } from '../../domain/text';
 
 const REPEATABLE: SlideRole[] = ['point', 'item', 'step', 'mistake', 'argument'];
@@ -25,8 +25,9 @@ export class HeuristicAi implements AiService {
     const type = request.contentType === 'auto' ? detectType(request.copy) : request.contentType;
     const [hookSentence, ...material] = sentences;
     const oneSentencePerSlide = ONE_SENTENCE_STYLES.includes(request.visualStyle);
-    const desired = request.slideCount ?? clamp(sentences.length + 1, DEFAULT_SLIDES.min, oneSentencePerSlide ? MAX_SLIDES : DEFAULT_SLIDES.max);
-    const contentSlots = Math.max(1, Math.min(desired - 2, material.length));
+    const productSlots = request.product ? 1 : 0;
+    const desired = request.slideCount ?? clamp(sentences.length + 1 + productSlots, DEFAULT_SLIDES.min, oneSentencePerSlide ? MAX_SLIDES : DEFAULT_SLIDES.max);
+    const contentSlots = Math.max(1, Math.min(desired - 2 - productSlots, material.length));
     const roles = fitRoles(NARRATIVES[type], contentSlots);
     const chunks = distribute(material.length > 0 ? material : [hookSentence], contentSlots);
 
@@ -38,8 +39,13 @@ export class HeuristicAi implements AiService {
       return slideDraft(role, title, rest.join(' ') || null, wantsImage);
     });
     const cta = slideDraft('cta', CTA_BY_OBJECTIVE[request.objective], null, false);
+    const body = request.product ? withProductSlide(middle, request.product, type) : middle;
 
-    return { title: limitWords(stripTrailingPeriod(hookSentence), 8), slides: [hook, ...middle, cta] };
+    return {
+      title: limitWords(stripTrailingPeriod(hookSentence), 8),
+      caption: `${hookSentence}\n\n${cta.title}`,
+      slides: [hook, ...body, cta],
+    };
   }
 
   async rewriteSlide({ mode, slide }: RewriteRequest): Promise<SlideText> {
@@ -77,6 +83,14 @@ export class HeuristicAi implements AiService {
     ];
     return shuffle(candidates.filter((candidate) => candidate !== hook)).slice(0, count);
   }
+}
+
+/** Places the product slide using only the user's own pitch, so the offline engine still invents nothing. */
+function withProductSlide(middle: SlideDraft[], product: ProductContext, type: Exclude<ContentType, 'auto'>): SlideDraft[] {
+  const pitch = splitSentences(product.pitch).slice(0, 2).join(' ');
+  const slide = slideDraft('product', product.name, pitch || null, true);
+  const index = productSlideIndex(middle.map((item) => item.role), PRODUCT_PLACEMENT[type]);
+  return [...middle.slice(0, index), slide, ...middle.slice(index)];
 }
 
 function slideDraft(role: SlideRole, title: string, body: string | null, wantsImage: boolean): SlideDraft {

@@ -3,13 +3,13 @@ import { z } from 'npm:zod@4';
 
 export const SLIDE_ROLES = [
   'hook', 'context', 'situation', 'identification', 'problem', 'consequence', 'point', 'item', 'step',
-  'mistake', 'belief', 'argument', 'example', 'story', 'insight', 'solution', 'summary', 'conclusion', 'cta',
+  'mistake', 'belief', 'argument', 'example', 'story', 'insight', 'solution', 'product', 'summary', 'conclusion', 'cta',
 ] as const;
 export const LAYOUT_IDS = [
   'text_center', 'big_statement', 'image_full_quote', 'image_top_text_bottom', 'image_left_text_right', 'text_side', 'list', 'cta',
   'post_image', 'post_text', 'native_photo',
 ] as const;
-const CONTENT_TYPES = ['auto', 'dor', 'educativo', 'lista', 'tutorial', 'storytelling', 'contrarian', 'erros', 'framework', 'manifesto'] as const;
+const CONTENT_TYPES = ['auto', 'dor', 'educativo', 'lista', 'tutorial', 'storytelling', 'contrarian', 'erros', 'framework', 'manifesto', 'transformacao'] as const;
 const OBJECTIVES = ['engajamento', 'compartilhamento', 'salvamento', 'educacao', 'conversao', 'autoridade'] as const;
 const VISUAL_STYLES = ['minimalista', 'editorial', 'clean', 'bold', 'dark', 'lifestyle', 'post', 'tiktok'] as const;
 
@@ -23,6 +23,7 @@ export const draftRequest = z.object({
   visualStyle: z.enum(VISUAL_STYLES),
   slideCount: z.number().int().min(3).max(12).nullable(),
   brand,
+  product: z.object({ name: z.string().min(1).max(80), pitch: z.string().max(1000), hasImage: z.boolean() }).nullable(),
   assets: z.array(z.object({ id: z.string(), name: z.string(), folder: z.string(), kind: z.string(), tags: z.array(z.string()) })).max(400),
 });
 
@@ -38,6 +39,7 @@ export const hooksRequest = z.object({ hook: z.string().min(1), copy: z.string()
 
 export const draftResponse = z.object({
   title: z.string(),
+  caption: z.string(),
   slides: z.array(
     slideText.extend({
       role: z.enum(SLIDE_ROLES),
@@ -62,9 +64,10 @@ const slideTextProperties = {
 export const DRAFT_JSON_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['title', 'slides'],
+  required: ['title', 'caption', 'slides'],
   properties: {
     title: { type: 'string' },
+    caption: { type: 'string' },
     slides: {
       type: 'array',
       items: {

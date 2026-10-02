@@ -62,6 +62,7 @@ const request = (overrides: Partial<CreateRequest> = {}): CreateRequest => ({
   folders: [],
   styles: ['minimalista'],
   addCta: false,
+  includeProduct: false,
   ...overrides,
 });
 
@@ -124,5 +125,27 @@ describe('metrics', () => {
     );
     expect(ranking.map((row) => row.key)).toEqual(['tiktok', 'post']);
     expect(ranking[0].samples).toBe(2);
+  });
+});
+
+describe('createCarousels with a product', () => {
+  const withProduct: BrandKit = { ...brand, product: { name: 'Momentumm', pitch: 'Deixa o progresso visível.', imageAssetId: 'a0' } };
+  const copy = 'Você não precisa de mais motivação. Motivação some nos dias ruins. Disciplina é decidir antes. Comece pequeno. Constância vence.';
+
+  it('shows the product screenshot in one AI slide and keeps it out of the other slides', async () => {
+    const services = fakeServices();
+    await createCarousels(services, request({ brand: withProduct, mode: 'ai', text: copy, contentType: 'dor', includeProduct: true }));
+    const slides = services.saved[0].slides;
+    const product = slides.filter((slide) => slide.role === 'product');
+    expect(product).toHaveLength(1);
+    expect(product[0].assetId).toBe('a0');
+    expect(slides.filter((slide) => slide.assetId === 'a0')).toHaveLength(1);
+    expect(services.saved[0].caption).not.toBe('');
+  });
+
+  it('leaves the product out when the toggle is off', async () => {
+    const services = fakeServices();
+    await createCarousels(services, request({ brand: withProduct, mode: 'ai', text: copy, includeProduct: false }));
+    expect(services.saved[0].slides.some((slide) => slide.role === 'product')).toBe(false);
   });
 });

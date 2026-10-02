@@ -45,6 +45,7 @@ const ROLE_PREFERENCES: Partial<Record<SlideRole, LayoutId[]>> = {
   insight: ['big_statement', 'text_center'],
   conclusion: ['text_center', 'big_statement'],
   summary: ['list', 'text_side'],
+  product: ['image_top_text_bottom', 'image_left_text_right'],
   cta: ['cta'],
 };
 

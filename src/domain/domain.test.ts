@@ -3,6 +3,7 @@ import { HeuristicAi } from '../infra/ai/heuristicAi';
 import type { DraftRequest } from './aiContract';
 import type { Asset } from './asset';
 import { composeSlides } from './composeCarousel';
+import { productSlideIndex } from './content';
 import { matchImages } from './imageMatching';
 import { assignLayouts, LAYOUTS } from './layouts';
 import { limitWords, splitSentences, wordCount } from './text';
@@ -34,6 +35,7 @@ const request = (overrides: Partial<DraftRequest> = {}): DraftRequest => ({
   visualStyle: 'minimalista',
   slideCount: null,
   brand: { name: 'Momentumm', handle: '@momentumm', voice: '', visualStyle: 'minimalista' },
+  product: null,
   assets: [],
   ...overrides,
 });
@@ -134,5 +136,50 @@ describe('assignLayouts', () => {
   it('falls back to text layouts when there is no image', () => {
     const layouts = assignLayouts([{ role: 'hook', hasBullets: false, hasImage: false, suggested: 'image_full_quote' }]);
     expect(layouts[0]).toBe('big_statement');
+  });
+});
+
+describe('product slide', () => {
+  const product = { name: 'Momentumm', pitch: 'Conecta metas a ações do dia. Deixa o progresso visível. Terceira frase.', hasImage: true };
+
+  it('places the product right after the solution on pain themes and in the middle on method themes', () => {
+    expect(productSlideIndex(['situation', 'problem', 'insight', 'solution', 'conclusion'], 'late')).toBe(4);
+    expect(productSlideIndex(['situation', 'problem', 'conclusion'], 'late')).toBe(2);
+    expect(productSlideIndex(['point', 'point', 'point', 'point'], 'middle')).toBe(2);
+  });
+
+  it('adds exactly one product slide from the pitch, before the CTA', async () => {
+    const draft = await new HeuristicAi().draftCarousel(request({ contentType: 'dor', product }));
+    const products = draft.slides.filter((slide) => slide.role === 'product');
+    expect(products).toHaveLength(1);
+    expect(products[0].title).toBe('Momentumm');
+    expect(products[0].body).toBe('Conecta metas a ações do dia. Deixa o progresso visível.');
+    expect(draft.slides.indexOf(products[0])).toBeLessThan(draft.slides.length - 1);
+    expect(draft.caption).toContain('Você não precisa de mais motivação.');
+  });
+
+  it('keeps the requested slide count when a product is included', async () => {
+    const draft = await new HeuristicAi().draftCarousel(request({ product, slideCount: 7 }));
+    expect(draft.slides).toHaveLength(7);
+  });
+
+  it('uses the product screenshot on the product slide only', () => {
+    const screenshot = asset('print', ['app', 'tela']);
+    const library = [screenshot, asset('p1', ['rotina']), asset('p2', ['rotina'])];
+    const slides = composeSlides(
+      {
+        title: 't',
+        caption: '',
+        slides: [
+          { role: 'hook', title: 'Gancho', subtitle: null, body: null, bullets: [], assetId: null, layout: null, wantsImage: true },
+          { role: 'product', title: 'Momentumm', subtitle: null, body: null, bullets: [], assetId: null, layout: null, wantsImage: true },
+          { role: 'solution', title: 'tela do app', subtitle: null, body: null, bullets: [], assetId: null, layout: null, wantsImage: true },
+        ],
+      },
+      { objective: 'salvamento', assets: library, productAssetId: 'print' },
+    );
+    expect(slides[1].assetId).toBe('print');
+    expect(slides.filter((slide) => slide.assetId === 'print')).toHaveLength(1);
+    expect(LAYOUTS[slides[1].layout].needsImage).toBe(true);
   });
 });

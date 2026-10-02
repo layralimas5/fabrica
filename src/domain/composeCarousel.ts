@@ -21,23 +21,31 @@ interface ComposeOptions {
   preserveText?: boolean;
   /** Append the objective CTA when the last slide is not one. */
   addCta?: boolean;
+  /** Product screenshot: always used by the product slide, never picked for other slides. */
+  productAssetId?: string | null;
 }
 
 /** Turns an AI draft into renderable slides: enforces readability, the CTA ending, image choice and layout rhythm. */
-export function composeSlides(draft: CarouselDraft, { objective, assets, visualStyle, preserveText = false, addCta = true }: ComposeOptions): Slide[] {
+export function composeSlides(
+  draft: CarouselDraft,
+  { objective, assets, visualStyle, preserveText = false, addCta = true, productAssetId = null }: ComposeOptions,
+): Slide[] {
   const fixed = visualStyle ? FIXED_LAYOUTS[visualStyle] : undefined;
   const readable = preserveText ? draft.slides.slice(0, MAX_SLIDES) : draft.slides.slice(0, MAX_SLIDES).map(enforceReadability);
   const drafts = (addCta ? ensureCta(readable, objective) : readable).map((slide) =>
     fixed ? { ...slide, wantsImage: fixed.imageOnCta || slide.role !== 'cta' } : slide,
   );
-  const knownIds = new Set(assets.map((asset) => asset.id));
+  const library = assets.filter((asset) => asset.id !== productAssetId);
+  const knownIds = new Set(library.map((asset) => asset.id));
+  const showsProduct = (slide: SlideDraft) => slide.role === 'product' && productAssetId !== null;
 
   const imageRequests = drafts.map((slide) =>
-    slide.wantsImage && !(slide.assetId && knownIds.has(slide.assetId)) ? slideText(slide) : null,
+    slide.wantsImage && !showsProduct(slide) && !(slide.assetId && knownIds.has(slide.assetId)) ? slideText(slide) : null,
   );
-  const matched = matchImages(imageRequests, assets.filter((asset) => !drafts.some((slide) => slide.assetId === asset.id)));
+  const matched = matchImages(imageRequests, library.filter((asset) => !drafts.some((slide) => slide.assetId === asset.id)));
 
   const assetIds = drafts.map((slide, index) => {
+    if (showsProduct(slide)) return productAssetId;
     if (slide.assetId && knownIds.has(slide.assetId)) return slide.assetId;
     return matched[index];
   });
