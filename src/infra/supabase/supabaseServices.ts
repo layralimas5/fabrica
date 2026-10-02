@@ -195,6 +195,9 @@ interface CarouselRow {
   caption: string;
   experiment: Carousel['experiment'];
   metrics: Carousel['metrics'];
+  project: string;
+  folder: string;
+  scheduled_for: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -211,6 +214,9 @@ const rowToCarousel = (row: CarouselRow): Carousel =>
   caption: row.caption,
   experiment: row.experiment,
   metrics: row.metrics,
+  project: row.project,
+  folder: row.folder,
+  scheduledFor: row.scheduled_for,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
   });
@@ -225,6 +231,9 @@ const carouselToRow = (input: CarouselInput) => ({
   caption: input.caption,
   experiment: input.experiment,
   metrics: input.metrics,
+  project: input.project,
+  folder: input.folder,
+  scheduled_for: input.scheduledFor,
 });
 
 export class SupabaseCarousels implements CarouselRepository {

@@ -3,7 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight, FlaskConical, ImageIcon, Sparkles, Upload } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAccounts, useAssets, useBrandKits } from '../app/data';
+import { useAccounts, useAssets, useBrandKits, useCarousels } from '../app/data';
 import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
 import { createCarousels, MAX_TEST_VARIANTS } from '../application/createCarousels';
@@ -11,6 +11,7 @@ import { ShadePicker } from '../brand/ShadePicker';
 import { StylePicker } from '../brand/StylePicker';
 import type { RenderContext } from '../app/slideRendering';
 import { DEFAULT_SHADE, type ImageShade } from '../domain/shade';
+import { countByDay, distributeDates, formatDay, MAX_PER_DAY, todayIso } from '../domain/schedule';
 import { ImagePickerDialog } from '../editor/ImagePickerDialog';
 import { AssetThumb } from '../ui/AssetThumb';
 import { ACCEPTED_IMAGE_TYPES, inFolders, isAcceptedImage, isPhotoLike, PRODUCT_FOLDER, UPLOAD_RULES_MESSAGE } from '../domain/asset';
@@ -41,7 +42,7 @@ import {
 } from '../domain/content';
 import { hasNumberedSlides, parseScript, scriptStats } from '../domain/script';
 import { FolderPicker } from '../ui/FolderPicker';
-import { Alert, Button, Field, Select, Spinner, Textarea } from '../ui/primitives';
+import { Alert, Button, Field, Input, Select, Spinner, Textarea } from '../ui/primitives';
 
 const AI_STEPS = ['Analisando a copy', 'Encontrando o gancho', 'Estruturando os slides', 'Escolhendo imagens da biblioteca', 'Montando o design'];
 const MANUAL_STEPS = ['Lendo seus textos', 'Escolhendo imagens da biblioteca', 'Montando os slides'];
@@ -104,6 +105,7 @@ export function CreatePage() {
   const brands = useBrandKits();
   const assets = useAssets();
   const accounts = useAccounts();
+  const savedCarousels = useCarousels();
 
   const [platform, setPlatform] = useState<Platform>(() => readStored(PLATFORM_STORAGE_KEY, PLATFORMS, 'instagram'));
   const [format, setFormat] = useState<CarouselFormat>(() => {
@@ -127,6 +129,12 @@ export function CreatePage() {
   const productFileInput = useRef<HTMLInputElement>(null);
   const [folders, setFolders] = useState<string[]>([]);
   const [shade, setShade] = useState<ImageShade>(DEFAULT_SHADE);
+  const [postWithImages, setPostWithImages] = useState(true);
+  const [project, setProject] = useState('');
+  const [folder, setFolder] = useState('');
+  const [scheduling, setScheduling] = useState(false);
+  const [startDate, setStartDate] = useState(todayIso);
+  const [perDay, setPerDay] = useState(1);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creatingStarter, setCreatingStarter] = useState(false);
@@ -142,6 +150,12 @@ export function CreatePage() {
   const numbered = useMemo(() => hasNumberedSlides(text), [text]);
   const blocks = mode === 'manual' || numbered ? stats.carousels : text.trim() ? 1 : 0;
   const total = blocks * styles.length;
+  const knownProjects = useMemo(() => uniqueSorted(savedCarousels.data.map((carousel) => carousel.project)), [savedCarousels.data]);
+  const knownFolders = useMemo(
+    () => uniqueSorted(savedCarousels.data.filter((carousel) => carousel.project === project.trim()).map((carousel) => carousel.folder)),
+    [savedCarousels.data, project],
+  );
+  const plannedDays = scheduling && blocks > 0 ? countByDay(distributeDates(blocks, { startDate, perDay })) : [];
 
   useEffect(() => {
     if (!brand) return;
@@ -249,8 +263,13 @@ export function CreatePage() {
         addCta,
         includeProduct: product !== null && includeProduct,
         productImageAssetId: productImageId,
+        postWithImages,
+        project: project.trim() || (account?.name ?? brand.name),
+        folder,
+        schedule: scheduling ? { startDate, perDay } : null,
       });
-      if (result.experimentIds.length === 1) navigate(`/testes/${result.experimentIds[0]}`);
+      if (scheduling) navigate('/agenda', { state: { created: result.carousels.length } });
+      else if (result.experimentIds.length === 1) navigate(`/testes/${result.experimentIds[0]}`);
       else if (result.experimentIds.length > 1) navigate('/testes', { state: { created: result.carousels.length } });
       else if (result.carousels.length === 1) navigate(`/carrossel/${result.carousels[0].id}`);
       else navigate('/projetos', { state: { created: result.carousels.length } });
@@ -437,6 +456,15 @@ export function CreatePage() {
                   account={accountIdentity}
                 />
               </div>
+              {styles.includes('post') && (
+                <div>
+                  <p className="mb-2 text-xs font-medium text-muted">No modelo Post</p>
+                  <div role="radiogroup" aria-label="Imagem no modelo Post" className="grid grid-cols-2 gap-1 rounded-2xl bg-subtle p-1 sm:max-w-md">
+                    <ChoiceCard active={postWithImages} onClick={() => setPostWithImages(true)} title="Com imagem" detail="Foto e @ em cima, frase e foto" />
+                    <ChoiceCard active={!postWithImages} onClick={() => setPostWithImages(false)} title="Só texto" detail="Foto e @ em cima, frase no centro" />
+                  </div>
+                </div>
+              )}
               <div>
                 <p className="mb-3 text-xs font-medium text-muted">Sombreamento das fotos (vale pra todas)</p>
                 {shadeContext && <ShadePicker context={shadeContext} photo={photo} value={shade} onChange={setShade} disabled={generating} />}
@@ -526,6 +554,58 @@ export function CreatePage() {
                   ? 'Cada slide ganha uma foto das pastas marcadas: primeiro a que combina com a frase pelas tags, senão outra da pasta, sem repetir. Depois dá pra trocar qualquer uma no editor.'
                   : 'Com "Todas", só entra foto cuja tag combine com a frase; o resto sai só com texto. Pra ter foto em todo slide (como a Ella), marque a pasta das fotos dessa conta.'}
               </p>
+            )}
+          </Step>
+
+          <Step number={5} title="Onde salvar e quando postar">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Projeto" htmlFor="project" hint="Ex: Aura, Ella Refina. Vira uma pasta em Projetos.">
+                <Input id="project" list="project-options" value={project} onChange={(e) => setProject(e.target.value)} placeholder={account?.name ?? brand.name} maxLength={60} disabled={generating} />
+                <datalist id="project-options">
+                  {knownProjects.map((name) => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>
+              </Field>
+              <Field label="Pasta (opcional)" htmlFor="folder" hint="Ex: Outubro, Série hábitos.">
+                <Input id="folder" list="folder-name-options" value={folder} onChange={(e) => setFolder(e.target.value)} placeholder="Sem pasta" maxLength={60} disabled={generating} />
+                <datalist id="folder-name-options">
+                  {knownFolders.map((name) => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>
+              </Field>
+            </div>
+
+            <label className="mt-5 flex items-center gap-2 text-sm text-ink">
+              <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={scheduling} onChange={(e) => setScheduling(e.target.checked)} disabled={generating} />
+              Programar as postagens
+            </label>
+            {scheduling && (
+              <div className="mt-3 flex flex-col gap-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Começar em" htmlFor="start-date">
+                    <Input id="start-date" type="date" value={startDate} min={todayIso()} onChange={(e) => e.target.value && setStartDate(e.target.value)} disabled={generating} />
+                  </Field>
+                  <Field label="Quantos por dia" htmlFor="per-day">
+                    <Select id="per-day" value={perDay} onChange={(e) => setPerDay(Number(e.target.value))} disabled={generating}>
+                      {Array.from({ length: MAX_PER_DAY }, (_, index) => index + 1).map((count) => (
+                        <option key={count} value={count}>
+                          {count} {count === 1 ? 'carrossel' : 'carrosséis'} por dia
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                </div>
+                {plannedDays.length > 0 ? (
+                  <p className="text-xs text-muted" aria-live="polite">
+                    {plannedDays.map(({ date, count }) => `${formatDay(date)}: ${count}`).join(' · ')}
+                  </p>
+                ) : (
+                  <p className="text-xs text-faint">Cole a copy pra ver como os carrosséis se dividem nos dias. Vários carrosséis de uma vez: separe com --- ou recomece no Slide 1.</p>
+                )}
+                <p className="text-xs text-faint">Eles aparecem na Agenda, no dia certo, prontos pra baixar.</p>
+              </div>
             )}
           </Step>
 
@@ -636,6 +716,10 @@ function GenerationSteps({ steps }: { steps: string[] }) {
       ))}
     </motion.ol>
   );
+}
+
+function uniqueSorted(values: string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
 
 function countByFolder(assets: { folder: string }[]): Map<string, number> {

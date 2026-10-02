@@ -72,7 +72,7 @@ export interface ExportItem {
 }
 
 /** One ZIP with a folder per carousel (numbered slides + legenda.txt), for batch posting. */
-export async function exportMany(items: ExportItem[], format: ImageFormat, onProgress: (done: number, total: number) => void): Promise<void> {
+export async function exportMany(items: ExportItem[], format: ImageFormat, onProgress: (done: number, total: number) => void, zipName?: string): Promise<void> {
   const zip = new JSZip();
   const total = items.reduce((sum, item) => sum + item.carousel.slides.length, 0);
   let done = 0;
@@ -89,5 +89,5 @@ export async function exportMany(items: ExportItem[], format: ImageFormat, onPro
   }
 
   const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
-  download(await zip.generateAsync({ type: 'blob' }), `carrosseis-${stamp}.zip`);
+  download(await zip.generateAsync({ type: 'blob' }), `${zipName ? slugify(zipName) : `carrosseis-${stamp}`}.zip`);
 }

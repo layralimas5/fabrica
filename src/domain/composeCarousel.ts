@@ -25,10 +25,13 @@ interface ComposeOptions {
   productAssetId?: string | null;
   /** Fill slides that want a photo by keyword matching. Off when photos were already matched by the AI. */
   autoMatch?: boolean;
+  /** Post model with text only: no photos, except the product image on the product slide. */
+  textOnly?: boolean;
 }
 
 /** Which slides of a draft get a photo in a visual style (platform-native styles want one everywhere). */
-export function slidesWantingImages(draft: CarouselDraft, visualStyle?: VisualStyle): boolean[] {
+export function slidesWantingImages(draft: CarouselDraft, visualStyle?: VisualStyle, textOnly = false): boolean[] {
+  if (textOnly) return draft.slides.map(() => false);
   const fixed = visualStyle ? FIXED_LAYOUTS[visualStyle] : undefined;
   return draft.slides.map((slide) => (fixed ? fixed.imageOnCta || slide.role !== 'cta' : slide.wantsImage));
 }
@@ -41,13 +44,14 @@ export function slideText(slide: Pick<SlideDraft, 'title' | 'subtitle' | 'body' 
 /** Turns an AI draft into renderable slides: enforces readability, the CTA ending, image choice and layout rhythm. */
 export function composeSlides(
   draft: CarouselDraft,
-  { objective, assets, visualStyle, preserveText = false, addCta = true, productAssetId = null, autoMatch = true }: ComposeOptions,
+  { objective, assets, visualStyle, preserveText = false, addCta = true, productAssetId = null, autoMatch = true, textOnly = false }: ComposeOptions,
 ): Slide[] {
   const fixed = visualStyle ? FIXED_LAYOUTS[visualStyle] : undefined;
   const readable = preserveText ? draft.slides.slice(0, MAX_SLIDES) : draft.slides.slice(0, MAX_SLIDES).map(enforceReadability);
-  const drafts = (addCta ? ensureCta(readable, objective) : readable).map((slide) =>
-    fixed ? { ...slide, wantsImage: fixed.imageOnCta || slide.role !== 'cta' } : slide,
-  );
+  const drafts = (addCta ? ensureCta(readable, objective) : readable).map((slide) => {
+    if (textOnly) return { ...slide, wantsImage: false, assetId: null };
+    return fixed ? { ...slide, wantsImage: fixed.imageOnCta || slide.role !== 'cta' } : slide;
+  });
   const library = assets.filter((asset) => asset.id !== productAssetId);
   const knownIds = new Set(library.map((asset) => asset.id));
   const showsProduct = (slide: SlideDraft) => slide.role === 'product' && productAssetId !== null;

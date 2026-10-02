@@ -7,6 +7,7 @@ import { isPhotoLike } from '../domain/asset';
 import type { ContentType, Objective, SlideCountOption } from '../domain/content';
 import { hasNumberedSlides, parseScript } from '../domain/script';
 import type { ImageShade } from '../domain/shade';
+import { distributeDates, type SchedulePlan } from '../domain/schedule';
 import { limitWords, stripTrailingPeriod } from '../domain/text';
 import { brandContext } from './brandContext';
 import type { Services } from './ports';
@@ -33,6 +34,13 @@ export interface CreateRequest {
   addCta: boolean;
   /** Darkening applied to every photo of every carousel created. */
   shade: ImageShade;
+  /** Post model only: false keeps the text alone in the center, under the profile header. */
+  postWithImages: boolean;
+  /** Where the carousels are filed in Projetos. */
+  project: string;
+  folder: string;
+  /** Spreads the carousels over days; variants of a format test share their day. Null leaves them unscheduled. */
+  schedule: SchedulePlan | null;
   /** Show the brand's product in one slide: placed by the AI, or the slide marked PRODUTO in a written script. */
   includeProduct: boolean;
   /** Image for the product slide picked at creation time. Undefined keeps the one saved in the brand kit. */
@@ -66,10 +74,13 @@ export async function createCarousels(services: Services, request: CreateRequest
   const isTest = styles.length > 1;
   const carousels: Carousel[] = [];
   const experimentIds: string[] = [];
+  const dates = request.schedule ? distributeDates(copies.length, request.schedule) : [];
+  const textOnly = (style: VisualStyle) => style === 'post' && !request.postWithImages;
 
-  for (const prepared of copies) {
+  for (const [position, prepared] of copies.entries()) {
     const { caption, copy } = prepared;
-    const draft = await withMatchedPhotos(services, prepared.draft, assets, styles, request.folders.length > 0, product?.imageAssetId ?? null);
+    const photoStyles = styles.filter((style) => !textOnly(style));
+    const draft = await withMatchedPhotos(services, prepared.draft, assets, photoStyles, request.folders.length > 0, product?.imageAssetId ?? null);
     const experimentId = isTest ? crypto.randomUUID() : null;
     if (experimentId) experimentIds.push(experimentId);
     let previous: Slide[] | null = null;
@@ -87,6 +98,7 @@ export async function createCarousels(services: Services, request: CreateRequest
         addCta: mode === 'ai' || request.addCta,
         productAssetId: product?.imageAssetId ?? null,
         autoMatch: false,
+        textOnly: textOnly(style),
       });
       previous = slides;
 
@@ -112,6 +124,9 @@ export async function createCarousels(services: Services, request: CreateRequest
           caption,
           experiment,
           metrics: null,
+          project: request.project.trim(),
+          folder: request.folder.trim(),
+          scheduledFor: dates[position] ?? null,
         }),
       );
     }
@@ -141,7 +156,7 @@ async function withMatchedPhotos(
     .map((slide, index) => ({ slide, index }))
     // The product slide shows the product image; without one it is a regular slide.
     .filter(({ slide, index }) => !(slide.role === 'product' && productAssetId) && wants.some((list) => list[index]) && !(slide.assetId && known.has(slide.assetId)));
-  if (pending.length === 0 || photos.length === 0) return draft;
+  if (styles.length === 0 || pending.length === 0 || photos.length === 0) return draft;
 
   const alreadyUsed = new Set(draft.slides.map((slide) => slide.assetId).filter(Boolean));
   const candidates = photos.filter((asset) => !alreadyUsed.has(asset.id));

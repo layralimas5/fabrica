@@ -120,6 +120,11 @@ export interface Carousel {
   caption: string;
   experiment: ExperimentRef | null;
   metrics: Metrics | null;
+  /** Where it is filed in Projetos, e.g. project "Aura", folder "Outubro". Empty means unfiled. */
+  project: string;
+  folder: string;
+  /** Day it should be posted ('YYYY-MM-DD'), or null when not scheduled. */
+  scheduledFor: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -163,6 +168,11 @@ export function moveItem<T>(items: T[], from: number, to: number): T[] {
   return copy;
 }
 
+export function toCarouselInput(carousel: Carousel): CarouselInput {
+  const { id: _id, createdAt: _c, updatedAt: _u, ...input } = carousel;
+  return input;
+}
+
 /** Fills fields added after the first release so older saved carousels keep working. */
 export function normalizeCarousel(carousel: Carousel): Carousel {
   return {
@@ -170,6 +180,9 @@ export function normalizeCarousel(carousel: Carousel): Carousel {
     caption: carousel.caption ?? '',
     experiment: carousel.experiment ?? null,
     metrics: carousel.metrics ?? null,
+    project: carousel.project ?? '',
+    folder: carousel.folder ?? '',
+    scheduledFor: carousel.scheduledFor ?? null,
     source: { ...carousel.source, folders: carousel.source.folders ?? [], shade: shadeOf(carousel.source) },
     slides: carousel.slides.map((slide) => ({ ...slide, style: { ...DEFAULT_SLIDE_STYLE, ...slide.style } })),
   };

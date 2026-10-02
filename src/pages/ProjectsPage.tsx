@@ -1,5 +1,5 @@
-import type { Account } from '../domain/account';
-import { Download, Eye, Search, Trash2 } from 'lucide-react';
+import clsx from 'clsx';
+import { CalendarDays, Download, Eye, Folder, FolderOpen, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { renderContextFor } from '../app/renderContextFor';
@@ -7,12 +7,11 @@ import { useAccounts, useAssets, useBrandKits, useCarousels } from '../app/data'
 import { useServices } from '../app/services';
 import type { RenderContext } from '../app/slideRendering';
 import { errorMessage } from '../app/useResource';
-import type { Asset } from '../domain/asset';
-import type { BrandKit } from '../domain/brandKit';
 import { CAROUSEL_STATUSES, STATUS_LABELS, type Carousel, type CarouselStatus } from '../domain/carousel';
 import { Alert, Badge, Button, EmptyState, Input, PageHeader, Select, Spinner } from '../ui/primitives';
 import { CarouselViewer } from '../ui/CarouselViewer';
-import { SlideCanvas } from '../ui/SlideCanvas';
+import { CarouselCover } from '../ui/CarouselCover';
+import { formatDay } from '../domain/schedule';
 
 const STATUS_TONE: Record<CarouselStatus, 'neutral' | 'accent' | 'success' | 'warning'> = {
   draft: 'neutral',
@@ -30,6 +29,9 @@ export function ProjectsPage() {
   const [query, setQuery] = useState('');
   const [brandFilter, setBrandFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<CarouselStatus | ''>('');
+  /** null = every project; '' = carousels without a project. */
+  const [place, setPlace] = useState<{ project: string | null; folder: string | null }>({ project: null, folder: null });
+  const tree = useMemo(() => projectTree(carousels.data), [carousels.data]);
   const [error, setError] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState<Carousel | null>(null);
   const [exporting, setExporting] = useState<{ done: number; total: number } | null>(null);
@@ -41,9 +43,11 @@ export function ProjectsPage() {
       (carousel) =>
         (!search || carousel.title.toLowerCase().includes(search)) &&
         (!brandFilter || carousel.brandKitId === brandFilter) &&
-        (!statusFilter || carousel.status === statusFilter),
+        (!statusFilter || carousel.status === statusFilter) &&
+        (place.project === null || carousel.project === place.project) &&
+        (place.folder === null || carousel.folder === place.folder),
     );
-  }, [carousels.data, query, brandFilter, statusFilter]);
+  }, [carousels.data, query, brandFilter, statusFilter, place]);
 
   const remove = async (carousel: Carousel) => {
     if (!window.confirm(`Excluir "${carousel.title}"? Não dá pra desfazer.`)) return;
@@ -70,7 +74,7 @@ export function ProjectsPage() {
     setExporting({ done: 0, total: 1 });
     try {
       const { exportMany } = await import('../app/exportCarousel');
-      await exportMany(items, 'png', (done, total) => setExporting({ done, total }));
+      await exportMany(items, 'png', (done, total) => setExporting({ done, total }), [place.project, place.folder].filter(Boolean).join(' ') || undefined);
     } catch (cause) {
       setError(errorMessage(cause));
     } finally {
@@ -85,7 +89,7 @@ export function ProjectsPage() {
     <div className="mx-auto max-w-6xl">
       <PageHeader
         title="Projetos"
-        description="Todos os carrosséis que você já gerou."
+        description="Seus carrosséis, organizados por projeto e pasta."
         action={
           filtered.length > 0 && (
             <Button variant="secondary" loading={exporting !== null} onClick={() => void exportFiltered()}>
@@ -126,6 +130,33 @@ export function ProjectsPage() {
 
       {(error ?? carousels.error) && <div className="mb-4"><Alert>{error ?? carousels.error}</Alert></div>}
 
+      <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+      <nav aria-label="Projetos e pastas" className="flex flex-col gap-1 lg:sticky lg:top-8 lg:self-start">
+        <PlaceButton active={place.project === null} onClick={() => setPlace({ project: null, folder: null })} icon={FolderOpen} label="Todos" count={carousels.data.length} />
+        {tree.map((node) => (
+          <div key={node.project || '__none__'} className="flex flex-col gap-0.5">
+            <PlaceButton
+              active={place.project === node.project && place.folder === null}
+              onClick={() => setPlace({ project: node.project, folder: null })}
+              icon={Folder}
+              label={node.project || 'Sem projeto'}
+              count={node.count}
+            />
+            {place.project === node.project &&
+              node.folders.map((folder) => (
+                <PlaceButton
+                  key={folder.name || '__root__'}
+                  active={place.folder === folder.name}
+                  onClick={() => setPlace({ project: node.project, folder: folder.name })}
+                  label={folder.name || 'Sem pasta'}
+                  count={folder.count}
+                  nested
+                />
+              ))}
+          </div>
+        ))}
+      </nav>
+      <div className="min-w-0">
       {filtered.length === 0 ? (
         <EmptyState
           title={carousels.data.length === 0 ? 'Nenhum carrossel ainda' : 'Nada com esses filtros'}
@@ -139,14 +170,21 @@ export function ProjectsPage() {
             return (
               <li key={carousel.id} className="group relative overflow-hidden rounded-2xl border border-line bg-surface transition-shadow hover:shadow-md">
                 <Link to={`/carrossel/${carousel.id}`} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent">
-                  {brand && <CoverPreview carousel={carousel} brand={brand} assets={assets.data} accounts={accounts.data} />}
+                  {brand && <CarouselCover carousel={carousel} brand={brand} assets={assets.data} accounts={accounts.data} />}
                   <div className="p-4">
                     <p className="line-clamp-2 text-sm font-semibold leading-snug text-ink">{carousel.title}</p>
                     <p className="mt-1 text-xs text-muted">
                       {brand?.name ?? 'Marca removida'} · {carousel.slides.length} slides · {new Date(carousel.updatedAt).toLocaleDateString('pt-BR')}
                     </p>
-                    <div className="mt-3">
+                    {(carousel.project || carousel.folder) && <p className="mt-1 truncate text-xs text-faint">{[carousel.project, carousel.folder].filter(Boolean).join(' / ')}</p>}
+                    <div className="mt-3 flex flex-wrap items-center gap-1.5">
                       <Badge tone={STATUS_TONE[carousel.status]}>{STATUS_LABELS[carousel.status]}</Badge>
+                      {carousel.scheduledFor && (
+                        <Badge>
+                          <CalendarDays className="mr-1 size-3" aria-hidden />
+                          {formatDay(carousel.scheduledFor)}
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </Link>
@@ -163,14 +201,61 @@ export function ProjectsPage() {
           })}
         </ul>
       )}
+      </div>
+      </div>
 
       {previewing && previewContext && <CarouselViewer open onClose={() => setPreviewing(null)} context={previewContext} carousel={previewing} />}
     </div>
   );
 }
 
-function CoverPreview({ carousel, brand, assets, accounts }: { carousel: Carousel; brand: BrandKit; assets: Asset[]; accounts: Account[] }) {
-  const { assets: repo } = useServices();
-  const context = useMemo(() => renderContextFor(carousel, brand, assets, repo, accounts), [carousel, brand, assets, repo, accounts]);
-  return <SlideCanvas context={context} slide={carousel.slides[0]} index={0} scale={0.3} label={`Capa de ${carousel.title}`} className="!aspect-[4/5]" />;
+interface ProjectNode {
+  project: string;
+  count: number;
+  folders: { name: string; count: number }[];
+}
+
+/** Projects with their folders and counts; carousels without a project come last. */
+function projectTree(carousels: Carousel[]): ProjectNode[] {
+  const projects = new Map<string, Map<string, number>>();
+  for (const carousel of carousels) {
+    const folders = projects.get(carousel.project) ?? new Map<string, number>();
+    folders.set(carousel.folder, (folders.get(carousel.folder) ?? 0) + 1);
+    projects.set(carousel.project, folders);
+  }
+  return [...projects.entries()]
+    .map(([project, folders]) => ({
+      project,
+      count: [...folders.values()].reduce((sum, count) => sum + count, 0),
+      folders: [...folders.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => (a.name ? 0 : 1) - (b.name ? 0 : 1) || a.name.localeCompare(b.name)),
+    }))
+    .sort((a, b) => (a.project ? 0 : 1) - (b.project ? 0 : 1) || a.project.localeCompare(b.project));
+}
+
+interface PlaceButtonProps {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  count: number;
+  icon?: typeof Folder;
+  nested?: boolean;
+}
+
+function PlaceButton({ active, onClick, label, count, icon: Icon, nested = false }: PlaceButtonProps) {
+  return (
+    <button
+      type="button"
+      aria-current={active ? 'true' : undefined}
+      onClick={onClick}
+      className={clsx(
+        'flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+        nested && 'ml-5 py-1.5 text-[13px]',
+        active ? 'bg-surface font-medium text-ink shadow-sm ring-1 ring-line' : 'text-muted hover:bg-subtle hover:text-ink',
+      )}
+    >
+      {Icon && <Icon className="size-4 shrink-0" aria-hidden />}
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span className="text-xs text-faint">{count}</span>
+    </button>
+  );
 }

@@ -1,3 +1,4 @@
+import { isIsoDate } from '../domain/schedule';
 import { identityOf, type Account } from '../domain/account';
 import { CAROUSEL_FORMATS, formatSizeLabel, PLATFORM_LABELS } from '../domain/carousel';
 import { shadeOf } from '../domain/shade';
@@ -21,7 +22,7 @@ import { Inspector } from '../editor/Inspector';
 import { SlideStage } from '../editor/SlideStage';
 import { useCarouselEditor, type SaveState } from '../editor/useCarouselEditor';
 import { CarouselViewer } from '../ui/CarouselViewer';
-import { Alert, Button, EmptyState, Field, Select, Spinner, Textarea } from '../ui/primitives';
+import { Alert, Button, EmptyState, Field, Input, Select, Spinner, Textarea } from '../ui/primitives';
 
 export function EditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -169,6 +170,17 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
           <Field label="Legenda do post" htmlFor="carousel-caption" hint="Vai junto no ZIP como legenda.txt.">
             <Textarea id="carousel-caption" rows={3} value={carousel.caption} onChange={(e) => editor.setCaption(e.target.value)} maxLength={2200} placeholder="Escreva a legenda e as hashtags…" />
           </Field>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label="Projeto" htmlFor="carousel-project">
+              <Input id="carousel-project" value={carousel.project} onChange={(e) => editor.setPlan({ project: e.target.value })} maxLength={60} placeholder="Sem projeto" />
+            </Field>
+            <Field label="Pasta" htmlFor="carousel-folder">
+              <Input id="carousel-folder" value={carousel.folder} onChange={(e) => editor.setPlan({ folder: e.target.value })} maxLength={60} placeholder="Sem pasta" />
+            </Field>
+            <Field label="Dia de postar" htmlFor="carousel-date" hint="Aparece na Agenda.">
+              <Input id="carousel-date" type="date" value={carousel.scheduledFor ?? ''} onChange={(e) => editor.setPlan({ scheduledFor: isIsoDate(e.target.value) ? e.target.value : null })} />
+            </Field>
+          </div>
         </div>
 
         <aside className="rounded-2xl border border-line bg-surface p-5 lg:sticky lg:top-8 lg:max-h-[calc(100dvh-4rem)] lg:overflow-y-auto">

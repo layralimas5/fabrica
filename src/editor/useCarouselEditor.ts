@@ -1,8 +1,7 @@
-import type { SlideStyle } from '../domain/carousel';
 import type { ImageShade } from '../domain/shade';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CarouselRepository } from '../application/ports';
-import { blankSlide, duplicateSlide, moveItem, type Carousel, type CarouselFormat, type CarouselStatus, type Slide } from '../domain/carousel';
+import { blankSlide, duplicateSlide, moveItem, type Carousel, type CarouselFormat, type CarouselStatus, type Slide, type SlideStyle } from '../domain/carousel';
 import { MAX_SLIDES } from '../domain/content';
 import { errorMessage } from '../app/useResource';
 
@@ -106,6 +105,10 @@ export function useCarouselEditor(repo: CarouselRepository, initial: Carousel) {
       mutate((current) => ({ ...current, slides: current.slides.map((slide) => ({ ...slide, style: { ...slide.style, ...patch } })) })),
     [mutate],
   );
+  const setPlan = useCallback(
+    (patch: Partial<Pick<Carousel, 'project' | 'folder' | 'scheduledFor'>>) => mutate((current) => ({ ...current, ...patch })),
+    [mutate],
+  );
   const setAccount = useCallback(
     (accountId: string | null) => mutate((current) => ({ ...current, source: { ...current.source, accountId } })),
     [mutate],
@@ -122,7 +125,7 @@ export function useCarouselEditor(repo: CarouselRepository, initial: Carousel) {
     setCarousel((current) => ({ ...current, status }));
   }, []);
 
-  return { carousel, selectedId, setSelectedId, saveState, saveError, updateSlide, setTextStyleForAll, setShade, setAccount, addSlide, duplicate, removeSlide, reorder, move, setTitle, setCaption, setFormat, setStatus };
+  return { carousel, selectedId, setSelectedId, saveState, saveError, updateSlide, setTextStyleForAll, setShade, setAccount, setPlan, addSlide, duplicate, removeSlide, reorder, move, setTitle, setCaption, setFormat, setStatus };
 }
 
 export type CarouselEditor = ReturnType<typeof useCarouselEditor>;

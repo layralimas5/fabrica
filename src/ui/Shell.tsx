@@ -1,11 +1,12 @@
 import clsx from 'clsx';
-import { FlaskConical, FolderKanban, Images, Palette, Plus, Settings, Sparkles, UsersRound } from 'lucide-react';
+import { CalendarDays, FlaskConical, FolderKanban, Images, Palette, Plus, Settings, Sparkles, UsersRound } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useServices } from '../app/services';
 import { Badge, Button } from './primitives';
 
 const NAV = [
   { to: '/criar', label: 'Criar', icon: Sparkles },
+  { to: '/agenda', label: 'Agenda', icon: CalendarDays },
   { to: '/projetos', label: 'Projetos', icon: FolderKanban },
   { to: '/testes', label: 'Testes', icon: FlaskConical },
   { to: '/contas', label: 'Contas', icon: UsersRound },

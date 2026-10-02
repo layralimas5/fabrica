@@ -69,6 +69,10 @@ const request = (overrides: Partial<CreateRequest> = {}): CreateRequest => ({
   addCta: false,
   includeProduct: false,
   shade: { style: 'bottom', intensity: 0.5 },
+  postWithImages: true,
+  project: '',
+  folder: '',
+  schedule: null,
   ...overrides,
 });
 
@@ -248,6 +252,29 @@ describe('createCarousels folder as photo context', () => {
     const services = fakeServices();
     await createCarousels(services, request({ text: 'Slide 1, primeira frase', folders: [], styles: ['tiktok'] }));
     expect(services.saved[0].slides[0].assetId).toBeNull();
+  });
+});
+
+describe('createCarousels planning', () => {
+  it('files carousels in the project and folder and spreads them over days', async () => {
+    const services = fakeServices();
+    const text = 'um\n---\ndois\n---\ntres';
+    await createCarousels(services, request({ text, project: ' Aura ', folder: 'Outubro', schedule: { startDate: '2026-10-05', perDay: 2 } }));
+    expect(services.saved.map((carousel) => carousel.scheduledFor)).toEqual(['2026-10-05', '2026-10-05', '2026-10-06']);
+    expect(services.saved.every((carousel) => carousel.project === 'Aura' && carousel.folder === 'Outubro')).toBe(true);
+  });
+
+  it('format test variants share the same day', async () => {
+    const services = fakeServices();
+    await createCarousels(services, request({ text: 'um', styles: ['minimalista', 'tiktok'], schedule: { startDate: '2026-10-05', perDay: 1 } }));
+    expect(services.saved.map((carousel) => carousel.scheduledFor)).toEqual(['2026-10-05', '2026-10-05']);
+  });
+
+  it('post model with text only has no photos', async () => {
+    const services = fakeServices();
+    await createCarousels(services, request({ text: 'um\ndois', styles: ['post'], folders: ['Pinterest'], postWithImages: false }));
+    const slides = services.saved[0].slides;
+    expect(slides.every((slide) => slide.assetId === null && slide.layout === 'post_text')).toBe(true);
   });
 });
 

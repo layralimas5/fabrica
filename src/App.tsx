@@ -13,6 +13,7 @@ const LibraryPage = lazy(() => import('./pages/LibraryPage').then((m) => ({ defa
 const BrandKitsPage = lazy(() => import('./pages/BrandKitsPage').then((m) => ({ default: m.BrandKitsPage })));
 const ExperimentsPage = lazy(() => import('./pages/ExperimentsPage').then((m) => ({ default: m.ExperimentsPage })));
 const ExperimentDetailPage = lazy(() => import('./pages/ExperimentDetailPage').then((m) => ({ default: m.ExperimentDetailPage })));
+const AgendaPage = lazy(() => import('./pages/AgendaPage').then((m) => ({ default: m.AgendaPage })));
 const AccountsPage = lazy(() => import('./pages/AccountsPage').then((m) => ({ default: m.AccountsPage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 
@@ -40,6 +41,7 @@ export default function App({ services }: { services: Services }) {
               <Route path="/criar" element={<CreatePage />} />
               <Route path="/carrossel/:id" element={<EditorPage />} />
               <Route path="/projetos" element={<ProjectsPage />} />
+              <Route path="/agenda" element={<AgendaPage />} />
               <Route path="/testes" element={<ExperimentsPage />} />
               <Route path="/testes/:id" element={<ExperimentDetailPage />} />
               <Route path="/contas" element={<AccountsPage />} />
