@@ -1,11 +1,11 @@
-import { inFolders, type Asset } from '../domain/asset';
+import { inFolders, isAppImage, type Asset } from '../domain/asset';
 import type { CarouselDraft } from '../domain/aiContract';
 import { productOf, VISUAL_STYLE_LABELS, type BrandKit, type BrandProduct, type VisualStyle } from '../domain/brandKit';
 import type { Carousel, CarouselFormat, CopyMode, ExperimentRef, Platform, ProductDisplay, Slide, TextStyle } from '../domain/carousel';
 import { composeSlides, slidesWantingImages, slideText } from '../domain/composeCarousel';
 import { isPhotoLike } from '../domain/asset';
 import type { ContentCategory, ContentType, Objective, SlideCountOption } from '../domain/content';
-import { hasNumberedSlides, parseScript } from '../domain/script';
+import { hasNumberedSlides, marksProductSlide, parseScript } from '../domain/script';
 import type { ImageShade } from '../domain/shade';
 import type { ContentOrigin } from '../domain/winners/record';
 import { distributeDates, type SchedulePlan } from '../domain/schedule';
@@ -105,7 +105,9 @@ export async function createCarousels(services: Services, request: CreateRequest
   const product = request.includeProduct ? productForRequest(request) : null;
   const copyImages = (request.copySettings ?? []).map((setting) => setting?.productImageAssetId ?? null);
   const brandOnly = new Set([request.brand.logoAssetId, request.brand.avatarAssetId, product?.imageAssetId, ...copyImages].filter(Boolean));
-  const assets = request.library.filter((asset) => !brandOnly.has(asset.id) && inFolders(asset, request.folders));
+  // App prints only go in the marked slide, unless their folder was picked on purpose.
+  const pickedFolders = new Set(request.folders);
+  const assets = request.library.filter((asset) => !brandOnly.has(asset.id) && inFolders(asset, request.folders) && (!isAppImage(asset) || pickedFolders.has(asset.folder)));
   const copies: PreparedCopy[] = [];
   for (const [index, raw] of request.texts.entries()) {
     const text = raw.trim();
@@ -115,7 +117,8 @@ export async function createCarousels(services: Services, request: CreateRequest
     const style = styles.length === 1 ? (setting?.style ?? undefined) : undefined;
     const tuning = { slideCount: setting?.slideCount ?? request.slideCount, guidance: setting?.guidance ?? null };
     const productImageId = copyImages[index] ?? product?.imageAssetId ?? null;
-    const copyProduct = product ? { ...product, imageAssetId: productImageId } : null;
+    // The product only shows where the copy asks for it (SLIDE - APP, SLIDE 6 — PRODUTO).
+    const copyProduct = product && marksProductSlide(text) ? { ...product, imageAssetId: productImageId } : null;
     // Numbered slides mean the user already split the copy: keep their slides even in AI mode.
     const prepared = request.mode === 'manual' || hasNumberedSlides(text) ? manualCopies(text, defaults) : [await aiCopy(services, request, text, style ?? styles[0], assets, copyProduct, defaults, tuning)];
     copies.push(...prepared.map((copy) => ({ ...copy, style, productImageId, copyNumber: index + 1 })));
@@ -139,7 +142,7 @@ export async function createCarousels(services: Services, request: CreateRequest
     const photoStyles = copyStyles.filter((style) => !textOnly(style));
     // As a card, the product slide needs a background photo like any other slide.
     const fullPrint = request.productDisplay === 'card' ? null : prepared.productImageId;
-    const draft = await withMatchedPhotos(services, prepared.draft, assets, photoStyles, request.folders.length > 0, fullPrint, usage);
+    const draft = await withMatchedPhotos(services, prepared.draft, assets, photoStyles, fullPrint, usage);
     const experimentId = isTest ? crypto.randomUUID() : null;
     if (experimentId) experimentIds.push(experimentId);
     let previous: Slide[] | null = null;
@@ -207,8 +210,8 @@ type PhotoUsage = Map<string, number>;
  * Every slide that wants a photo (in any of the chosen styles) gets one that fits its text.
  * Photos not used by earlier carousels of the batch come first, so different copies get different photos;
  * a photo repeats only when the library runs out, and then the least used one goes.
- * When the user picked specific folders, those folders are the context: slides no photo matched by text
- * get a photo from them. With every folder selected, an unmatched slide stays text-only.
+ * Slides no photo matched by text still get one from the chosen folders, so no slide is left empty.
+ * A photo never repeats inside the same carousel: when the library runs out, the remaining slides stay text-only.
  * Photos the AI already picked while drafting are kept.
  */
 /** The slide marked APP or PRODUTO in a written copy shows the app image: never a random photo, so creation stops when it has none. */
@@ -227,7 +230,6 @@ async function withMatchedPhotos(
   draft: CarouselDraft,
   assets: Asset[],
   styles: VisualStyle[],
-  folderIsContext: boolean,
   productAssetId: string | null,
   usage: PhotoUsage,
 ): Promise<CarouselDraft> {
@@ -260,21 +262,21 @@ async function withMatchedPhotos(
       slides[index].assetId = matched[position] ?? null;
     });
   }
-  if (folderIsContext) fillFromFolder(slides, pending.map(({ index }) => index), candidates, usage);
+  fillFromFolder(slides, pending.map(({ index }) => index), candidates, usage);
   for (const slide of slides) if (slide.assetId) slide.wantsImage = true;
   return { ...draft, slides };
 }
 
-/** Gives every still empty slide a photo from the chosen folders: unused in the whole batch first, least used when they run out. */
+/** Gives every still empty slide a photo the carousel does not show yet: unused in the whole batch first, least used when they run out. */
 function fillFromFolder(slides: CarouselDraft['slides'], indexes: number[], photos: Asset[], usage: PhotoUsage): void {
-  const uses = new Map(photos.map((photo) => [photo.id, (usage.get(photo.id) ?? 0) + slides.filter((slide) => slide.assetId === photo.id).length]));
   for (const index of indexes) {
     if (slides[index].assetId) continue;
-    const leastUsed = Math.min(...uses.values());
-    const options = photos.filter((photo) => uses.get(photo.id) === leastUsed);
-    const chosen = options[Math.floor(Math.random() * options.length)];
-    slides[index].assetId = chosen.id;
-    uses.set(chosen.id, leastUsed + 1);
+    const inCarousel = new Set(slides.map((slide) => slide.assetId).filter(Boolean));
+    const options = photos.filter((photo) => !inCarousel.has(photo.id));
+    if (options.length === 0) return;
+    const leastUsed = Math.min(...options.map((photo) => usage.get(photo.id) ?? 0));
+    const tied = options.filter((photo) => (usage.get(photo.id) ?? 0) === leastUsed);
+    slides[index].assetId = tied[Math.floor(Math.random() * tied.length)].id;
   }
 }
 
@@ -330,5 +332,7 @@ async function aiCopy(
     product: product ? { name: product.name.trim(), pitch: product.pitch.trim(), hasImage: product.imageAssetId !== null } : null,
     assets: assets.slice(0, ASSET_CONTEXT_LIMIT).map(({ id, name, folder, kind, tags }) => ({ id, name, folder, kind, tags })),
   });
-  return { mode: 'ai', objective, contentType, draft: { ...draft, title: draft.title || draft.slides[0].title }, caption: draft.caption, copy: text };
+  // Without a marked slide the model may still call one "product": it stays a regular slide, without the print.
+  const slides = product ? draft.slides : draft.slides.map((slide) => (slide.role === 'product' ? { ...slide, role: 'point' as const } : slide));
+  return { mode: 'ai', objective, contentType, draft: { ...draft, slides, title: draft.title || draft.slides[0].title }, caption: draft.caption, copy: text };
 }

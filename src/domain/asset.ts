@@ -71,6 +71,11 @@ export function inFolders(asset: Asset, folders: readonly string[]): boolean {
   return folders.length === 0 || folders.includes(asset.folder);
 }
 
+/** App prints and phone mockups: they belong in the slide marked APP or PRODUTO, not in the regular photos. */
+export function isAppImage(asset: Pick<Asset, 'kind' | 'folder'>): boolean {
+  return asset.kind === 'screenshot' || asset.kind === 'mockup' || asset.folder === PRODUCT_FOLDER;
+}
+
 export function isPhotoLike(asset: Pick<Asset, 'kind'>): boolean {
   return asset.kind !== 'icone' && asset.kind !== 'logo';
 }

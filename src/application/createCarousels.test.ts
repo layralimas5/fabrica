@@ -184,7 +184,7 @@ describe('createCarousels with a product', () => {
 
   it('shows the product screenshot in one AI slide and keeps it out of the other slides', async () => {
     const services = fakeServices();
-    await createCarousels(services, request({ brand: withProduct, mode: 'ai', texts: [copy], contentType: 'dor', includeProduct: true }));
+    await createCarousels(services, request({ brand: withProduct, mode: 'ai', texts: [`${copy}\n[PRINT DO APP]`], contentType: 'dor', includeProduct: true }));
     const slides = services.saved[0].slides;
     const product = slides.filter((slide) => slide.role === 'product');
     expect(product).toHaveLength(1);
@@ -205,6 +205,14 @@ describe('createCarousels with a product', () => {
     expect(services.saved[0].slides.filter((slide) => slide.card)).toHaveLength(1);
   });
 
+  it('leaves the product out when the copy marks no APP or PRODUTO slide', async () => {
+    const services = fakeServices();
+    await createCarousels(services, request({ brand: withProduct, mode: 'ai', texts: [copy], contentType: 'dor', includeProduct: true }));
+    const slides = services.saved[0].slides;
+    expect(slides.some((slide) => slide.role === 'product')).toBe(false);
+    expect(slides.some((slide) => slide.assetId === 'a0')).toBe(false);
+  });
+
   it('leaves the product out when the toggle is off', async () => {
     const services = fakeServices();
     await createCarousels(services, request({ brand: withProduct, mode: 'ai', texts: [copy], includeProduct: false }));
@@ -217,7 +225,7 @@ describe('createCarousels product image picked at creation', () => {
     const services = fakeServices();
     const withProduct: BrandKit = { ...brand, product: { name: 'Momentumm', pitch: 'Deixa o progresso visível.', imageAssetId: 'a0' } };
     const copy = 'Você não precisa de mais motivação. Motivação some nos dias ruins. Disciplina é decidir antes. Comece pequeno.';
-    await createCarousels(services, request({ brand: withProduct, mode: 'ai', texts: [copy], includeProduct: true, productImageAssetId: 'a5' }));
+    await createCarousels(services, request({ brand: withProduct, mode: 'ai', texts: [`${copy}\n[PRINT DO APP]`], includeProduct: true, productImageAssetId: 'a5' }));
     const slides = services.saved[0].slides;
     expect(slides.find((slide) => slide.role === 'product')?.assetId).toBe('a5');
     expect(slides.filter((slide) => slide.assetId === 'a5')).toHaveLength(1);
@@ -347,10 +355,32 @@ describe('createCarousels folder as photo context', () => {
     expect(new Set(slides.map((slide) => slide.assetId)).size).toBe(slides.length);
   });
 
-  it('keeps unmatched slides text-only when every folder is selected', async () => {
+  it('fills unmatched slides from the whole library when every folder is selected', async () => {
     const services = fakeServices();
-    await createCarousels(services, request({ texts: ['Slide 1, primeira frase'], folders: [], styles: ['tiktok'] }));
-    expect(services.saved[0].slides[0].assetId).toBeNull();
+    await createCarousels(services, request({ texts: ['Slide 1, primeira frase\nSlide 2, segunda frase'], folders: [], styles: ['tiktok'] }));
+    expect(services.saved[0].slides.every((slide) => slide.assetId !== null)).toBe(true);
+  });
+
+  it('never repeats a photo in the same carousel, even when the library runs out', async () => {
+    const services = fakeServices();
+    const slides = Array.from({ length: 5 }, (_, i) => `Slide ${i + 1}, rotina da manhã ${i + 1}`).join('\n');
+    await createCarousels(services, request({ texts: [slides], folders: ['Pinterest'], styles: ['tiktok'] }));
+    const used = services.saved[0].slides.map((slide) => slide.assetId).filter(Boolean);
+    expect(used).toHaveLength(3);
+    expect(new Set(used).size).toBe(used.length);
+  });
+
+  it('keeps app prints and mockups out of the regular slides', async () => {
+    const services = fakeServices();
+    const prints: Asset[] = [
+      { ...photos[0], id: 'print', name: 'tela.png', folder: 'Produto', kind: 'screenshot' },
+      { ...photos[1], id: 'mock', name: 'mock.png', folder: 'Outros', kind: 'mockup' },
+    ];
+    const slides = Array.from({ length: 8 }, (_, i) => `Slide ${i + 1}, rotina ${i + 1}`).join('\n');
+    await createCarousels(services, request({ library: [...photos, ...prints], texts: [slides], folders: [], styles: ['tiktok'] }));
+    const used = services.saved[0].slides.map((slide) => slide.assetId);
+    expect(used).not.toContain('print');
+    expect(used).not.toContain('mock');
   });
 });
 

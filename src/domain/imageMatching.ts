@@ -50,8 +50,10 @@ export function matchImages(slideTexts: (string | null)[], assets: MatchableAsse
       .filter(({ score }) => score >= MIN_MATCH_SCORE);
     if (related.length === 0) return null;
 
+    // A photo never shows twice in the same carousel: with every related one taken, the slide waits for another.
     const unused = related.filter(({ asset }) => !used.has(asset.id));
-    const ranked = (unused.length > 0 ? unused : related)
+    if (unused.length === 0) return null;
+    const ranked = unused
       .map((entry) => ({ ...entry, score: entry.score + random() * 0.5 }))
       .sort((a, b) => b.score - a.score);
     const chosen = ranked[0].asset;

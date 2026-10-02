@@ -63,6 +63,16 @@ const CAROUSEL_HEADER = /^carrossel\s*\d+\s*(?:[:.,\-–—]\s*(.*))?$/i;
 const PRODUCT_NOTE = /print|produto|tela do|screenshot|mockup/i;
 const MAX_LABEL_WORDS = 3;
 
+/** True when the copy marks a slide for the app or product (SLIDE - APP, SLIDE 6 — PRODUTO, [PRINT DO APP]). */
+export function marksProductSlide(text: string): boolean {
+  return text.split(/\r?\n/).some((raw) => {
+    const line = raw.trim();
+    if (BRACKET_NOTE.test(line)) return PRODUCT_NOTE.test(line);
+    const header = slideHeader(line);
+    return header !== null && PRODUCT_TAG.test(header.rest);
+  });
+}
+
 type Target = 'slide' | 'title' | 'caption' | 'objective' | 'contentType' | 'ignored';
 
 const LABEL_TARGETS: Record<string, Target> = {

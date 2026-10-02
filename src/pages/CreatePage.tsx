@@ -982,9 +982,7 @@ export function CreatePage() {
                       <span>
                         Mostrar o {product.name} num slide, como parte da solução
                         <span className="block text-xs text-faint">
-                        {mode === 'ai' && !numbered
-                          ? 'A IA escolhe o slide do produto. Pra escolher você mesma, marque na copy: SLIDE - APP ou SLIDE 6 — PRODUTO.'
-                          : 'Marque na copy qual é o slide: SLIDE 6 — PRODUTO, SLIDE 6 — APP ou só SLIDE - APP. A imagem do produto entra nesse slide.'}
+                        Só entra no slide marcado na copy: SLIDE 6 — PRODUTO, SLIDE 6 — APP ou só SLIDE - APP. Sem marcação, o carrossel sai sem a imagem do produto.
                       </span>
                       </span>
                     </label>
