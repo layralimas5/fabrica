@@ -7,6 +7,7 @@ import { isPhotoLike } from '../domain/asset';
 import type { ContentType, Objective, SlideCountOption } from '../domain/content';
 import { hasNumberedSlides, parseScript } from '../domain/script';
 import type { ImageShade } from '../domain/shade';
+import type { ContentOrigin } from '../domain/winners/record';
 import { distributeDates, type SchedulePlan } from '../domain/schedule';
 import { recentPhotoUsage } from '../domain/photoHistory';
 import { limitWords, stripTrailingPeriod } from '../domain/text';
@@ -49,6 +50,8 @@ export interface CreateRequest {
   includeProduct: boolean;
   /** Image for the product slide picked at creation time. Undefined keeps the one saved in the brand kit. */
   productImageAssetId?: string | null;
+  /** Set when the copies were created from a winner, so they show up in its family. */
+  origin?: ContentOrigin | null;
 }
 
 export interface CreateResult {
@@ -140,6 +143,7 @@ export async function createCarousels(services: Services, request: CreateRequest
           project: request.project.trim(),
           folder: request.folder.trim(),
           scheduledFor: dates[position] ?? null,
+          origin: request.origin ?? null,
         }),
       );
     }

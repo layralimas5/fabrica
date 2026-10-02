@@ -3,6 +3,7 @@ import type { ContentType, Objective, SlideCountOption, SlideRole } from './cont
 import type { LayoutId } from './layouts';
 import type { Metrics } from './metrics';
 import { shadeOf, type ImageShade } from './shade';
+import type { ContentOrigin } from './winners/record';
 
 export interface SlideStyle {
   fontScale: number;
@@ -125,6 +126,8 @@ export interface Carousel {
   folder: string;
   /** Day it should be posted ('YYYY-MM-DD'), or null when not scheduled. */
   scheduledFor: string | null;
+  /** Winner it was created from (as a model, a variation or part of a family), or null. */
+  origin: ContentOrigin | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -199,6 +202,7 @@ export function normalizeCarousel(carousel: Carousel): Carousel {
     project: carousel.project ?? '',
     folder: carousel.folder ?? '',
     scheduledFor: carousel.scheduledFor ?? null,
+    origin: carousel.origin ?? null,
     source: { ...carousel.source, folders: carousel.source.folders ?? [], shade: shadeOf(carousel.source) },
     slides: carousel.slides.map((slide) => ({ ...slide, style: { ...DEFAULT_SLIDE_STYLE, ...slide.style } })),
   };

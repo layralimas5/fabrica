@@ -1,9 +1,11 @@
-import type { CarouselDraft, DraftRequest, HooksRequest, MatchRequest, RewriteRequest, SlideText, TagImageRequest } from '../domain/aiContract';
+import type { CarouselDraft, DraftRequest, HooksRequest, MatchRequest, RemixAiRequest, RewriteRequest, SlideText, TagImageRequest } from '../domain/aiContract';
 import type { Account, AccountInput } from '../domain/account';
 import type { Asset, AssetUpload } from '../domain/asset';
 import type { Preset, PresetInput } from '../domain/preset';
 import type { BrandKit, BrandKitInput } from '../domain/brandKit';
 import type { Carousel, CarouselInput } from '../domain/carousel';
+import type { ContentRecord, ContentRecordInput } from '../domain/winners/record';
+import type { RemixScript } from '../domain/winners/remix';
 
 export interface User {
   id: string;
@@ -57,6 +59,7 @@ export interface BackupSummary {
   brandKits: number;
   assets: number;
   carousels: number;
+  contentRecords: number;
 }
 
 /** Local mode only: everything lives in this browser, so it can be saved to a file and restored anywhere. */
@@ -74,6 +77,14 @@ export interface CarouselRepository {
   remove(id: string): Promise<void>;
 }
 
+/** Published contents with their results; the winners are the ones marked by hand. */
+export interface ContentRecordRepository {
+  list(): Promise<ContentRecord[]>;
+  create(input: ContentRecordInput): Promise<ContentRecord>;
+  update(id: string, input: ContentRecordInput): Promise<ContentRecord>;
+  remove(id: string): Promise<void>;
+}
+
 export interface AiService {
   readonly engine: 'claude' | 'heuristic';
   draftCarousel(request: DraftRequest): Promise<CarouselDraft>;
@@ -85,6 +96,8 @@ export interface AiService {
   visionReady(): boolean;
   /** One photo id per slide, or null when no photo in the library fits that slide. */
   matchImages(request: MatchRequest): Promise<(string | null)[]>;
+  /** New contents that reuse a winner's mechanism. Only the Claude engine writes; the local one throws. */
+  remixContent(request: RemixAiRequest): Promise<RemixScript[]>;
 }
 
 export interface Services {
@@ -94,6 +107,7 @@ export interface Services {
   carousels: CarouselRepository;
   accounts: AccountRepository;
   presets: PresetRepository;
+  contentRecords: ContentRecordRepository;
   ai: AiService;
   backup: BackupService | null;
 }

@@ -1,5 +1,6 @@
 import type { AiService } from '../../application/ports';
-import type { CarouselDraft, DraftRequest, HooksRequest, MatchRequest, ProductContext, RewriteRequest, SlideDraft, SlideText, TagImageRequest } from '../../domain/aiContract';
+import type { CarouselDraft, DraftRequest, HooksRequest, MatchRequest, ProductContext, RemixAiRequest, RewriteRequest, SlideDraft, SlideText, TagImageRequest } from '../../domain/aiContract';
+import type { RemixScript } from '../../domain/winners/remix';
 import { isAssetKind } from '../../domain/asset';
 import { matchImages, type MatchableAsset } from '../../domain/imageMatching';
 import { isLocalVisionReady, tagWithLocalVision } from '../vision/clipTagger';
@@ -100,6 +101,11 @@ export class HeuristicAi implements AiService {
   async matchImages({ slides, assets }: MatchRequest): Promise<(string | null)[]> {
     const library = assets.filter((asset): asset is typeof asset & { kind: MatchableAsset['kind'] } => isAssetKind(asset.kind));
     return matchImages(slides.map((slide) => slide.text), library);
+  }
+
+  /** Writing new content needs a generative model; the screen offers the ready prompt instead. */
+  async remixContent(_request: RemixAiRequest): Promise<RemixScript[]> {
+    throw new Error('O motor local não escreve conteúdo novo. Copie o prompt pronto e cole no Claude.');
   }
 }
 

@@ -5,16 +5,19 @@ import {
   carouselDraftSchema,
   hooksResponseSchema,
   matchResponseSchema,
+  remixResponseSchema,
   slideTextSchema,
   tagImageResponseSchema,
   type CarouselDraft,
   type DraftRequest,
   type HooksRequest,
   type MatchRequest,
+  type RemixAiRequest,
   type RewriteRequest,
   type SlideText,
   type TagImageRequest,
 } from '../../domain/aiContract';
+import type { RemixScript } from '../../domain/winners/remix';
 
 const FUNCTION_NAME = 'carousel-ai';
 
@@ -52,6 +55,10 @@ export class ClaudeAi implements AiService {
       const id = assetIds[index] ?? null;
       return id && known.has(id) ? id : null;
     });
+  }
+
+  async remixContent(request: RemixAiRequest): Promise<RemixScript[]> {
+    return (await this.call('remix', request, remixResponseSchema)).carousels.slice(0, request.count);
   }
 
   private async call<T>(action: string, payload: unknown, schema: ZodType<T>): Promise<T> {

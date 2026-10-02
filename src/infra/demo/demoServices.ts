@@ -7,6 +7,7 @@ import type {
   BackupSummary,
   BrandKitRepository,
   CarouselRepository,
+  ContentRecordRepository,
   PresetRepository,
   User,
 } from '../../application/ports';
@@ -15,6 +16,7 @@ import type { Account, AccountInput } from '../../domain/account';
 import type { Asset, AssetUpload } from '../../domain/asset';
 import type { BrandKit, BrandKitInput } from '../../domain/brandKit';
 import { normalizeCarousel, type Carousel, type CarouselInput } from '../../domain/carousel';
+import { normalizeRecord, sanitizeRecordInput, type ContentRecord, type ContentRecordInput } from '../../domain/winners/record';
 import { readImageSize } from '../imageSize';
 
 const store: UseStore = createStore('fabrica-carrosseis-demo', 'kv');
@@ -212,6 +214,8 @@ interface BackupFile {
   brandKits: BrandKit[];
   assets: Asset[];
   carousels: Carousel[];
+  /** Missing in backups made before the winners library existed. */
+  contentRecords?: ContentRecord[];
   /** Image files by asset id, as data URLs. */
   files: Record<string, string>;
 }
@@ -258,6 +262,7 @@ export class LocalBackup implements BackupService {
       brandKits: await readCollection<BrandKit>('brandKits'),
       assets,
       carousels: await readCollection<Carousel>('carousels'),
+      contentRecords: await readCollection<ContentRecord>('contentRecords'),
       files,
     };
     return new Blob([JSON.stringify(backup)], { type: 'application/json' });
@@ -282,7 +287,16 @@ export class LocalBackup implements BackupService {
     await writeCollection('carousels', upsertById(await readCollection<Carousel>('carousels'), parsed.carousels));
     const presets = parsed.presets ?? [];
     await writeCollection('presets', upsertById(await readCollection<Preset>('presets'), presets));
-    return { presets: presets.length, accounts: parsed.accounts.length, brandKits: parsed.brandKits.length, assets: restoredAssets.length, carousels: parsed.carousels.length };
+    const contentRecords = (parsed.contentRecords ?? []).map(normalizeRecord);
+    await writeCollection('contentRecords', upsertById(await readCollection<ContentRecord>('contentRecords'), contentRecords));
+    return {
+      presets: presets.length,
+      accounts: parsed.accounts.length,
+      brandKits: parsed.brandKits.length,
+      assets: restoredAssets.length,
+      carousels: parsed.carousels.length,
+      contentRecords: contentRecords.length,
+    };
   }
 }
 
@@ -306,5 +320,28 @@ export class DemoPresets implements PresetRepository {
 
   async remove(id: string): Promise<void> {
     await writeCollection('presets', (await readCollection<Preset>('presets')).filter((preset) => preset.id !== id));
+  }
+}
+
+export class DemoContentRecords implements ContentRecordRepository {
+  async list(): Promise<ContentRecord[]> {
+    return (await readCollection<ContentRecord>('contentRecords')).map(normalizeRecord);
+  }
+
+  async create(input: ContentRecordInput): Promise<ContentRecord> {
+    const record: ContentRecord = { ...sanitizeRecordInput(input), id: crypto.randomUUID(), createdAt: now(), updatedAt: now() };
+    await writeCollection('contentRecords', [record, ...(await readCollection<ContentRecord>('contentRecords'))]);
+    return record;
+  }
+
+  async update(id: string, input: ContentRecordInput): Promise<ContentRecord> {
+    const records = await readCollection<ContentRecord>('contentRecords');
+    const updated: ContentRecord = { ...requireItem(records, id, 'Conteúdo'), ...sanitizeRecordInput(input), updatedAt: now() };
+    await writeCollection('contentRecords', records.map((record) => (record.id === id ? updated : record)));
+    return updated;
+  }
+
+  async remove(id: string): Promise<void> {
+    await writeCollection('contentRecords', (await readCollection<ContentRecord>('contentRecords')).filter((record) => record.id !== id));
   }
 }

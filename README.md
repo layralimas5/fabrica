@@ -8,6 +8,16 @@ Serve pra qualquer conta: cada uma é um Brand Kit com tom de voz, produto opcio
 
 Fotos com contexto: a IA analisa cada foto ao subir (tags do que aparece e dos temas que ela ilustra) e, ao gerar, escolhe a foto que faz sentido pra cada frase. Slide sem foto que combine sai só com texto.
 
+## Modelos Vencedores
+
+Transforma resultado em inteligência de criação: **não copia o conteúdo vencedor, copia o mecanismo que fez ele funcionar**.
+
+- **⭐ Marcar como vencedor** no editor ou no card de Projetos; conteúdo feito fora (UGC, POV, vídeo) entra por "Conteúdo de fora". Métrica vazia conta como "não medido", não como zero.
+- **DNA**: análise automática da estrutura (tipo de gancho, função de cada slide, ritmo, texto por slide, CTA, posição do produto, tom, retenção). Roda sem rede e pode ser ajustada à mão.
+- **Usar como modelo, Criar variações (3/5/10) e Família de conteúdos**: com Claude ligado, gera direto; no modo local, entrega o prompt pronto com o DNA e lê a resposta colada no formato `CARROSSEL N / Slide 1,`. Tudo cai na tela Criar, e os carrosséis ficam ligados ao vencedor de origem (`origin`) pra comparar a família depois.
+- **Content Score** (0–100) relativo à própria biblioteca, com perfis de peso (equilibrado, awareness, conversão, personalizado). Atenção e conversão são ordenadas separadamente.
+- **Insights** só aparecem com pelo menos 3 conteúdos medidos de cada lado da comparação e diferença acima de 25%.
+
 ## Rodar local
 
 ```bash

@@ -5,6 +5,7 @@ import {
   DRAFT_JSON_SCHEMA,
   HOOKS_JSON_SCHEMA,
   MATCH_JSON_SCHEMA,
+  REMIX_JSON_SCHEMA,
   SLIDE_TEXT_JSON_SCHEMA,
   TAGS_JSON_SCHEMA,
   draftRequest,
@@ -13,12 +14,14 @@ import {
   hooksResponse,
   matchRequest,
   matchResponse,
+  remixRequest,
+  remixResponse,
   rewriteRequest,
   rewriteResponse,
   tagImageRequest,
   tagImageResponse,
 } from '../_shared/contract.ts';
-import { HOOKS_INSTRUCTIONS, MATCH_SYSTEM_PROMPT, REWRITE_INSTRUCTIONS, SYSTEM_PROMPT, TAG_SYSTEM_PROMPT } from '../_shared/prompts.ts';
+import { HOOKS_INSTRUCTIONS, MATCH_SYSTEM_PROMPT, REMIX_SYSTEM_PROMPT, REWRITE_INSTRUCTIONS, SYSTEM_PROMPT, TAG_SYSTEM_PROMPT } from '../_shared/prompts.ts';
 
 const MODEL = 'claude-opus-5-5';
 const HOURLY_LIMIT = Number(Deno.env.get('AI_HOURLY_LIMIT') ?? '120');
@@ -37,7 +40,7 @@ class HttpError extends Error {
   }
 }
 
-type Action = 'draft' | 'rewrite' | 'hooks' | 'tag' | 'match';
+type Action = 'draft' | 'rewrite' | 'hooks' | 'tag' | 'match' | 'remix';
 
 type UserContent =
   | string
@@ -157,6 +160,16 @@ function buildCall(action: Action, payload: unknown): CallSpec<unknown> {
         validator: matchResponse,
         system: MATCH_SYSTEM_PROMPT,
         userContent: `Escolha a foto de cada um dos ${input.slides.length} slides.\n<pedido>${JSON.stringify(input)}</pedido>`,
+      };
+    }
+    case 'remix': {
+      const input = parse(remixRequest, payload);
+      return {
+        effort: 'high',
+        schema: REMIX_JSON_SCHEMA,
+        validator: remixResponse,
+        system: REMIX_SYSTEM_PROMPT,
+        userContent: `Crie exatamente ${input.count} carrossel(éis).\n<briefing>${input.prompt}</briefing>`,
       };
     }
     default:

@@ -2,8 +2,8 @@ import { createClient } from '@supabase/supabase-js';
 import type { Services } from '../application/ports';
 import { ClaudeAi } from './ai/claudeAi';
 import { HeuristicAi } from './ai/heuristicAi';
-import { DemoAccounts, DemoAssets, DemoAuth, DemoBrandKits, DemoCarousels, DemoPresets, LocalBackup } from './demo/demoServices';
-import { SupabaseAccounts, SupabaseAssets, SupabaseAuth, SupabaseBrandKits, SupabaseCarousels, SupabasePresets } from './supabase/supabaseServices';
+import { DemoAccounts, DemoAssets, DemoAuth, DemoBrandKits, DemoCarousels, DemoContentRecords, DemoPresets, LocalBackup } from './demo/demoServices';
+import { SupabaseAccounts, SupabaseAssets, SupabaseAuth, SupabaseBrandKits, SupabaseCarousels, SupabaseContentRecords, SupabasePresets } from './supabase/supabaseServices';
 
 /**
  * Composition root. With VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY the app runs on Supabase and Claude;
@@ -21,6 +21,7 @@ export function createServices(): Services {
       carousels: new DemoCarousels(),
       accounts: new DemoAccounts(),
       presets: new DemoPresets(),
+      contentRecords: new DemoContentRecords(),
       ai: new HeuristicAi(),
       backup: new LocalBackup(),
     };
@@ -35,6 +36,7 @@ export function createServices(): Services {
     carousels: new SupabaseCarousels(client),
     accounts: new SupabaseAccounts(client),
     presets: new SupabasePresets(client),
+    contentRecords: new SupabaseContentRecords(client),
     ai: useHeuristic ? new HeuristicAi() : new ClaudeAi(client),
     backup: null,
   };

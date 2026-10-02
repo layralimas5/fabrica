@@ -128,3 +128,37 @@ export const MATCH_JSON_SCHEMA = {
   required: ['assetIds'],
   properties: { assetIds: { type: 'array', items: { type: ['string', 'null'] } } },
 };
+
+export const remixRequest = z.object({ prompt: z.string().min(1).max(30000), count: z.number().int().min(1).max(12) });
+export const remixResponse = z.object({
+  carousels: z.array(z.object({ title: z.string(), caption: z.string(), slides: z.array(z.object({ text: z.string(), product: z.boolean() })).min(1) })).min(1),
+});
+
+export const REMIX_JSON_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['carousels'],
+  properties: {
+    carousels: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['title', 'caption', 'slides'],
+        properties: {
+          title: { type: 'string' },
+          caption: { type: 'string' },
+          slides: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['text', 'product'],
+              properties: { text: { type: 'string' }, product: { type: 'boolean' } },
+            },
+          },
+        },
+      },
+    },
+  },
+};

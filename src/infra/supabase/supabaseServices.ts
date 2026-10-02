@@ -1,10 +1,11 @@
 import type { SupabaseClient, User as SupabaseUser } from '@supabase/supabase-js';
-import type { AccountRepository, AssetRepository, AuthService, BrandKitRepository, CarouselRepository, PresetRepository, User } from '../../application/ports';
+import type { AccountRepository, AssetRepository, AuthService, BrandKitRepository, CarouselRepository, ContentRecordRepository, PresetRepository, User } from '../../application/ports';
 import { normalizeSettings, type CreateSettings, type Preset, type PresetInput } from '../../domain/preset';
 import type { Account, AccountInput } from '../../domain/account';
 import type { Asset, AssetUpload } from '../../domain/asset';
 import type { BrandKit, BrandKitInput } from '../../domain/brandKit';
 import { normalizeCarousel, type Carousel, type CarouselInput } from '../../domain/carousel';
+import { normalizeRecord, sanitizeRecordInput, type ContentRecord, type ContentRecordInput } from '../../domain/winners/record';
 import { readImageSize } from '../imageSize';
 
 const BUCKET = 'assets';
@@ -199,6 +200,7 @@ interface CarouselRow {
   project: string;
   folder: string;
   scheduled_for: string | null;
+  origin: Carousel['origin'] | null;
   created_at: string;
   updated_at: string;
 }
@@ -218,6 +220,7 @@ const rowToCarousel = (row: CarouselRow): Carousel =>
   project: row.project,
   folder: row.folder,
   scheduledFor: row.scheduled_for,
+  origin: row.origin ?? null,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
   });
@@ -235,6 +238,7 @@ const carouselToRow = (input: CarouselInput) => ({
   project: input.project,
   folder: input.folder,
   scheduled_for: input.scheduledFor,
+  origin: input.origin,
 });
 
 export class SupabaseCarousels implements CarouselRepository {
@@ -343,5 +347,50 @@ export class SupabasePresets implements PresetRepository {
   async remove(id: string): Promise<void> {
     const { error } = await this.client.from('presets').delete().eq('id', id);
     if (error) fail('Não consegui excluir a predefinição', error);
+  }
+}
+
+interface ContentRecordRow {
+  id: string;
+  carousel_id: string | null;
+  winner: boolean;
+  published_at: string | null;
+  data: Omit<ContentRecordInput, 'carouselId' | 'winner' | 'publishedAt'>;
+  created_at: string;
+  updated_at: string;
+}
+
+const rowToRecord = (row: ContentRecordRow): ContentRecord =>
+  normalizeRecord({ ...row.data, id: row.id, carouselId: row.carousel_id, winner: row.winner, publishedAt: row.published_at, createdAt: row.created_at, updatedAt: row.updated_at });
+
+const recordToRow = (input: ContentRecordInput) => {
+  const { carouselId, winner, publishedAt, ...data } = sanitizeRecordInput(input);
+  return { carousel_id: carouselId, winner, published_at: publishedAt, data };
+};
+
+export class SupabaseContentRecords implements ContentRecordRepository {
+  constructor(private readonly client: SupabaseClient) {}
+
+  async list(): Promise<ContentRecord[]> {
+    const { data, error } = await this.client.from('content_records').select('*').order('created_at', { ascending: false });
+    if (error) fail('Não consegui carregar os vencedores', error);
+    return (data as ContentRecordRow[]).map(rowToRecord);
+  }
+
+  async create(input: ContentRecordInput): Promise<ContentRecord> {
+    const { data, error } = await this.client.from('content_records').insert(recordToRow(input)).select().single();
+    if (error) fail('Não consegui salvar o conteúdo', error);
+    return rowToRecord(data as ContentRecordRow);
+  }
+
+  async update(id: string, input: ContentRecordInput): Promise<ContentRecord> {
+    const { data, error } = await this.client.from('content_records').update(recordToRow(input)).eq('id', id).select().single();
+    if (error) fail('Não consegui salvar o conteúdo', error);
+    return rowToRecord(data as ContentRecordRow);
+  }
+
+  async remove(id: string): Promise<void> {
+    const { error } = await this.client.from('content_records').delete().eq('id', id);
+    if (error) fail('Não consegui excluir o conteúdo', error);
   }
 }

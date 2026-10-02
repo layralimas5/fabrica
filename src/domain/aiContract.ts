@@ -112,3 +112,25 @@ export type MatchRequest = z.infer<typeof matchRequestSchema>;
 
 /** One entry per slide: the photo that fits it, or null when no photo fits. */
 export const matchResponseSchema = z.object({ assetIds: z.array(z.string().nullable()) });
+
+export const MAX_REMIX_PROMPT_CHARS = 30000;
+export const MAX_REMIX_CONTENTS = 12;
+
+/** The briefing comes ready from the domain (buildRemixPrompt), the same text the user can paste in a chat. */
+export const remixAiRequestSchema = z.object({
+  prompt: z.string().min(1).max(MAX_REMIX_PROMPT_CHARS),
+  count: z.number().int().min(1).max(MAX_REMIX_CONTENTS),
+});
+export type RemixAiRequest = z.infer<typeof remixAiRequestSchema>;
+
+export const remixResponseSchema = z.object({
+  carousels: z
+    .array(
+      z.object({
+        title: z.string(),
+        caption: z.string(),
+        slides: z.array(z.object({ text: z.string(), product: z.boolean() })).min(1),
+      }),
+    )
+    .min(1),
+});
