@@ -86,10 +86,14 @@ export function compatibleLayouts(hasImage: boolean): LayoutId[] {
   return LAYOUT_IDS.filter((id) => hasImage || !LAYOUTS[id].needsImage);
 }
 
-/** Layout a slide should switch to when it gains an image, so the new photo is actually visible. */
-export function layoutWithImage(layout: LayoutId, style: VisualStyle): LayoutId {
+/**
+ * Layout a slide should switch to when it gains an image, so the new photo is actually visible.
+ * A slide with an app cut-out shows the photo full, so the card has room over it.
+ */
+export function layoutWithImage(layout: LayoutId, style: VisualStyle, hasCard = false): LayoutId {
   if (style === 'tiktok') return 'native_photo';
   if (layout === 'post_text') return 'post_image';
+  if (hasCard && style !== 'post') return 'image_full_quote';
   if (layout === 'text_center' || layout === 'big_statement') return 'image_full_quote';
   if (layout === 'text_side') return 'image_top_text_bottom';
   return layout;

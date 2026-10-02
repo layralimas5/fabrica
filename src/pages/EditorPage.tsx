@@ -13,7 +13,7 @@ import { errorMessage } from '../app/useResource';
 import { brandContext } from '../application/brandContext';
 import type { Asset } from '../domain/asset';
 import { brandForCarousel, type BrandKit } from '../domain/brandKit';
-import { CAROUSEL_STATUSES, nextToReview, STATUS_LABELS, type Carousel, type CarouselFormat, type CarouselStatus } from '../domain/carousel';
+import { CAROUSEL_STATUSES, DEFAULT_CARD, nextToReview, STATUS_LABELS, type Carousel, type CarouselFormat, type CarouselStatus } from '../domain/carousel';
 import { layoutWithImage } from '../domain/layouts';
 import { ExportMenu } from '../editor/ExportMenu';
 import { Filmstrip } from '../editor/Filmstrip';
@@ -58,7 +58,8 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
   const editor = useCarouselEditor(services.carousels, initial);
   const { carousel } = editor;
   const account = accounts.find((item) => item.id === carousel.source.accountId);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  /** Which image the picker is choosing: the slide photo or the app cut-out over it. */
+  const [picking, setPicking] = useState<'photo' | 'card' | null>(null);
   const [hooksOpen, setHooksOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [folderOpen, setFolderOpen] = useState(false);
@@ -211,7 +212,8 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
             onTextStyleForAll={editor.setTextStyleForAll}
             shadeContext={context}
             onShadeChange={editor.setShade}
-            onPickImage={() => setPickerOpen(true)}
+            onPickImage={() => setPicking('photo')}
+            onPickCard={() => setPicking('card')}
             onRewrite={(mode) => void rewrite(mode)}
             onDuplicate={() => editor.duplicate(slide.id)}
             onDelete={() => editor.removeSlide(slide.id)}
@@ -221,15 +223,17 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
       </div>
 
       <ImagePickerDialog
-        open={pickerOpen}
+        open={picking !== null}
+        title={picking === 'card' ? 'Recorte do app' : undefined}
         assets={assets}
-        currentId={slide.assetId}
+        currentId={picking === 'card' ? (slide.card?.assetId ?? null) : slide.assetId}
         carouselFolders={carousel.source.folders ?? []}
         slideText={[slide.title, slide.subtitle, slide.body, ...slide.bullets].filter(Boolean).join(' ')}
-        onClose={() => setPickerOpen(false)}
+        onClose={() => setPicking(null)}
         onPick={(assetId) => {
-          editor.updateSlide(slide.id, { assetId, layout: layoutWithImage(slide.layout, carousel.source.visualStyle) });
-          setPickerOpen(false);
+          if (picking === 'card') editor.updateSlide(slide.id, { card: { ...DEFAULT_CARD, ...slide.card, assetId } });
+          else editor.updateSlide(slide.id, { assetId, layout: layoutWithImage(slide.layout, carousel.source.visualStyle, Boolean(slide.card)) });
+          setPicking(null);
         }}
       />
       {winner.dialog}

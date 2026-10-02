@@ -1,5 +1,5 @@
 import { VISUAL_STYLES, type VisualStyle } from './brandKit';
-import { CAROUSEL_FORMATS, DEFAULT_TEXT_STYLE, normalizeTextStyle, PLATFORMS, type CarouselFormat, type CopyMode, type Platform, type TextStyle } from './carousel';
+import { CAROUSEL_FORMATS, DEFAULT_TEXT_STYLE, normalizeTextStyle, PLATFORMS, PRODUCT_DISPLAYS, type CarouselFormat, type CopyMode, type Platform, type ProductDisplay, type TextStyle } from './carousel';
 import { CONTENT_TYPES, OBJECTIVES, SLIDE_COUNT_OPTIONS, type ContentType, type Objective, type SlideCountOption } from './content';
 import { MAX_PER_DAY } from './schedule';
 import { DEFAULT_SHADE, SHADE_STYLES, type ImageShade } from './shade';
@@ -20,6 +20,7 @@ export interface CreateSettings {
   shade: ImageShade;
   folders: string[];
   includeProduct: boolean;
+  productDisplay: ProductDisplay;
   addCta: boolean;
   project: string;
   folder: string;
@@ -54,6 +55,7 @@ export const DEFAULT_CREATE_SETTINGS: CreateSettings = {
   shade: DEFAULT_SHADE,
   folders: [],
   includeProduct: true,
+  productDisplay: 'full',
   addCta: false,
   project: '',
   folder: '',
@@ -87,6 +89,7 @@ export function normalizeSettings(raw: Partial<CreateSettings>): CreateSettings 
     shade,
     folders: Array.isArray(raw.folders) ? raw.folders : base.folders,
     includeProduct: raw.includeProduct ?? base.includeProduct,
+    productDisplay: oneOf(PRODUCT_DISPLAYS, raw.productDisplay, base.productDisplay),
     addCta: raw.addCta ?? base.addCta,
     project: raw.project ?? base.project,
     folder: raw.folder ?? base.folder,

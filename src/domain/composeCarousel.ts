@@ -1,6 +1,6 @@
 import type { Asset } from './asset';
 import type { CarouselDraft, SlideDraft } from './aiContract';
-import { DEFAULT_SLIDE_STYLE, DEFAULT_TEXT_STYLE, newSlideId, type Slide, type TextStyle } from './carousel';
+import { DEFAULT_CARD, DEFAULT_SLIDE_STYLE, DEFAULT_TEXT_STYLE, newSlideId, type ProductDisplay, type Slide, type TextStyle } from './carousel';
 import { CTA_BY_OBJECTIVE, MAX_SLIDES, TEXT_LIMITS, type Objective } from './content';
 import { matchImages } from './imageMatching';
 import type { VisualStyle } from './brandKit';
@@ -23,6 +23,8 @@ interface ComposeOptions {
   addCta?: boolean;
   /** Product screenshot: always used by the product slide, never picked for other slides. */
   productAssetId?: string | null;
+  /** 'card': the product slide gets a library photo as background and the screenshot as a floating card. */
+  productDisplay?: ProductDisplay;
   /** Fill slides that want a photo by keyword matching. Off when photos were already matched by the AI. */
   autoMatch?: boolean;
   /** Post model with text only: no photos, except the product image on the product slide. */
@@ -46,17 +48,20 @@ export function slideText(slide: Pick<SlideDraft, 'title' | 'subtitle' | 'body' 
 /** Turns an AI draft into renderable slides: enforces readability, the CTA ending, image choice and layout rhythm. */
 export function composeSlides(
   draft: CarouselDraft,
-  { objective, assets, visualStyle, preserveText = false, addCta = true, productAssetId = null, autoMatch = true, textOnly = false, textStyle = DEFAULT_TEXT_STYLE }: ComposeOptions,
+  { objective, assets, visualStyle, preserveText = false, addCta = true, productAssetId = null, productDisplay = 'full', autoMatch = true, textOnly = false, textStyle = DEFAULT_TEXT_STYLE }: ComposeOptions,
 ): Slide[] {
   const fixed = visualStyle ? FIXED_LAYOUTS[visualStyle] : undefined;
   const readable = preserveText ? draft.slides.slice(0, MAX_SLIDES) : draft.slides.slice(0, MAX_SLIDES).map(enforceReadability);
+  const asCard = (slide: SlideDraft) => slide.role === 'product' && productAssetId !== null && productDisplay === 'card';
   const drafts = (addCta ? ensureCta(readable, objective) : readable).map((slide) => {
+    // A cut-out sits over a photo, so the product slide wants one even in text-only styles.
+    if (asCard(slide)) return { ...slide, wantsImage: true, assetId: slide.assetId === productAssetId ? null : slide.assetId };
     if (textOnly) return { ...slide, wantsImage: false, assetId: null };
     return fixed ? { ...slide, wantsImage: fixed.imageOnCta || slide.role !== 'cta' } : slide;
   });
   const library = assets.filter((asset) => asset.id !== productAssetId);
   const knownIds = new Set(library.map((asset) => asset.id));
-  const showsProduct = (slide: SlideDraft) => slide.role === 'product' && productAssetId !== null;
+  const showsProduct = (slide: SlideDraft) => slide.role === 'product' && productAssetId !== null && !asCard(slide);
 
   const imageRequests = drafts.map((slide) =>
     autoMatch && slide.wantsImage && !showsProduct(slide) && !(slide.assetId && knownIds.has(slide.assetId)) ? slideText(slide) : null,
@@ -76,7 +81,8 @@ export function composeSlides(
           role: slide.role,
           hasBullets: slide.bullets.length > 1,
           hasImage: assetIds[index] !== null,
-          suggested: slide.layout,
+          // The cut-out reads best over a full photo with the text at the bottom.
+          suggested: asCard(slide) && assetIds[index] !== null ? 'image_full_quote' : slide.layout,
         })),
       );
 
@@ -90,6 +96,7 @@ export function composeSlides(
     assetId: assetIds[index],
     layout: layouts[index],
     style: { ...DEFAULT_SLIDE_STYLE, ...textStyle },
+    card: asCard(slide) && productAssetId ? { assetId: productAssetId, ...DEFAULT_CARD } : null,
   }));
 }
 

@@ -33,7 +33,10 @@ import {
   PLATFORMS,
   type CarouselFormat,
   DEFAULT_TEXT_STYLE,
+  PRODUCT_DISPLAY_LABELS,
+  PRODUCT_DISPLAYS,
   type CopyMode,
+  type ProductDisplay,
   type Platform,
   type TextStyle,
 } from '../domain/carousel';
@@ -142,6 +145,7 @@ export function CreatePage() {
   const [objective, setObjective] = useState<Objective>('engajamento');
   const [addCta, setAddCta] = useState(false);
   const [includeProduct, setIncludeProduct] = useState(true);
+  const [productDisplay, setProductDisplay] = useState<ProductDisplay>('full');
   const [productImageId, setProductImageId] = useState<string | null>(null);
   const [pickingProductImage, setPickingProductImage] = useState(false);
   const [uploadingProductImage, setUploadingProductImage] = useState(false);
@@ -246,6 +250,7 @@ export function CreatePage() {
     setShade(pendingPreset.shade);
     setFolders(pendingPreset.folders);
     setIncludeProduct(pendingPreset.includeProduct);
+    setProductDisplay(pendingPreset.productDisplay);
     setAddCta(pendingPreset.addCta);
     setProject(pendingPreset.project);
     setFolder(pendingPreset.folder);
@@ -269,6 +274,7 @@ export function CreatePage() {
     shade,
     folders,
     includeProduct,
+    productDisplay,
     addCta,
     project: project.trim(),
     folder: folder.trim(),
@@ -448,6 +454,7 @@ export function CreatePage() {
         addCta,
         includeProduct: product !== null && includeProduct,
         productImageAssetId: productImageId,
+        productDisplay,
         postWithImages,
         textStyle,
         project: project.trim() || defaultProject,
@@ -814,6 +821,24 @@ export function CreatePage() {
                       </div>
                     )}
                   </div>
+                  {includeProduct && (
+                    <div role="radiogroup" aria-label={`Como o ${product.name} aparece`} className="mt-4 grid grid-cols-1 gap-1 rounded-2xl bg-subtle p-1 sm:grid-cols-2">
+                      {PRODUCT_DISPLAYS.map((display) => (
+                        <ChoiceCard
+                          key={display}
+                          active={productDisplay === display}
+                          onClick={() => setProductDisplay(display)}
+                          title={PRODUCT_DISPLAY_LABELS[display].title}
+                          detail={PRODUCT_DISPLAY_LABELS[display].detail}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {includeProduct && productDisplay === 'card' && (
+                    <p className="mt-2 text-xs text-faint">
+                      Suba o print já cortado no pedaço que importa. A foto de fundo vem da biblioteca, e no editor dá pra mudar o lugar e o tamanho do card.
+                    </p>
+                  )}
                   <ImagePickerDialog
                     open={pickingProductImage}
                     title={`Imagem do ${product.name}`}

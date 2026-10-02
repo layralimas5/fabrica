@@ -1,7 +1,7 @@
 import { inFolders, type Asset } from '../domain/asset';
 import type { CarouselDraft } from '../domain/aiContract';
 import { productOf, VISUAL_STYLE_LABELS, type BrandKit, type BrandProduct, type VisualStyle } from '../domain/brandKit';
-import type { Carousel, CarouselFormat, CopyMode, ExperimentRef, Platform, Slide, TextStyle } from '../domain/carousel';
+import type { Carousel, CarouselFormat, CopyMode, ExperimentRef, Platform, ProductDisplay, Slide, TextStyle } from '../domain/carousel';
 import { composeSlides, slidesWantingImages, slideText } from '../domain/composeCarousel';
 import { isPhotoLike } from '../domain/asset';
 import type { ContentType, Objective, SlideCountOption } from '../domain/content';
@@ -53,6 +53,8 @@ export interface CreateRequest {
   includeProduct: boolean;
   /** Image for the product slide picked at creation time. Undefined keeps the one saved in the brand kit. */
   productImageAssetId?: string | null;
+  /** Print filling the product slide, or a cut-out card over a photo. */
+  productDisplay?: ProductDisplay;
   /** Set when the copies were created from a winner, so they show up in its family. */
   origin?: ContentOrigin | null;
 }
@@ -110,7 +112,9 @@ export async function createCarousels(services: Services, request: CreateRequest
   for (const [position, prepared] of copies.entries()) {
     const { caption, copy } = prepared;
     const photoStyles = styles.filter((style) => !textOnly(style));
-    const draft = await withMatchedPhotos(services, prepared.draft, assets, photoStyles, request.folders.length > 0, product?.imageAssetId ?? null, usage);
+    // As a card, the product slide needs a background photo like any other slide.
+    const fullPrint = request.productDisplay === 'card' ? null : (product?.imageAssetId ?? null);
+    const draft = await withMatchedPhotos(services, prepared.draft, assets, photoStyles, request.folders.length > 0, fullPrint, usage);
     const experimentId = isTest ? crypto.randomUUID() : null;
     if (experimentId) experimentIds.push(experimentId);
     let previous: Slide[] | null = null;
@@ -127,6 +131,7 @@ export async function createCarousels(services: Services, request: CreateRequest
         preserveText: prepared.mode === 'manual',
         addCta: prepared.mode === 'ai' || request.addCta,
         productAssetId: product?.imageAssetId ?? null,
+        productDisplay: request.productDisplay ?? 'full',
         autoMatch: false,
         textOnly: textOnly(style),
         textStyle: request.textStyle,

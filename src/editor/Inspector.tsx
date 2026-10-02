@@ -1,14 +1,26 @@
 import clsx from 'clsx';
-import { ArrowLeft, ArrowRight, Copy, ImageOff, Images, RotateCcw, Scissors, Shuffle, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Copy, ImageOff, Images, Layers, RotateCcw, Scissors, Shuffle, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { isPhotoLike, type Asset } from '../domain/asset';
 import { FONT_CHOICES } from '../domain/brandKit';
 import type { RenderContext } from '../app/slideRendering';
 import { ShadePicker } from '../brand/ShadePicker';
-import { FONT_SCALE_RANGE, LINE_HEIGHT_RANGE, TEXT_WIDTH_RANGE, type Slide, type SlideStyle } from '../domain/carousel';
+import {
+  CARD_POSITION_LABELS,
+  CARD_POSITIONS,
+  CARD_SIZE_RANGE,
+  FONT_SCALE_RANGE,
+  LINE_HEIGHT_RANGE,
+  TEXT_WIDTH_RANGE,
+  toCardSlide,
+  toFullSlide,
+  type CardPosition,
+  type Slide,
+  type SlideStyle,
+} from '../domain/carousel';
 import type { ImageShade } from '../domain/shade';
 import { ROLE_LABELS } from '../domain/content';
-import { compatibleLayouts, LAYOUTS, type LayoutId } from '../domain/layouts';
+import { compatibleLayouts, LAYOUTS, layoutWithImage, type LayoutId } from '../domain/layouts';
 import { AssetThumb } from '../ui/AssetThumb';
 import { Alert, Button, Field, Input, Select, Textarea } from '../ui/primitives';
 
@@ -25,6 +37,8 @@ interface InspectorProps {
   shadeContext: RenderContext;
   onShadeChange: (shade: ImageShade) => void;
   onPickImage: () => void;
+  /** Opens the picker for the app cut-out instead of the slide photo. */
+  onPickCard: () => void;
   onRewrite: (mode: 'shorten' | 'variation') => void;
   onDuplicate: () => void;
   onDelete: () => void;
@@ -135,6 +149,8 @@ export function Inspector(props: InspectorProps) {
         {image && !LAYOUTS[slide.layout].needsImage && <p className="text-[11px] text-faint">Esse layout não mostra imagem. Troca pra um layout com imagem.</p>}
       </section>
 
+      <CardSection slide={slide} assets={assets} visualStyle={props.shadeContext.visualStyle} onChange={onChange} onPickCard={props.onPickCard} />
+
       <section aria-labelledby="inspector-shade" className="flex flex-col gap-3">
         <h2 id="inspector-shade" className="text-xs font-semibold uppercase tracking-wider text-faint">
           Sombreamento das fotos
@@ -214,5 +230,129 @@ export function Inspector(props: InspectorProps) {
         </Button>
       </section>
     </div>
+  );
+}
+
+interface CardSectionProps {
+  slide: Slide;
+  assets: Asset[];
+  visualStyle: RenderContext['visualStyle'];
+  onChange: (patch: Partial<Slide>) => void;
+  onPickCard: () => void;
+}
+
+const POSITION_GLYPHS: Record<CardPosition, string> = { 'top-left': '↖', 'top-right': '↗', center: '•', 'bottom-left': '↙', 'bottom-right': '↘' };
+
+/** The app on a slide: the print filling it, or a cut-out card floating over the slide photo. */
+function CardSection({ slide, assets, visualStyle, onChange, onPickCard }: CardSectionProps) {
+  const card = slide.card ?? null;
+  const cardImage = card ? assets.find((asset) => asset.id === card.assetId) : undefined;
+  const isProduct = slide.role === 'product';
+  if (!isProduct && !card) {
+    return (
+      <section aria-labelledby="inspector-card" className="flex flex-col gap-2">
+        <h2 id="inspector-card" className="text-xs font-semibold uppercase tracking-wider text-faint">
+          Recorte do app
+        </h2>
+        <Button variant="ghost" size="sm" className="self-start" onClick={onPickCard}>
+          <Layers className="size-3.5" aria-hidden /> Colocar um recorte por cima
+        </Button>
+      </section>
+    );
+  }
+
+  const toCard = () => {
+    const next = toCardSlide(slide);
+    // Until a background photo is chosen, the slide shows only its text behind the card.
+    onChange({ ...next, layout: next.assetId ? slide.layout : visualStyle === 'tiktok' ? 'native_photo' : LAYOUTS[slide.layout].textOnlyFallback });
+  };
+  const toFull = () => {
+    const next = toFullSlide(slide);
+    onChange({ ...next, layout: next.assetId ? layoutWithImage(slide.layout, visualStyle) : slide.layout });
+  };
+
+  return (
+    <section aria-labelledby="inspector-card" className="flex flex-col gap-3">
+      <h2 id="inspector-card" className="text-xs font-semibold uppercase tracking-wider text-faint">
+        {isProduct ? 'Como o app aparece' : 'Recorte do app'}
+      </h2>
+      {isProduct && (
+        <div role="radiogroup" aria-label="Como o app aparece" className="grid grid-cols-2 gap-1 rounded-xl bg-subtle p-1">
+          {([
+            ['full', 'Tela cheia', !card, toFull],
+            ['card', 'Recorte', Boolean(card), toCard],
+          ] as const).map(([id, label, active, action]) => (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => {
+                if (active) return;
+                // Without a print yet, "Recorte" goes straight to choosing the cut-out.
+                if (id === 'card' && !slide.assetId) onPickCard();
+                else action();
+              }}
+              className={clsx(
+                'rounded-lg px-2 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                active ? 'bg-surface text-ink shadow-sm' : 'text-muted hover:text-ink',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {card && (
+        <>
+          <div className="flex items-center gap-3">
+            {cardImage ? <AssetThumb asset={cardImage} className="size-16 shrink-0 rounded-lg" /> : <div className="grid size-16 shrink-0 place-items-center rounded-lg bg-subtle text-faint"><ImageOff className="size-5" aria-hidden /></div>}
+            <div className="flex flex-wrap gap-1.5">
+              <Button variant="secondary" size="sm" onClick={onPickCard}>
+                <Images className="size-3.5" aria-hidden /> Trocar recorte
+              </Button>
+              {!isProduct && (
+                <Button variant="ghost" size="sm" onClick={() => onChange({ card: null })}>
+                  Remover
+                </Button>
+              )}
+            </div>
+          </div>
+          <div role="radiogroup" aria-label="Posição do recorte" className="flex flex-wrap gap-1.5">
+            {CARD_POSITIONS.map((position) => (
+              <button
+                key={position}
+                type="button"
+                role="radio"
+                aria-checked={card.position === position}
+                aria-label={CARD_POSITION_LABELS[position]}
+                title={CARD_POSITION_LABELS[position]}
+                onClick={() => onChange({ card: { ...card, position } })}
+                className={clsx(
+                  'grid size-9 place-items-center rounded-lg border text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                  card.position === position ? 'border-accent bg-accent/10 text-ink' : 'border-line text-muted hover:border-faint hover:text-ink',
+                )}
+              >
+                <span aria-hidden>{POSITION_GLYPHS[position]}</span>
+              </button>
+            ))}
+          </div>
+          <Field label={`Tamanho do recorte: ${Math.round(card.size * 100)}%`} htmlFor="card-size">
+            <input
+              id="card-size"
+              type="range"
+              min={CARD_SIZE_RANGE.min}
+              max={CARD_SIZE_RANGE.max}
+              step={CARD_SIZE_RANGE.step}
+              value={card.size}
+              onChange={(e) => onChange({ card: { ...card, size: Number(e.target.value) } })}
+              className="accent-[var(--accent)]"
+            />
+          </Field>
+          {!slide.assetId && <p className="text-[11px] text-faint">Escolha em “Imagem” a foto que fica de fundo.</p>}
+        </>
+      )}
+    </section>
   );
 }
