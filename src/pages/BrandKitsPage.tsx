@@ -17,16 +17,15 @@ import {
   type PhotoTextPosition,
   type PhotoTextStyle,
   VISUAL_STYLE_LABELS,
-  VISUAL_STYLES,
   type BrandColors,
   type BrandKit,
   type BrandKitInput,
   type Spacing,
-  type VisualStyle,
 } from '../domain/brandKit';
 import { DEFAULT_SLIDE_STYLE, type Slide } from '../domain/carousel';
 import { Alert, Button, Dialog, EmptyState, Field, Input, PageHeader, Select, Spinner, Textarea } from '../ui/primitives';
 import { SlideCanvas } from '../ui/SlideCanvas';
+import { StylePicker } from '../brand/StylePicker';
 
 const COLOR_FIELDS: { key: keyof BrandColors; label: string }[] = [
   { key: 'primary', label: 'Principal' },
@@ -210,15 +209,10 @@ function BrandKitEditor({ id, initial, assets, inUse, onClose, onSave, onDelete 
                 ))}
               </Select>
             </Field>
-            <Field label="Estilo visual padrão" htmlFor="bk-style">
-              <Select id="bk-style" value={draft.visualStyle} onChange={(e) => patch('visualStyle', e.target.value as VisualStyle)}>
-                {VISUAL_STYLES.map((style) => (
-                  <option key={style} value={style}>
-                    {VISUAL_STYLE_LABELS[style]}
-                  </option>
-                ))}
-              </Select>
-            </Field>
+            <div className="flex flex-col gap-1.5 sm:col-span-2">
+              <p className="text-xs font-medium text-muted">Estilo visual padrão</p>
+              <StylePicker draft={draft} photo={assets.find(isPhotoLike)} assets={assets} value={draft.visualStyle} onChange={(style) => patch('visualStyle', style)} />
+            </div>
             <Field label="Tom e características" htmlFor="bk-voice" hint="A IA usa isso pra escrever no tom da marca." className="sm:col-span-2">
               <Textarea id="bk-voice" rows={3} value={draft.voice} onChange={(e) => patch('voice', e.target.value)} placeholder="Minimalista, moderno, pouco texto, forte contraste…" />
             </Field>
@@ -337,7 +331,7 @@ const SAMPLE_SLIDES: Slide[] = [
 
 function BrandPreview({ draft, assets }: { draft: BrandKitInput; assets: Asset[] }) {
   const { assets: repo } = useServices();
-  const [visualStyle, setVisualStyle] = useState<VisualStyle>(draft.visualStyle);
+  const visualStyle = draft.visualStyle;
   const photo = assets.find(isPhotoLike);
   const tall = visualStyle === 'tiktok';
   const context: RenderContext = useMemo(
@@ -358,9 +352,7 @@ function BrandPreview({ draft, assets }: { draft: BrandKitInput; assets: Asset[]
     <aside className="flex flex-col gap-3 lg:sticky lg:top-0">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wider text-faint">Prévia</p>
-        <Select aria-label="Estilo da prévia" value={visualStyle} onChange={(e) => setVisualStyle(e.target.value as VisualStyle)} className="h-8 w-auto text-xs">
-          {VISUAL_STYLES.map((style) => <option key={style} value={style}>{VISUAL_STYLE_LABELS[style]}</option>)}
-        </Select>
+        <span className="text-xs text-muted" aria-live="polite">{VISUAL_STYLE_LABELS[visualStyle]}</span>
       </div>
       <div className={clsx('grid gap-2', tall ? 'grid-cols-3' : 'grid-cols-2')}>
         {slides.map((slide, index) => (
