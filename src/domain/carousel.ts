@@ -16,6 +16,39 @@ export interface SlideStyle {
   headingFont: string | null;
 }
 
+export const CARD_POSITIONS = ['top-left', 'top-right', 'center', 'bottom-left', 'bottom-right'] as const;
+export type CardPosition = (typeof CARD_POSITIONS)[number];
+export const CARD_POSITION_LABELS: Record<CardPosition, string> = {
+  'top-left': 'Em cima, à esquerda',
+  'top-right': 'Em cima, à direita',
+  center: 'No centro',
+  'bottom-left': 'Embaixo, à esquerda',
+  'bottom-right': 'Embaixo, à direita',
+};
+
+/** Share of the slide width the card takes. */
+export const CARD_SIZE_RANGE = { min: 0.25, max: 0.9, step: 0.05 } as const;
+
+/**
+ * A cut-out of the app floating over the slide (rounded, with shadow), like a screenshot pasted on a photo.
+ * The slide keeps its own photo as the background and its text.
+ */
+export interface SlideCard {
+  assetId: string;
+  position: CardPosition;
+  size: number;
+}
+
+export const DEFAULT_CARD: Omit<SlideCard, 'assetId'> = { position: 'top-left', size: 0.48 };
+
+/** How the product slide shows the app: the print filling the slide, or a cut-out over a photo. */
+export const PRODUCT_DISPLAYS = ['full', 'card'] as const;
+export type ProductDisplay = (typeof PRODUCT_DISPLAYS)[number];
+export const PRODUCT_DISPLAY_LABELS: Record<ProductDisplay, { title: string; detail: string }> = {
+  full: { title: 'Print em tela cheia', detail: 'A imagem do app ocupa o slide' },
+  card: { title: 'Recorte sobre uma foto', detail: 'Foto de fundo, o app num card e o texto por cima' },
+};
+
 export interface Slide {
   id: string;
   role: SlideRole;
@@ -26,6 +59,8 @@ export interface Slide {
   assetId: string | null;
   layout: LayoutId;
   style: SlideStyle;
+  /** App cut-out drawn over the slide. Missing in slides saved before cards existed. */
+  card?: SlideCard | null;
 }
 
 export const CAROUSEL_STATUSES = ['draft', 'editing', 'ready', 'published'] as const;
@@ -198,7 +233,26 @@ export function blankSlide(layout: LayoutId = 'text_center'): Slide {
 }
 
 export function duplicateSlide(slide: Slide): Slide {
-  return { ...slide, id: newSlideId(), bullets: [...slide.bullets], style: { ...slide.style } };
+  return { ...slide, id: newSlideId(), bullets: [...slide.bullets], style: { ...slide.style }, card: slide.card ? { ...slide.card } : null };
+}
+
+const clampCardSize = (value: unknown) => clampTo(CARD_SIZE_RANGE, value, DEFAULT_CARD.size);
+
+export function normalizeCard(raw: Partial<SlideCard> | null | undefined): SlideCard | null {
+  if (!raw || typeof raw.assetId !== 'string' || !raw.assetId) return null;
+  const position = CARD_POSITIONS.includes(raw.position as CardPosition) ? (raw.position as CardPosition) : DEFAULT_CARD.position;
+  return { assetId: raw.assetId, position, size: clampCardSize(raw.size) };
+}
+
+/** Full-screen print → cut-out: the print becomes the card and the slide waits for a background photo. */
+export function toCardSlide(slide: Slide): Pick<Slide, 'assetId' | 'card'> {
+  if (slide.card || !slide.assetId) return { assetId: slide.assetId, card: slide.card ?? null };
+  return { assetId: null, card: { assetId: slide.assetId, ...DEFAULT_CARD } };
+}
+
+/** Cut-out → full screen: the card image fills the slide again. */
+export function toFullSlide(slide: Slide): Pick<Slide, 'assetId' | 'card'> {
+  return slide.card ? { assetId: slide.card.assetId, card: null } : { assetId: slide.assetId, card: null };
 }
 
 export function moveItem<T>(items: T[], from: number, to: number): T[] {
@@ -226,6 +280,6 @@ export function normalizeCarousel(carousel: Carousel): Carousel {
     scheduledFor: carousel.scheduledFor ?? null,
     origin: carousel.origin ?? null,
     source: { ...carousel.source, folders: carousel.source.folders ?? [], shade: shadeOf(carousel.source) },
-    slides: carousel.slides.map((slide) => ({ ...slide, style: { ...DEFAULT_SLIDE_STYLE, ...slide.style } })),
+    slides: carousel.slides.map((slide) => ({ ...slide, style: { ...DEFAULT_SLIDE_STYLE, ...slide.style }, card: normalizeCard(slide.card) })),
   };
 }

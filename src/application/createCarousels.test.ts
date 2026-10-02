@@ -182,6 +182,18 @@ describe('createCarousels with a product', () => {
     expect(services.saved[0].caption).not.toBe('');
   });
 
+  it('as a cut-out, the product slide gets a library photo behind and the print as a card', async () => {
+    const services = fakeServices();
+    const script = 'Slide 1, Você trava na quarta.\nSlide 2 — APP\nO Momentumm mostra o porquê.\nSlide 3, Comece pelo motivo.';
+    await createCarousels(services, request({ brand: withProduct, texts: [script], includeProduct: true, productDisplay: 'card', folders: ['Pinterest'], styles: ['tiktok'] }));
+    const product = services.saved[0].slides.find((slide) => slide.role === 'product');
+    expect(product?.card).toEqual({ assetId: 'a0', position: 'top-left', size: 0.48 });
+    expect(product?.assetId).not.toBeNull();
+    expect(product?.assetId).not.toBe('a0');
+    expect(product?.layout).toBe('native_photo');
+    expect(services.saved[0].slides.filter((slide) => slide.card)).toHaveLength(1);
+  });
+
   it('leaves the product out when the toggle is off', async () => {
     const services = fakeServices();
     await createCarousels(services, request({ brand: withProduct, mode: 'ai', texts: [copy], includeProduct: false }));

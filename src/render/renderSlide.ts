@@ -1,4 +1,4 @@
-import { FORMAT_SIZES, type CarouselFormat, type Slide } from '../domain/carousel';
+import { FORMAT_SIZES, type CarouselFormat, type CardPosition, type Slide } from '../domain/carousel';
 import type { ImageShade } from '../domain/shade';
 
 /** Name and @ shown in the post-style header. */
@@ -24,6 +24,8 @@ export interface SlideRenderInput {
   /** Darkening applied to every photo. */
   shade: ImageShade;
   identity: PostIdentity;
+  /** App cut-out floating over the slide, already decoded. */
+  card?: { image: ImageBitmap; position: CardPosition; size: number } | null;
 }
 
 interface Frame {
@@ -51,7 +53,43 @@ export async function renderSlideToCanvas(input: SlideRenderInput, scale = 1): P
   ctx.scale(scale, scale);
   const frame: Frame = { ctx, width, height, input: { ...input, theme: { ...input.theme, headingFont: heading } } };
   LAYOUT_RENDERERS[input.slide.layout](frame);
+  if (input.card) drawCard(frame, input.card);
   return canvas;
+}
+
+/** Share of the slide height a card may take, so it never covers the whole slide. */
+const CARD_MAX_HEIGHT = 0.62;
+const CARD_MARGIN = 0.06;
+
+/** The whole cut-out (never cropped), rounded, with a soft shadow, in one of five spots. */
+function drawCard(frame: Frame, card: NonNullable<SlideRenderInput['card']>): void {
+  const { ctx, width, height } = frame;
+  const { image, position, size } = card;
+  let cardWidth = width * size;
+  let cardHeight = cardWidth * (image.height / image.width);
+  if (cardHeight > height * CARD_MAX_HEIGHT) {
+    cardHeight = height * CARD_MAX_HEIGHT;
+    cardWidth = cardHeight * (image.width / image.height);
+  }
+  const margin = width * CARD_MARGIN;
+  const x = position.endsWith('left') ? margin : position.endsWith('right') ? width - margin - cardWidth : (width - cardWidth) / 2;
+  const y = position.startsWith('top') ? margin * 1.2 : position.startsWith('bottom') ? height - margin * 1.2 - cardHeight : (height - cardHeight) / 2;
+  const radius = Math.min(cardWidth, cardHeight) * 0.07;
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.35)';
+  ctx.shadowBlur = width * 0.04;
+  ctx.shadowOffsetY = width * 0.012;
+  ctx.fillStyle = '#000000';
+  roundRect(ctx, { x, y, width: cardWidth, height: cardHeight }, radius);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  roundRect(ctx, { x, y, width: cardWidth, height: cardHeight }, radius);
+  ctx.clip();
+  ctx.drawImage(image, x, y, cardWidth, cardHeight);
+  ctx.restore();
 }
 
 const LAYOUT_RENDERERS: Record<Slide['layout'], (frame: Frame) => void> = {
