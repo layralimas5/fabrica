@@ -8,6 +8,10 @@ import { emptyExperiment } from '../domain/experiments/experiment';
 import { ExperimentForm } from '../experiments/ExperimentForm';
 import { ExperimentCard, Learnings, TestMap } from '../experiments/ExperimentViews';
 import { useExperimentLab } from '../experiments/useExperimentLab';
+import { PendingMeasurementsList } from '../experiments/PendingMeasurements';
+import { pendingMeasurements } from '../domain/experiments/followUp';
+import { todayIso } from '../domain/schedule';
+import { useAddMetrics } from '../winners/useAddMetrics';
 import { Alert, Button, EmptyState, PageHeader, Spinner } from '../ui/primitives';
 
 
@@ -17,6 +21,7 @@ export function ExperimentsPage() {
   const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const metrics = useAddMetrics((saved) => lab.library.records.setData((current) => [saved, ...current.filter((item) => item.id !== saved.id)]));
 
   if (lab.loading || scope.loading) return <Spinner label="Carregando os testes" />;
 
@@ -43,6 +48,8 @@ export function ExperimentsPage() {
         </div>
       )}
 
+      <PendingMeasurementsList pending={pendingMeasurements(lab.library.items, visible, todayIso())} onMeasure={metrics.open} />
+
       <TestMap experiments={visible} />
 
       {visible.length === 0 ? (
@@ -61,6 +68,8 @@ export function ExperimentsPage() {
       )}
 
       <Learnings experiments={visible} accountName={accountName} />
+
+      {metrics.dialog}
 
       {creating && (
         <ExperimentForm

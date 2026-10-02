@@ -8,10 +8,10 @@ import type { ContentCategory, ContentType, Objective, SlideCountOption } from '
 import { hasNumberedSlides, marksProductSlide, parseScript } from '../domain/script';
 import type { ImageShade } from '../domain/shade';
 import type { ContentOrigin } from '../domain/winners/record';
-import { distributeDates, type SchedulePlan } from '../domain/schedule';
+import { distributeDates, spreadTimesOverWeekdays, type SchedulePlan } from '../domain/schedule';
 import { recentPhotoUsage } from '../domain/photoHistory';
 import { limitWords, stripTrailingPeriod } from '../domain/text';
-import { briefProblems, defaultVersion, experimentFromBrief, slotPlanner, versionsChosenPerCopy, type TestBrief } from '../domain/experiments/brief';
+import { briefProblems, defaultVersion, experimentFromBrief, slotPlanner, testsTime, versionsChosenPerCopy, type TestBrief, type TestSlot } from '../domain/experiments/brief';
 import { brandContext } from './brandContext';
 import type { Services } from './ports';
 
@@ -64,6 +64,8 @@ export interface CreateRequest {
   experiment?: ExperimentRef | null;
   /** Ficha do teste: the batch becomes one experiment in Testes, with versions and posting times. */
   test?: BatchTest | null;
+  /** Account's posting time (set by a time test): used when neither the test nor the calendar gives one. */
+  defaultTime?: string | null;
 }
 
 export interface BatchTest {
@@ -140,8 +142,14 @@ export async function createCarousels(services: Services, request: CreateRequest
   const versionOf = (copy: PreparedCopy) => request.test?.copyVersions[copy.copyNumber - 1] ?? defaultVersion(copy.copyNumber - 1);
   const test = request.test ? await startTest(services, request.test.brief, request.accountId, { carousels: copies.length * (isTest ? styles.length : 1), styles: styles.length, copyVersions: copies.map(versionOf) }) : null;
   if (test) experimentIds.push(test.id);
+  // A format test makes one variant per style; otherwise the copy may have its own style.
+  const stylesOf = (copy: PreparedCopy) => (isTest ? styles : [copy.style ?? styles[0]]);
   const nextSlot = test ? slotPlanner(test.brief) : null;
-  const dates = request.schedule ? distributeDates(copies.length, request.schedule) : [];
+  const slots: TestSlot[][] = copies.map((copy) => stylesOf(copy).map((style) => (nextSlot ? nextSlot({ copyIndex: copy.copyNumber - 1, styleLabel: VISUAL_STYLE_LABELS[style], copyVersion: versionOf(copy) }) : null)).filter((slot): slot is TestSlot => slot !== null));
+  const planned = request.schedule ? distributeDates(copies.length, request.schedule) : [];
+  // In a time test the days are handed out so every time gets a similar mix of weekdays.
+  const dates = test && testsTime(test.brief.variables) && planned.length > 0 ? spreadTimesOverWeekdays(planned, slots.map((list) => list[0]?.time ?? null)) : planned;
+  const fallbackTime = request.plan?.scheduledTime ?? request.defaultTime ?? null;
   const textOnly = (style: VisualStyle) => style === 'post' && !request.postWithImages;
   // Shared by the whole batch and seeded with the account's recent posts: each copy gets photos
   // neither the other copies nor last weeks' carousels used yet.
@@ -149,8 +157,7 @@ export async function createCarousels(services: Services, request: CreateRequest
 
   for (const [position, prepared] of copies.entries()) {
     const { caption, copy } = prepared;
-    // A format test makes one variant per style; otherwise the copy may have its own style.
-    const copyStyles = isTest ? styles : [prepared.style ?? styles[0]];
+    const copyStyles = stylesOf(prepared);
     const photoStyles = copyStyles.filter((style) => !textOnly(style));
     // As a card, the product slide needs a background photo like any other slide.
     const fullPrint = request.productDisplay === 'card' ? null : prepared.productImageId;
@@ -160,7 +167,7 @@ export async function createCarousels(services: Services, request: CreateRequest
     if (experimentId) experimentIds.push(experimentId);
     let previous: Slide[] | null = null;
 
-    for (const style of copyStyles) {
+    for (const [variantIndex, style] of copyStyles.entries()) {
       // Variants share the images already picked so the test isolates the format, not the photo.
       const shared: CarouselDraft = previous
         ? { ...draft, slides: draft.slides.map((slide, index) => ({ ...slide, assetId: previous?.[index]?.assetId ?? slide.assetId })) }
@@ -179,7 +186,7 @@ export async function createCarousels(services: Services, request: CreateRequest
       });
       previous = slides;
 
-      const slot = nextSlot ? nextSlot({ copyIndex: prepared.copyNumber - 1, styleLabel: VISUAL_STYLE_LABELS[style], copyVersion: versionOf(prepared) }) : null;
+      const slot = slots[position][variantIndex] ?? null;
       const experiment: ExperimentRef | null = test && slot
         ? { id: test.id, name: test.brief.name.trim(), variant: slot.variant }
         : experimentId
@@ -202,7 +209,7 @@ export async function createCarousels(services: Services, request: CreateRequest
             shade: request.shade,
             accountId: request.accountId,
             ...(request.plan ?? {}),
-            ...(slot?.time ? { scheduledTime: slot.time } : {}),
+            scheduledTime: slot?.time ?? fallbackTime,
           },
           slides,
           caption,

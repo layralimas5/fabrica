@@ -45,6 +45,7 @@ import { carouselPerformance } from '../domain/winners/family';
 import { emptyRecordInput, formatMetric, PERFORMANCE_LABELS, type ContentRecordInput, type PerformanceKey } from '../domain/winners/record';
 import { Drawer } from '../ui/Drawer';
 import { Alert, Button, Field, Input, PageHeader, Select, Spinner } from '../ui/primitives';
+import { PendingMeasurementsNotice } from '../experiments/PendingMeasurements';
 import { useAddMetrics } from '../winners/useAddMetrics';
 import { WinnerFormDialog } from '../winners/WinnerFormDialog';
 
@@ -217,6 +218,7 @@ export function CalendarPage() {
           </Button>
         }
       />
+      <PendingMeasurementsNotice />
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">

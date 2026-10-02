@@ -42,8 +42,8 @@ describe('ficha do teste', () => {
 
   it('names the parts of a combined version, so the result can be read one variable at a time', () => {
     expect(versionDimensions(['horario', 'gancho', 'cta'])).toEqual([
-      { label: 'Gancho + CTA', index: 0 },
-      { label: 'Horário', index: 1 },
+      { label: 'Gancho + CTA', index: 0, kind: 'copy' },
+      { label: 'Horário', index: 1, kind: 'time' },
     ]);
     expect(versionDimensions(['horario'])).toHaveLength(1);
     expect(versionPart('Controle · 08:00', 1)).toBe('08:00');

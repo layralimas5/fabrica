@@ -211,17 +211,19 @@ export function slotPlanner(brief: TestBrief): (input: Omit<SlotInput, 'position
 export interface VersionDimension {
   label: string;
   index: number;
+  /** Where the part comes from: the copy (Controle/Variação), the slide model or the posting time. */
+  kind: 'copy' | 'style' | 'time';
 }
 
 /** The parts a version name is made of, in the order slotFor joins them. Only worth showing with two or more. */
 export function versionDimensions(variables: TestVariable[]): VersionDimension[] {
   const perCopy = variables.filter(chosenPerCopy);
-  const labels = [
-    perCopy.length > 0 ? perCopy.map((variable) => TEST_VARIABLE_LABELS[variable]).join(' + ') : null,
-    variables.some(versionsComeFromStyle) ? 'Modelo' : null,
-    testsTime(variables) ? TEST_VARIABLE_LABELS.horario : null,
-  ].filter((label): label is string => label !== null);
-  return labels.map((label, index) => ({ label, index }));
+  const parts: Omit<VersionDimension, 'index'>[] = [
+    ...(perCopy.length > 0 ? [{ label: perCopy.map((variable) => TEST_VARIABLE_LABELS[variable]).join(' + '), kind: 'copy' as const }] : []),
+    ...(variables.some(versionsComeFromStyle) ? [{ label: 'Modelo', kind: 'style' as const }] : []),
+    ...(testsTime(variables) ? [{ label: TEST_VARIABLE_LABELS.horario, kind: 'time' as const }] : []),
+  ];
+  return parts.map((part, index) => ({ ...part, index }));
 }
 
 /** The part of a combined version name for one dimension: "Controle · 08:00" by Horário is "08:00". */
@@ -256,5 +258,5 @@ export function briefProblems(brief: TestBrief, batch: BatchShape): string[] {
 }
 
 export function experimentFromBrief(brief: TestBrief, accountId: string | null): ExperimentInput {
-  return sanitizeExperimentInput({ ...brief, variable: brief.variables[0], accountId, learning: '', concludedAt: null });
+  return sanitizeExperimentInput({ ...brief, variable: brief.variables[0], accountId, learning: '', appliedWinner: null, concludedAt: null });
 }
