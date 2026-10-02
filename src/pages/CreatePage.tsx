@@ -159,6 +159,8 @@ export function CreatePage() {
   const numbered = copyInfo.some((info) => info.numbered);
   const carouselsIn = (info: (typeof copyInfo)[number]) => (mode === 'manual' || info.numbered ? info.stats.carousels : info.copy.trim() ? 1 : 0);
   const blocks = copyInfo.reduce((sum, info) => sum + carouselsIn(info), 0);
+  /** Slides of written copies (loose AI copies only know their size after generating). */
+  const knownSlides = copyInfo.reduce((sum, info) => sum + (mode === 'manual' || info.numbered ? info.stats.slides : 0), 0);
   const maxPerDay = Math.max(1, Math.min(MAX_PER_DAY, blocks || MAX_PER_DAY));
   const effectivePerDay = Math.min(perDay, maxPerDay);
   const total = blocks * styles.length;
@@ -638,9 +640,17 @@ export function CreatePage() {
             {folderCounts.size > 0 && (
               <p className="mt-2 text-xs text-faint">
                 {folders.length > 0
-                  ? 'Cada slide ganha uma foto das pastas marcadas: primeiro a que combina com a frase pelas tags, senão outra da pasta, sem repetir. Depois dá pra trocar qualquer uma no editor.'
+                  ? 'Cada slide ganha uma foto das pastas marcadas: primeiro a que combina com a frase pelas tags, senão outra da pasta. Cada carrossel usa fotos diferentes dos outros. Depois dá pra trocar qualquer uma no editor.'
                   : 'Com "Todas", só entra foto cuja tag combine com a frase; o resto sai só com texto. Pra ter foto em todo slide (como a Ella), marque a pasta das fotos dessa conta.'}
               </p>
+            )}
+            {folders.length > 0 && knownSlides > availableImages && (
+              <div className="mt-3">
+                <Alert tone="info">
+                  São {availableImages} fotos nessas pastas pra {knownSlides} slides: algumas fotos vão se repetir entre os carrosséis (sempre as menos usadas). Suba mais
+                  {' '}{knownSlides - availableImages} fotos na Biblioteca pra cada slide ter a sua.
+                </Alert>
+              </div>
             )}
           </Step>
 

@@ -82,11 +82,13 @@ export async function createCarousels(services: Services, request: CreateRequest
   const experimentIds: string[] = [];
   const dates = request.schedule ? distributeDates(copies.length, request.schedule) : [];
   const textOnly = (style: VisualStyle) => style === 'post' && !request.postWithImages;
+  // Shared by the whole batch: each copy gets photos the others have not used yet.
+  const usage: PhotoUsage = new Map();
 
   for (const [position, prepared] of copies.entries()) {
     const { caption, copy } = prepared;
     const photoStyles = styles.filter((style) => !textOnly(style));
-    const draft = await withMatchedPhotos(services, prepared.draft, assets, photoStyles, request.folders.length > 0, product?.imageAssetId ?? null);
+    const draft = await withMatchedPhotos(services, prepared.draft, assets, photoStyles, request.folders.length > 0, product?.imageAssetId ?? null, usage);
     const experimentId = isTest ? crypto.randomUUID() : null;
     if (experimentId) experimentIds.push(experimentId);
     let previous: Slide[] | null = null;
@@ -136,13 +138,20 @@ export async function createCarousels(services: Services, request: CreateRequest
         }),
       );
     }
+    // Format test variants reuse the same photos on purpose, so they count once.
+    for (const slide of previous ?? []) if (slide.assetId) usage.set(slide.assetId, (usage.get(slide.assetId) ?? 0) + 1);
   }
 
   return { carousels, experimentIds };
 }
 
+/** How many carousels of the current batch already use each photo. */
+type PhotoUsage = Map<string, number>;
+
 /**
  * Every slide that wants a photo (in any of the chosen styles) gets one that fits its text.
+ * Photos not used by earlier carousels of the batch come first, so different copies get different photos;
+ * a photo repeats only when the library runs out, and then the least used one goes.
  * When the user picked specific folders, those folders are the context: slides no photo matched by text
  * get a photo from them. With every folder selected, an unmatched slide stays text-only.
  * Photos the AI already picked while drafting are kept.
@@ -154,6 +163,7 @@ async function withMatchedPhotos(
   styles: VisualStyle[],
   folderIsContext: boolean,
   productAssetId: string | null,
+  usage: PhotoUsage,
 ): Promise<CarouselDraft> {
   const photos = assets.filter(isPhotoLike);
   const known = new Set(photos.map((asset) => asset.id));
@@ -168,22 +178,30 @@ async function withMatchedPhotos(
   const candidates = photos.filter((asset) => !alreadyUsed.has(asset.id));
   if (candidates.length === 0) return draft;
 
-  const matched = await services.ai.matchImages({
-    slides: pending.map(({ slide }) => ({ text: slideText(slide) })),
-    assets: candidates.slice(0, ASSET_CONTEXT_LIMIT).map(({ id, name, folder, kind, tags }) => ({ id, name, folder, kind, tags })),
-  });
   const slides = draft.slides.map((slide) => ({ ...slide }));
-  pending.forEach(({ index }, position) => {
-    slides[index].assetId = matched[position] ?? null;
-  });
-  if (folderIsContext) fillFromFolder(slides, pending.map(({ index }) => index), candidates);
+  const fresh = candidates.filter((asset) => !usage.get(asset.id));
+  const used = candidates.filter((asset) => usage.get(asset.id));
+  // First only photos no other copy used; then, for slides still empty, photos that fit even if already used.
+  for (const pool of [fresh, used]) {
+    const open = pending.filter(({ index }) => !slides[index].assetId);
+    const unpicked = pool.filter((asset) => !slides.some((slide) => slide.assetId === asset.id));
+    if (open.length === 0 || unpicked.length === 0) continue;
+    const matched = await services.ai.matchImages({
+      slides: open.map(({ slide }) => ({ text: slideText(slide) })),
+      assets: unpicked.slice(0, ASSET_CONTEXT_LIMIT).map(({ id, name, folder, kind, tags }) => ({ id, name, folder, kind, tags })),
+    });
+    open.forEach(({ index }, position) => {
+      slides[index].assetId = matched[position] ?? null;
+    });
+  }
+  if (folderIsContext) fillFromFolder(slides, pending.map(({ index }) => index), candidates, usage);
   for (const slide of slides) if (slide.assetId) slide.wantsImage = true;
   return { ...draft, slides };
 }
 
-/** Gives every still empty slide a photo from the chosen folders, using each photo once before repeating. */
-function fillFromFolder(slides: CarouselDraft['slides'], indexes: number[], photos: Asset[]): void {
-  const uses = new Map(photos.map((photo) => [photo.id, slides.filter((slide) => slide.assetId === photo.id).length]));
+/** Gives every still empty slide a photo from the chosen folders: unused in the whole batch first, least used when they run out. */
+function fillFromFolder(slides: CarouselDraft['slides'], indexes: number[], photos: Asset[], usage: PhotoUsage): void {
+  const uses = new Map(photos.map((photo) => [photo.id, (usage.get(photo.id) ?? 0) + slides.filter((slide) => slide.assetId === photo.id).length]));
   for (const index of indexes) {
     if (slides[index].assetId) continue;
     const leastUsed = Math.min(...uses.values());

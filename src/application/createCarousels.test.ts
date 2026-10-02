@@ -294,3 +294,25 @@ describe('createCarousels several copy boxes', () => {
   });
 });
 
+describe('createCarousels photos across copies', () => {
+  const folderPhotos = (count: number): Asset[] => Array.from({ length: count }, (_, i) => ({ ...photos[0], id: `f${i}`, folder: 'Ella', tags: [] }));
+  const threeCopies = ['Slide 1, um\nSlide 2, dois', 'Slide 1, tres\nSlide 2, quatro', 'Slide 1, cinco\nSlide 2, seis'];
+
+  it('gives each copy different photos while the folder has unused ones', async () => {
+    const services = fakeServices();
+    await createCarousels(services, request({ library: folderPhotos(6), texts: threeCopies, folders: ['Ella'], styles: ['tiktok'] }));
+    const ids = services.saved.flatMap((carousel) => carousel.slides.map((slide) => slide.assetId));
+    expect(new Set(ids).size).toBe(6);
+  });
+
+  it('repeats only when the folder runs out, spreading the repeats evenly', async () => {
+    const services = fakeServices();
+    await createCarousels(services, request({ library: folderPhotos(4), texts: threeCopies, folders: ['Ella'], styles: ['tiktok'] }));
+    const counts = new Map<string, number>();
+    for (const carousel of services.saved) for (const slide of carousel.slides) if (slide.assetId) counts.set(slide.assetId, (counts.get(slide.assetId) ?? 0) + 1);
+    expect(counts.size).toBe(4);
+    expect(Math.max(...counts.values()) - Math.min(...counts.values())).toBeLessThanOrEqual(1);
+    for (const carousel of services.saved) expect(new Set(carousel.slides.map((slide) => slide.assetId)).size).toBe(2);
+  });
+});
+
