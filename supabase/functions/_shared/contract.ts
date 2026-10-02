@@ -25,6 +25,7 @@ export const draftRequest = z.object({
   brand,
   product: z.object({ name: z.string().min(1).max(80), pitch: z.string().max(1000), hasImage: z.boolean() }).nullable(),
   assets: z.array(z.object({ id: z.string(), name: z.string(), folder: z.string(), kind: z.string(), tags: z.array(z.string()) })).max(400),
+  guidance: z.string().max(2000).nullable().optional(),
 });
 
 export const rewriteRequest = z.object({

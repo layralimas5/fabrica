@@ -1,9 +1,8 @@
 import { Lightbulb } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { MIN_GROUP_SAMPLES, type Insight } from '../domain/winners/insights';
-import { PERFORMANCE_KEYS, PERFORMANCE_LABELS } from '../domain/winners/record';
-import { MAX_WEIGHT, PRESET_WEIGHTS, SCORE_PROFILE_LABELS, SCORE_PROFILES, type ScoreProfile, type ScoreWeights } from '../domain/winners/score';
+import { MIN_GROUP_SAMPLES, NOT_ENOUGH_DATA, type Insight } from '../domain/winners/insights';
+import { MAX_WEIGHT, PRESET_WEIGHTS, SCORE_COMPONENT_LABELS, SCORE_COMPONENTS, SCORE_PROFILE_LABELS, SCORE_PROFILES, type ScoreProfile, type ScoreWeights } from '../domain/winners/score';
 import { Button, Dialog } from '../ui/primitives';
 import { Chip } from './chips';
 
@@ -24,15 +23,15 @@ export function InsightsPanel({ insights, measured, limit, showLink = false }: I
           <Lightbulb className="size-4 text-amber-500" aria-hidden /> Insights
         </h2>
         {showLink && (
-          <Link to="/vencedores/analise" className="text-xs font-medium text-muted underline-offset-4 hover:text-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+          <Link to="/analytics" className="text-xs font-medium text-muted underline-offset-4 hover:text-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
             Ver análise completa
           </Link>
         )}
       </div>
       {shown.length === 0 ? (
         <p className="mt-2 text-sm text-muted">
-          Ainda sem padrão confiável. Um insight só aparece quando cada lado da comparação tem pelo menos {MIN_GROUP_SAMPLES} conteúdos com resultado e a diferença
-          passa de 25%. Hoje: {measured} {measured === 1 ? 'conteúdo medido' : 'conteúdos medidos'}.
+          {NOT_ENOUGH_DATA} Um insight só aparece quando cada lado da comparação tem pelo menos {MIN_GROUP_SAMPLES} conteúdos com resultado e a diferença passa de 25%.
+          Hoje: {measured} {measured === 1 ? 'conteúdo medido' : 'conteúdos medidos'}.
         </p>
       ) : (
         <ul className="mt-3 flex flex-col gap-2">
@@ -93,7 +92,7 @@ export function ScoreSettingsDialog({ open, onClose, profile, weights, onProfile
     >
       <div className="flex flex-col gap-5">
         <p className="text-sm text-muted">
-          Nota de 0 a 100 que compara cada conteúdo com os melhores números da sua própria biblioteca. Serve de apoio: o que conta é a métrica do seu objetivo.
+          Nota de 0 a 100 que compara cada conteúdo com a média da própria conta: 50 é o normal da conta, 75 é o dobro, 100 é quatro vezes ou mais. Usa taxas, não números absolutos, então conta pequena não perde pra conta grande.
         </p>
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Perfil de pesos">
           {SCORE_PROFILES.map((item) => (
@@ -103,10 +102,10 @@ export function ScoreSettingsDialog({ open, onClose, profile, weights, onProfile
           ))}
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          {PERFORMANCE_KEYS.map((key) => (
+          {SCORE_COMPONENTS.map((key) => (
             <label key={key} className="flex flex-col gap-1.5">
               <span className="flex items-center justify-between text-xs text-muted">
-                {PERFORMANCE_LABELS[key]}
+                {SCORE_COMPONENT_LABELS[key]}
                 <span className="tabular-nums text-ink">{draft[key].toLocaleString('pt-BR')}</span>
               </span>
               <input

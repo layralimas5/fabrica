@@ -1,8 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useAccounts, useAssets, useBrandKits, useCarousels, useContentRecords } from '../app/data';
-import type { Account } from '../domain/account';
-import { accountKey, hasAnyMetric, type ContentRecord, type PerformanceMetrics } from '../domain/winners/record';
-import { contentScore, sanitizeWeights, scoreReference, SCORE_PROFILES, weightsFor, type ContentScore, type ScoreProfile, type ScoreWeights } from '../domain/winners/score';
+import { accountLabel as labelOfAccount, type Account } from '../domain/account';
+import { analyticsItems, isMeasured } from '../domain/analytics/items';
+import { accountKey, type ContentRecord, type PerformanceMetrics } from '../domain/winners/record';
+import { baselineFor, buildBaselines, performanceScore, sanitizeWeights, SCORE_PROFILES, weightsFor, type ContentScore, type ScoreProfile, type ScoreWeights } from '../domain/winners/score';
 
 const PROFILE_KEY = 'fabrica:score-profile';
 const WEIGHTS_KEY = 'fabrica:score-weights';
@@ -55,7 +56,7 @@ export function useScoreSettings() {
 
 export function accountLabelOf(record: Pick<ContentRecord, 'accountId' | 'accountLabel'>, accounts: Account[]): string | null {
   const account = record.accountId ? accounts.find((item) => item.id === record.accountId) : undefined;
-  if (account) return account.name || `@${account.handle}`;
+  if (account) return labelOfAccount(account);
   return record.accountLabel || null;
 }
 
@@ -68,13 +69,20 @@ export function useWinnerLibrary() {
   const assets = useAssets();
   const score = useScoreSettings();
 
-  const reference = useMemo(() => scoreReference(records.data.filter((record) => hasAnyMetric(record.metrics)).map((record) => record.metrics)), [records.data]);
-  const scoreOf = useCallback((metrics: PerformanceMetrics): ContentScore | null => contentScore(metrics, reference, score.weights), [reference, score.weights]);
-  const scoreValue = useCallback((metrics: PerformanceMetrics) => scoreOf(metrics)?.value ?? null, [scoreOf]);
+  /** Every carousel and every content made elsewhere, so the score of one is always read against the same base. */
+  const items = useMemo(() => analyticsItems(carousels.data, records.data, accounts.data), [carousels.data, records.data, accounts.data]);
+  const baselines = useMemo(() => buildBaselines(items.filter(isMeasured).map((item) => ({ account: accountKey(item.record), metrics: item.record.metrics }))), [items]);
+  const scoreOf = useCallback(
+    (metrics: PerformanceMetrics, account: string | null): ContentScore | null => performanceScore(metrics, baselineFor(baselines, account), score.weights),
+    [baselines, score.weights],
+  );
+  const scoreValue = useCallback((metrics: PerformanceMetrics, account: string | null) => scoreOf(metrics, account)?.value ?? null, [scoreOf]);
 
   /** Label of a grouping key from accountKey(): registered accounts by name, typed ones as typed. */
   const accountLabel = useCallback(
     (key: string) => {
+      const account = accounts.data.find((item) => `id:${item.id}` === key);
+      if (account) return labelOfAccount(account);
       const record = records.data.find((item) => accountKey(item) === key);
       return (record && accountLabelOf(record, accounts.data)) ?? key.replace(/^(id|label):/, '');
     },
@@ -83,7 +91,7 @@ export function useWinnerLibrary() {
 
   const accountOptions = useMemo(() => {
     const options = new Map<string, string>();
-    for (const account of accounts.data) options.set(`id:${account.id}`, account.name || `@${account.handle}`);
+    for (const account of accounts.data) options.set(`id:${account.id}`, labelOfAccount(account));
     for (const record of records.data) {
       const key = accountKey(record);
       if (key && !options.has(key)) options.set(key, accountLabelOf(record, accounts.data) ?? key);
@@ -94,7 +102,7 @@ export function useWinnerLibrary() {
   const loading = records.loading || carousels.loading || accounts.loading || brands.loading || assets.loading;
   const error = records.error ?? carousels.error ?? accounts.error ?? brands.error ?? assets.error;
 
-  return { records, carousels, accounts, brands, assets, score, scoreOf, scoreValue, accountLabel, accountOptions, loading, error };
+  return { records, carousels, accounts, brands, assets, items, score, scoreOf, scoreValue, accountLabel, accountOptions, loading, error };
 }
 
 export type WinnerLibrary = ReturnType<typeof useWinnerLibrary>;

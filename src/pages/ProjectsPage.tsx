@@ -7,7 +7,7 @@ import { useAccounts, useAssets, useBrandKits, useCarousels } from '../app/data'
 import { useServices } from '../app/services';
 import type { RenderContext } from '../app/slideRendering';
 import { errorMessage } from '../app/useResource';
-import { CAROUSEL_STATUSES, isPosted, postedStatus, STATUS_LABELS, toCarouselInput, type Carousel, type CarouselStatus } from '../domain/carousel';
+import { CAROUSEL_STATUSES, STATUS_TONES, isPosted, statusLabel, postedStatus, STATUS_LABELS, toCarouselInput, type Carousel, type CarouselStatus } from '../domain/carousel';
 import { Alert, Badge, Button, EmptyState, Input, PageHeader, Select, Spinner } from '../ui/primitives';
 import { CarouselViewer } from '../ui/CarouselViewer';
 import { CarouselCover } from '../ui/CarouselCover';
@@ -15,13 +15,9 @@ import { PostedToggle } from '../ui/PostedToggle';
 import { formatDay } from '../domain/schedule';
 import { brandForCarousel } from '../domain/brandKit';
 import { useMarkWinner } from '../winners/useMarkWinner';
+import { useAccountScope } from '../app/accountScope';
 
-const STATUS_TONE: Record<CarouselStatus, 'neutral' | 'accent' | 'success' | 'warning'> = {
-  draft: 'neutral',
-  editing: 'warning',
-  ready: 'accent',
-  published: 'success',
-};
+const STATUS_TONE = STATUS_TONES;
 
 export function ProjectsPage() {
   const services = useServices();
@@ -38,7 +34,14 @@ export function ProjectsPage() {
   const [error, setError] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState<Carousel | null>(null);
   const [exporting, setExporting] = useState<{ done: number; total: number } | null>(null);
-  const winner = useMarkWinner();
+  const winner = useMarkWinner((marked) => {
+    if (!isPosted(marked)) return;
+    services.carousels
+      .update(marked.id, toCarouselInput({ ...marked, status: 'winner' }))
+      .then((saved) => carousels.setData((current) => current.map((item) => (item.id === saved.id ? saved : item))))
+      .catch((cause: unknown) => setError(errorMessage(cause)));
+  });
+  const scope = useAccountScope();
   /** Selection mode: pick many carousels and mark them as posted at once. */
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
@@ -49,13 +52,14 @@ export function ProjectsPage() {
     const search = query.trim().toLowerCase();
     return carousels.data.filter(
       (carousel) =>
+        scope.matches(carousel.source.accountId) &&
         (!search || carousel.title.toLowerCase().includes(search)) &&
         (!brandFilter || carousel.brandKitId === brandFilter) &&
         (!statusFilter || carousel.status === statusFilter) &&
         (place.project === null || carousel.project === place.project) &&
         (place.folder === null || carousel.folder === place.folder),
     );
-  }, [carousels.data, query, brandFilter, statusFilter, place]);
+  }, [carousels.data, query, brandFilter, statusFilter, place, scope]);
 
   const remove = async (carousel: Carousel) => {
     if (!window.confirm(`Excluir "${carousel.title}"? Não dá pra desfazer.`)) return;
@@ -254,7 +258,7 @@ export function ProjectsPage() {
                     </p>
                     {(carousel.project || carousel.folder) && <p className="mt-1 truncate text-xs text-faint">{[carousel.project, carousel.folder].filter(Boolean).join(' / ')}</p>}
                     <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                      {!isPosted(carousel) && <Badge tone={STATUS_TONE[carousel.status]}>{STATUS_LABELS[carousel.status]}</Badge>}
+                      {carousel.status !== 'published' && <Badge tone={STATUS_TONE[carousel.status]}>{statusLabel(carousel)}</Badge>}
                       {winner.isWinner(carousel) && <Badge tone="warning">⭐ Vencedor</Badge>}
                       {carousel.scheduledFor && (
                         <Badge>

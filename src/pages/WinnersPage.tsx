@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { todayIso } from '../domain/schedule';
 import { applyFilters, EMPTY_FILTERS, SORT_OPTIONS, sortRecords, type SortOption, type WinnerFilters } from '../domain/winners/filters';
 import { generateInsights } from '../domain/winners/insights';
-import { hasAnyMetric, PERFORMANCE_KEYS, type PerformanceKey } from '../domain/winners/record';
+import { accountKey, hasAnyMetric, PERFORMANCE_KEYS, type PerformanceKey } from '../domain/winners/record';
 import { SCORE_PROFILE_LABELS } from '../domain/winners/score';
 import { Alert, Button, EmptyState, PageHeader, Spinner } from '../ui/primitives';
 import { FiltersPanel } from '../winners/FiltersPanel';
@@ -13,6 +13,7 @@ import { useWinnerActions } from '../winners/useWinnerActions';
 import { accountLabelOf, useWinnerLibrary } from '../winners/useWinnerLibrary';
 import { WinnerCard } from '../winners/WinnerCard';
 import { WinnersTabs } from '../winners/WinnersTabs';
+import { useAccountScope } from '../app/accountScope';
 
 const SORT_STORAGE_KEY = 'fabrica:winners-sort';
 
@@ -33,11 +34,12 @@ export function WinnersPage() {
   const [scoreOpen, setScoreOpen] = useState(false);
   const { records, carousels, brands, assets, accounts, score } = library;
 
-  const winners = useMemo(() => records.data.filter((record) => record.winner), [records.data]);
+  const scope = useAccountScope();
+  const winners = useMemo(() => records.data.filter((record) => record.winner && scope.matches(record.accountId)), [records.data, scope]);
   const themeOptions = useMemo(() => [...new Set(winners.map((record) => record.theme).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [winners]);
   const visible = useMemo(() => sortRecords(applyFilters(winners, filters, todayIso()), sort, library.scoreValue), [winners, filters, sort, library.scoreValue]);
   const measured = useMemo(() => records.data.filter((record) => hasAnyMetric(record.metrics)), [records.data]);
-  const insights = useMemo(() => generateInsights(measured, library.accountLabel), [measured, library.accountLabel]);
+  const insights = useMemo(() => generateInsights(measured, library.accountLabel, library.scoreValue), [measured, library.accountLabel, library.scoreValue]);
   const focus = (PERFORMANCE_KEYS as readonly string[]).includes(sort) ? (sort as PerformanceKey) : null;
 
   const changeSort = (next: SortOption) => {
@@ -112,7 +114,7 @@ export function WinnersPage() {
                     assets={assets.data}
                     accounts={accounts.data}
                     accountLabel={accountLabelOf(record, accounts.data)}
-                    score={library.scoreOf(record.metrics)}
+                    score={library.scoreOf(record.metrics, accountKey(record))}
                     focus={focus}
                     onAction={(action) => actions.run(action, record)}
                   />

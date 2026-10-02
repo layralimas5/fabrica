@@ -117,6 +117,7 @@ function buildCall(action: Action, payload: unknown): CallSpec<unknown> {
           input.product
             ? `Inclua exatamente um slide role=product mostrando o ${input.product.name}, na posição que o tipo de carrossel pede.`
             : 'Não inclua slide de produto nem mencione produto.',
+          input.guidance ? `<analytics>${input.guidance}</analytics>` : '',
           `<pedido>${JSON.stringify(input)}</pedido>`,
         ].join('\n'),
       };

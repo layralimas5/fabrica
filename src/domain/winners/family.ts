@@ -1,7 +1,7 @@
 import type { Carousel } from '../carousel';
 import { hasMetrics, type Metrics } from '../metrics';
 import { metricValue, type AnalysisMetric, type ScoreOf } from './insights';
-import { emptyPerformance, hasAnyMetric, type ContentRecord, type PerformanceMetrics } from './record';
+import { accountKey, emptyPerformance, hasAnyMetric, type ContentRecord, type PerformanceMetrics } from './record';
 
 /** A content created from a winner: as a model, a variation or part of a family. */
 export interface FamilyMember {
@@ -14,7 +14,7 @@ export interface FamilyMember {
 /** The quick numbers typed in Testes become performance metrics (the funnel ones stay unmeasured). */
 export function carouselPerformance(metrics: Metrics | null): PerformanceMetrics | null {
   if (!hasMetrics(metrics)) return null;
-  return { ...emptyPerformance(), views: metrics.views, likes: metrics.likes, comments: metrics.comments, shares: metrics.shares, saves: metrics.saves };
+  return { ...emptyPerformance(), views: metrics.views, likes: metrics.likes, comments: metrics.comments, shares: metrics.shares, saves: metrics.saves, follows: metrics.follows || null };
 }
 
 export function familyMembers(modelId: string, carousels: Carousel[], records: ContentRecord[]): FamilyMember[] {
@@ -52,7 +52,7 @@ export function structureStats(models: ContentRecord[], carousels: Carousel[], r
     .map((model) => {
       const members = familyMembers(model.id, carousels, records);
       const measured = members
-        .map((member) => ({ member, value: member.metrics ? metricValue(member.metrics, metric, scoreOf) : null }))
+        .map((member) => ({ member, value: member.metrics ? metricValue(member.metrics, metric, scoreOf, member.carousel.source.accountId ? `id:${member.carousel.source.accountId}` : null) : null }))
         .filter((entry): entry is { member: FamilyMember; value: number } => entry.value !== null);
       const best = measured.reduce<{ member: FamilyMember; value: number } | null>((top, entry) => (!top || entry.value > top.value ? entry : top), null);
       return {
@@ -60,7 +60,7 @@ export function structureStats(models: ContentRecord[], carousels: Carousel[], r
         members: members.length,
         measured: measured.length,
         average: measured.length ? measured.reduce((sum, entry) => sum + entry.value, 0) / measured.length : null,
-        modelValue: metricValue(model.metrics, metric, scoreOf),
+        modelValue: metricValue(model.metrics, metric, scoreOf, accountKey(model)),
         best: best?.member ?? null,
       };
     })

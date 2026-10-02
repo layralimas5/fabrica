@@ -61,6 +61,8 @@ export const draftRequestSchema = z.object({
   /** Null when the carousel should not show a product. */
   product: productContextSchema.nullable(),
   assets: z.array(assetSummarySchema).max(400),
+  /** What the account's Analytics says works (or that this one is a test). Optional: older callers send nothing. */
+  guidance: z.string().max(2000).nullable().optional(),
 });
 export type DraftRequest = z.infer<typeof draftRequestSchema>;
 

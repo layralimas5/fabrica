@@ -9,8 +9,9 @@ import { CONTENT_TYPE_LABELS, OBJECTIVE_LABELS } from '../domain/content';
 import { analyzeDna, type ContentDna } from '../domain/winners/dna';
 import { familyMembers, familyNames, type FamilyMember } from '../domain/winners/family';
 import { carouselScript, recordFromCarousel } from '../domain/winners/fromCarousel';
-import { formatAnalysisValue, metricValue, type AnalysisMetric } from '../domain/winners/insights';
+import { formatAnalysisValue, metricValue, type AnalysisMetric, type ScoreOf } from '../domain/winners/insights';
 import {
+  accountKey,
   CONTENT_FORMAT_LABELS,
   CONTENT_PLATFORM_LABELS,
   conversionRate,
@@ -64,7 +65,7 @@ export function WinnerDetailPage() {
   }
 
   const context = winnerContext(record, carousels.data, accounts.data, brands.data);
-  const score = library.scoreOf(record.metrics);
+  const score = library.scoreOf(record.metrics, accountKey(record));
   const accountLabel = accountLabelOf(record, accounts.data);
   const productName = context.brand ? (productOf(context.brand)?.name ?? null) : null;
 
@@ -207,18 +208,19 @@ interface FamilyTabProps {
   library: ReturnType<typeof useWinnerLibrary>;
   onCreate: (mode: 'variations' | 'family') => void;
   onResults: (member: FamilyMember) => void;
-  scoreOf: (metrics: PerformanceMetrics) => number | null;
+  scoreOf: ScoreOf;
 }
 
 function FamilyTab({ record, library, onCreate, onResults, scoreOf }: FamilyTabProps) {
   const [metric, setMetric] = useState<AnalysisMetric>('views');
   const members = useMemo(() => familyMembers(record.id, library.carousels.data, library.records.data), [record.id, library.carousels.data, library.records.data]);
-  const valueOf = (metrics: PerformanceMetrics | null) => (metrics ? metricValue(metrics, metric, scoreOf) : null);
+  const valueOf = (metrics: PerformanceMetrics | null, account: string | null) => (metrics ? metricValue(metrics, metric, scoreOf, account) : null);
+  const memberAccount = (member: FamilyMember) => (member.carousel.source.accountId ? `id:${member.carousel.source.accountId}` : null);
   const best = members.reduce<{ id: string; value: number } | null>((top, member) => {
-    const value = valueOf(member.metrics);
+    const value = valueOf(member.metrics, memberAccount(member));
     return value !== null && (!top || value > top.value) ? { id: member.carousel.id, value } : top;
   }, null);
-  const original = valueOf(record.metrics);
+  const original = valueOf(record.metrics, accountKey(record));
 
   if (members.length === 0) {
     return (
@@ -261,7 +263,7 @@ function FamilyTab({ record, library, onCreate, onResults, scoreOf }: FamilyTabP
             {members
               .filter((member) => (member.carousel.origin?.family ?? '') === name)
               .map((member) => {
-                const value = valueOf(member.metrics);
+                const value = valueOf(member.metrics, memberAccount(member));
                 const isBest = best?.id === member.carousel.id && members.filter((item) => item.metrics).length > 1;
                 return (
                   <li key={member.carousel.id} className="flex flex-wrap items-center gap-3 px-4 py-3">

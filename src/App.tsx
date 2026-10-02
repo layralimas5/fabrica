@@ -15,7 +15,7 @@ const ExperimentsPage = lazy(() => import('./pages/ExperimentsPage').then((m) =>
 const ExperimentDetailPage = lazy(() => import('./pages/ExperimentDetailPage').then((m) => ({ default: m.ExperimentDetailPage })));
 const AgendaPage = lazy(() => import('./pages/AgendaPage').then((m) => ({ default: m.AgendaPage })));
 const WinnersPage = lazy(() => import('./pages/WinnersPage').then((m) => ({ default: m.WinnersPage })));
-const WinnersAnalysisPage = lazy(() => import('./pages/WinnersAnalysisPage').then((m) => ({ default: m.WinnersAnalysisPage })));
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage').then((m) => ({ default: m.AnalyticsPage })));
 const WinnerDetailPage = lazy(() => import('./pages/WinnerDetailPage').then((m) => ({ default: m.WinnerDetailPage })));
 const AccountsPage = lazy(() => import('./pages/AccountsPage').then((m) => ({ default: m.AccountsPage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
@@ -46,7 +46,8 @@ export default function App({ services }: { services: Services }) {
               <Route path="/projetos" element={<ProjectsPage />} />
               <Route path="/agenda" element={<AgendaPage />} />
               <Route path="/vencedores" element={<WinnersPage />} />
-              <Route path="/vencedores/analise" element={<WinnersAnalysisPage />} />
+              <Route path="/analytics" element={<AnalyticsPage />} />
+              <Route path="/vencedores/analise" element={<Navigate to="/analytics" replace />} />
               <Route path="/vencedores/:id" element={<WinnerDetailPage />} />
               <Route path="/testes" element={<ExperimentsPage />} />
               <Route path="/testes/:id" element={<ExperimentDetailPage />} />

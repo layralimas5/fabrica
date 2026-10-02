@@ -5,6 +5,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAccounts, useAssets, useBrandKits, useCarousels, usePresets } from '../app/data';
 import { PresetBar } from '../create/PresetBar';
+import { AnalyticsAssist, useRecommendations } from '../create/AnalyticsAssist';
+import { EXPLORATION_LEVELS, guidanceFor, planCopies, type ExplorationLevel } from '../domain/analytics/intelligence';
 import { TextStylePanel } from '../create/TextStylePanel';
 import type { CreateSettings, Preset } from '../domain/preset';
 import { useServices } from '../app/services';
@@ -21,7 +23,8 @@ import { ImagePickerDialog } from '../editor/ImagePickerDialog';
 import { AssetThumb } from '../ui/AssetThumb';
 import { ACCEPTED_IMAGE_TYPES, inFolders, isAcceptedImage, isPhotoLike, PRODUCT_FOLDER, UPLOAD_RULES_MESSAGE } from '../domain/asset';
 import { MOMENTUMM_STARTER, photoFoldersOf, productOf, type VisualStyle } from '../domain/brandKit';
-import { accountsFor, identityOf } from '../domain/account';
+import { accountLabel, accountsFor, identityOf, isActiveAccount } from '../domain/account';
+import { useAccountScope } from '../app/accountScope';
 import {
   CAROUSEL_FORMATS,
   defaultFormatFor,
@@ -66,6 +69,8 @@ const PLATFORM_STORAGE_KEY = 'fabrica:platform';
 const FORMAT_STORAGE_KEY = 'fabrica:format';
 const ACCOUNT_STORAGE_KEY = 'fabrica:account';
 const PRESET_STORAGE_KEY = 'fabrica:preset';
+const ANALYTICS_STORAGE_KEY = 'fabrica:use-analytics';
+const EXPLORATION_STORAGE_KEY = 'fabrica:exploration';
 const PLATFORM_DETAILS: Record<Platform, string> = { instagram: 'Feed, perfil, stories', tiktok: 'Carrossel de fotos' };
 
 const MANUAL_PLACEHOLDER = `Tema do carrossel: Rotina que sobrevive ao dia ruim
@@ -136,6 +141,9 @@ export function CreatePage() {
   const [copies, setCopies] = useState<string[]>(() => (handoff?.copies.length ? handoff.copies.slice(0, MAX_COPIES) : ['']));
   /** Objective and type of each copy box; null fields follow the batch defaults of step 3. */
   const [copySettings, setCopySettings] = useState<CopySetting[]>([]);
+  /** "Usar dados do Analytics" and how much of the batch keeps testing. Remembered in this browser. */
+  const [useAnalytics, setUseAnalytics] = useState(() => readStored(ANALYTICS_STORAGE_KEY, ['on', 'off'] as const, 'off') === 'on');
+  const [exploration, setExploration] = useState<ExplorationLevel>(() => readStored(EXPLORATION_STORAGE_KEY, EXPLORATION_LEVELS, 'balanced'));
   const [brandId, setBrandId] = useState('');
   const [accountId, setAccountId] = useState<string | null>(() => readStoredText(ACCOUNT_STORAGE_KEY));
   const [contentType, setContentType] = useState<ContentType>('auto');
@@ -168,8 +176,10 @@ export function CreatePage() {
   const [pendingPreset, setPendingPreset] = useState<CreateSettings | null>(null);
 
   const brand = brands.data.find((kit) => kit.id === brandId) ?? brands.data[0];
-  const platformAccounts = accountsFor(accounts.data, platform);
+  const scope = useAccountScope();
+  const platformAccounts = accountsFor(accounts.data.filter(isActiveAccount), platform);
   const account = platformAccounts.find((item) => item.id === accountId) ?? platformAccounts[0] ?? null;
+  const intelligence = useRecommendations(account?.id ?? null);
   const accountIdentity = useMemo(() => (account ? identityOf(account) : null), [account]);
   const product = brand ? productOf(brand) : null;
   const folderCounts = useMemo(() => countByFolder(assets.data), [assets.data]);
@@ -208,7 +218,7 @@ export function CreatePage() {
     () => namesWithCounts(savedCarousels.data.filter((carousel) => carousel.project === project.trim()).map((carousel) => carousel.folder)),
     [savedCarousels.data, project],
   );
-  const defaultProject = account?.name ?? brand?.name ?? '';
+  const defaultProject = account?.project || account?.name || brand?.name || '';
   const plannedDays = scheduling && blocks > 0 ? countByDay(distributeDates(blocks, { startDate, perDay: effectivePerDay })) : [];
 
   useEffect(() => {
@@ -300,12 +310,18 @@ export function CreatePage() {
   // Opening the screen again brings back the last preset used, already applied.
   const restoredPreset = useRef(false);
   useEffect(() => {
-    if (restoredPreset.current || presets.loading || brands.loading || accounts.loading) return;
+    if (restoredPreset.current || presets.loading || brands.loading || accounts.loading || scope.loading) return;
     restoredPreset.current = true;
     if (handoff) return applyHandoff();
     const last = presets.data.find((preset) => preset.id === presetId);
     if (last) choosePreset(last);
-  }, [presets.loading, brands.loading, accounts.loading]); // eslint-disable-line react-hooks/exhaustive-deps
+    // The account picked at the top ("Conta atual") wins over the one saved in the preset.
+    if (scope.current && isActiveAccount(scope.current)) {
+      setPlatform(scope.current.platform);
+      if (!formatFitsPlatform(format, scope.current.platform)) setFormat(defaultFormatFor(scope.current.platform));
+      chooseAccount(scope.current.id);
+    }
+  }, [presets.loading, brands.loading, accounts.loading, scope.loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** The winner's network, account, brand and look come along; the rest of the screen keeps what the user had. */
   const applyHandoff = () => {
@@ -431,6 +447,19 @@ export function CreatePage() {
     }
   };
 
+  /** Each copy follows the plan of the exploration level; what the user set by hand on a copy stays. */
+  const withAnalytics = (settings: CopySetting[]): CopySetting[] =>
+    planCopies(copies.length, exploration, intelligence.recommendations).map((plan, index) => {
+      const own = settings[index] ?? { objective: null, contentType: null };
+      return {
+        ...own,
+        contentType: own.contentType ?? plan.contentType ?? null,
+        style: plan.style ?? null,
+        slideCount: plan.slideCount ?? null,
+        guidance: guidanceFor(intelligence.recommendations, plan),
+      };
+    });
+
   const generate = async () => {
     if (!brand) return;
     setGenerating(true);
@@ -444,7 +473,7 @@ export function CreatePage() {
         library: assets.data,
         mode,
         texts: copies,
-        copySettings,
+        copySettings: useAnalytics ? withAnalytics(copySettings) : copySettings,
         contentType,
         objective,
         slideCount,
@@ -481,7 +510,8 @@ export function CreatePage() {
 
   if (brands.loading) return <Spinner />;
 
-  const ready = copyInfo.some((info) => (mode === 'manual' || info.numbered ? info.stats.slides > 0 : info.copy.trim().length >= MIN_AI_COPY_LENGTH));
+  // Every carousel belongs to an account, so Analytics can compare each account with itself.
+  const ready = account !== null && copyInfo.some((info) => (mode === 'manual' || info.numbered ? info.stats.slides > 0 : info.copy.trim().length >= MIN_AI_COPY_LENGTH));
   const changeCopyCount = (count: number) => {
     setCopies((current) => (count <= current.length ? current.slice(0, count) : [...current, ...Array.from({ length: count - current.length }, () => '')]));
     setCopySettings((current) => current.slice(0, count));
@@ -552,13 +582,15 @@ export function CreatePage() {
                   <Select id="account" value={account?.id ?? ''} onChange={(e) => chooseAccount(e.target.value || null)} disabled={generating}>
                     {platformAccounts.map((item) => (
                       <option key={item.id} value={item.id}>
-                        {item.name} · @{item.handle}
+                        {accountLabel(item)} · @{item.handle}
                       </option>
                     ))}
                   </Select>
                 </Field>
               ) : (
-                <p className="text-xs text-faint">Nenhuma conta do {PLATFORM_LABELS[platform]} ainda. No modelo Post, o topo dos slides mostra o nome da marca.</p>
+                <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                  Cadastre uma conta do {PLATFORM_LABELS[platform]} pra criar: todo carrossel pertence a uma conta, e é assim que o Analytics compara cada uma.
+                </p>
               )}
               <Link to="/contas" className="text-xs font-medium text-muted underline underline-offset-4 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
                 {platformAccounts.length > 0 ? 'Gerenciar contas' : 'Cadastrar conta'}
@@ -722,6 +754,22 @@ export function CreatePage() {
                   </label>
                 )}
               </div>
+
+              <AnalyticsAssist
+                enabled={useAnalytics}
+                onEnabled={(enabled) => {
+                  setUseAnalytics(enabled);
+                  remember(ANALYTICS_STORAGE_KEY, enabled ? 'on' : 'off');
+                }}
+                level={exploration}
+                onLevel={(level) => {
+                  setExploration(level);
+                  remember(EXPLORATION_STORAGE_KEY, level);
+                }}
+                recommendations={intelligence.recommendations}
+                accountName={account ? accountLabel(account) : null}
+                disabled={generating}
+              />
 
               <div>
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-3">

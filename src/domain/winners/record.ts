@@ -1,3 +1,5 @@
+import { VISUAL_STYLES, type VisualStyle } from '../brandKit';
+import { normalizeTags } from '../carousel';
 import { CONTENT_TYPES, OBJECTIVES, type ContentType, type Objective, type SlideRole } from '../content';
 import type { ContentDna } from './dna';
 
@@ -123,7 +125,7 @@ export const WINNER_TYPE_INFO: Record<WinnerType, { emoji: string; label: string
   conversao: { emoji: '💰', label: 'Vencedor de conversão', short: 'Conversão', detail: 'Vendas e receita' },
 };
 
-export const PERFORMANCE_KEYS = ['views', 'likes', 'comments', 'shares', 'saves', 'profileVisits', 'clicks', 'signups', 'trials', 'sales', 'revenue'] as const;
+export const PERFORMANCE_KEYS = ['views', 'likes', 'comments', 'shares', 'saves', 'follows', 'profileVisits', 'clicks', 'leads', 'signups', 'trials', 'sales', 'revenue'] as const;
 export type PerformanceKey = (typeof PERFORMANCE_KEYS)[number];
 export const PERFORMANCE_LABELS: Record<PerformanceKey, string> = {
   views: 'Visualizações',
@@ -131,8 +133,10 @@ export const PERFORMANCE_LABELS: Record<PerformanceKey, string> = {
   comments: 'Comentários',
   shares: 'Compartilhamentos',
   saves: 'Salvamentos',
+  follows: 'Novos seguidores',
   profileVisits: 'Visitas ao perfil',
-  clicks: 'Cliques',
+  clicks: 'Cliques no link',
+  leads: 'Leads',
   signups: 'Cadastros',
   trials: 'Trials',
   sales: 'Vendas',
@@ -146,8 +150,8 @@ export type PerformanceMetrics = Record<PerformanceKey, number | null>;
 export const WINNER_TYPE_METRICS: Record<WinnerType, PerformanceKey[]> = {
   alcance: ['views'],
   valor: ['saves', 'shares'],
-  interesse: ['profileVisits', 'clicks'],
-  aquisicao: ['signups', 'trials'],
+  interesse: ['profileVisits', 'clicks', 'follows'],
+  aquisicao: ['leads', 'signups', 'trials'],
   conversao: ['sales', 'revenue'],
 };
 
@@ -190,6 +194,11 @@ export interface ContentRecord {
   productPresence: ProductPresence | null;
   slideCount: number | null;
   metrics: PerformanceMetrics;
+  /** When the numbers were last typed; they are usually updated a few times after posting. */
+  metricsUpdatedAt: string | null;
+  /** Slide model the carousel was made with (Minimalista, TikTok…), compared in Analytics as the template. */
+  visualStyle: VisualStyle | null;
+  tags: string[];
   notes: string;
   winner: boolean;
   winnerTypes: WinnerType[];
@@ -232,6 +241,9 @@ export function emptyRecordInput(): ContentRecordInput {
     productPresence: null,
     slideCount: null,
     metrics: emptyPerformance(),
+    metricsUpdatedAt: null,
+    visualStyle: null,
+    tags: [],
     notes: '',
     winner: true,
     winnerTypes: [],
@@ -282,6 +294,9 @@ export function sanitizeRecordInput(raw: Partial<ContentRecordInput>): ContentRe
     productPresence: oneOf(PRODUCT_PRESENCES, raw.productPresence),
     slideCount,
     metrics,
+    metricsUpdatedAt: typeof raw.metricsUpdatedAt === 'string' ? raw.metricsUpdatedAt : null,
+    visualStyle: oneOf(VISUAL_STYLES, raw.visualStyle),
+    tags: normalizeTags(raw.tags ?? []),
     notes: text(raw.notes, LIMITS.notes),
     winner: raw.winner ?? base.winner,
     winnerTypes: [...new Set((raw.winnerTypes ?? []).filter((type) => WINNER_TYPES.includes(type)))],
@@ -306,14 +321,15 @@ export function recordDay(record: Pick<ContentRecord, 'publishedAt' | 'createdAt
   return record.publishedAt ?? record.createdAt.slice(0, 10);
 }
 
-/** Bottom of the funnel: sign-ups when measured, otherwise trials, otherwise sales. */
+/** Bottom of the funnel: sign-ups when measured, otherwise sales, otherwise leads. */
 export function conversions(metrics: PerformanceMetrics): number | null {
-  return metrics.signups ?? metrics.trials ?? metrics.sales;
+  return metrics.signups ?? metrics.sales ?? metrics.leads;
 }
 
+/** Conversion Rate: sign-ups or sales over link clicks. */
 export function conversionRate(metrics: PerformanceMetrics): number | null {
   const converted = conversions(metrics);
-  return converted !== null && metrics.views ? converted / metrics.views : null;
+  return converted !== null && metrics.clicks ? converted / metrics.clicks : null;
 }
 
 /** Stable key to group by profile, registered or typed by hand. */

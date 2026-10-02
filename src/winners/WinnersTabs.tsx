@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 
 const TABS = [
   { to: '/vencedores', label: 'Biblioteca', end: true },
-  { to: '/vencedores/analise', label: 'Análise', end: false },
+  { to: '/analytics', label: 'Analytics', end: false },
 ];
 
 export function WinnersTabs() {

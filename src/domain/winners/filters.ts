@@ -173,8 +173,10 @@ export const SORT_OPTIONS = [
   'comments',
   'shares',
   'saves',
+  'follows',
   'profileVisits',
   'clicks',
+  'leads',
   'signups',
   'trials',
   'sales',
@@ -186,13 +188,15 @@ export type SortOption = (typeof SORT_OPTIONS)[number];
 export const SORT_LABELS: Record<SortOption, string> = {
   recentes: 'Mais recentes',
   antigos: 'Mais antigos',
-  score: 'Maior Content Score',
+  score: 'Maior Performance Score',
   views: 'Mais visualizações',
   likes: 'Mais curtidas',
   comments: 'Mais comentários',
   shares: 'Mais compartilhamentos',
   saves: 'Mais salvamentos',
+  follows: 'Mais seguidores',
   profileVisits: 'Mais visitas ao perfil',
+  leads: 'Mais leads',
   clicks: 'Mais cliques',
   signups: 'Mais cadastros',
   trials: 'Mais trials',
@@ -205,21 +209,21 @@ export const SORT_LABELS: Record<SortOption, string> = {
 export const SORT_GROUPS: { label: string; options: SortOption[] }[] = [
   { label: 'Data', options: ['recentes', 'antigos'] },
   { label: 'Geral', options: ['score'] },
-  { label: 'Atenção', options: ['views', 'likes', 'comments', 'shares', 'saves'] },
+  { label: 'Atenção', options: ['views', 'likes', 'comments', 'shares', 'saves', 'follows'] },
   { label: 'Interesse', options: ['profileVisits', 'clicks'] },
-  { label: 'Conversão', options: ['signups', 'trials', 'sales', 'revenue', 'conversionRate'] },
+  { label: 'Conversão', options: ['leads', 'signups', 'trials', 'sales', 'revenue', 'conversionRate'] },
 ];
 
 /**
  * Sorts by the chosen metric. Contents without that metric go last (not measured is not zero),
  * ties keep the most recent first.
  */
-export function sortRecords(records: ContentRecord[], sort: SortOption, scoreOf: (metrics: PerformanceMetrics) => number | null): ContentRecord[] {
+export function sortRecords(records: ContentRecord[], sort: SortOption, scoreOf: (metrics: PerformanceMetrics, account: string | null) => number | null): ContentRecord[] {
   const byDate = (a: ContentRecord, b: ContentRecord) => recordDay(b).localeCompare(recordDay(a)) || b.createdAt.localeCompare(a.createdAt);
   if (sort === 'recentes') return [...records].sort(byDate);
   if (sort === 'antigos') return [...records].sort((a, b) => byDate(b, a));
   const valueOf = (record: ContentRecord): number | null =>
-    sort === 'score' ? scoreOf(record.metrics) : sort === 'conversionRate' ? conversionRate(record.metrics) : record.metrics[sort as PerformanceKey];
+    sort === 'score' ? scoreOf(record.metrics, accountKey(record)) : sort === 'conversionRate' ? conversionRate(record.metrics) : record.metrics[sort as PerformanceKey];
   return [...records].sort((a, b) => {
     const left = valueOf(a);
     const right = valueOf(b);

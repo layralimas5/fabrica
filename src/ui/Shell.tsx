@@ -1,5 +1,7 @@
 import clsx from 'clsx';
-import { CalendarDays, FlaskConical, FolderKanban, Images, Palette, Plus, Settings, Sparkles, Trophy, UsersRound } from 'lucide-react';
+import { BarChart3, CalendarDays, FlaskConical, FolderKanban, Images, Palette, Plus, Settings, Sparkles, Trophy, UsersRound } from 'lucide-react';
+import { AccountScopeProvider } from '../app/accountScope';
+import { AccountSwitcher } from './AccountSwitcher';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useServices } from '../app/services';
 import { Badge, Button } from './primitives';
@@ -8,6 +10,7 @@ const NAV = [
   { to: '/criar', label: 'Criar', icon: Sparkles },
   { to: '/agenda', label: 'Agenda', icon: CalendarDays },
   { to: '/projetos', label: 'Projetos', icon: FolderKanban },
+  { to: '/analytics', label: 'Analytics', icon: BarChart3 },
   { to: '/vencedores', label: 'Modelos Vencedores', icon: Trophy },
   { to: '/testes', label: 'Testes', icon: FlaskConical },
   { to: '/contas', label: 'Contas', icon: UsersRound },
@@ -17,6 +20,14 @@ const NAV = [
 ];
 
 export function Shell() {
+  return (
+    <AccountScopeProvider>
+      <ShellLayout />
+    </AccountScopeProvider>
+  );
+}
+
+function ShellLayout() {
   const navigate = useNavigate();
   const { auth, ai } = useServices();
 
@@ -37,6 +48,10 @@ export function Shell() {
           <Button variant="primary" size="md" className="lg:w-full" onClick={() => navigate('/criar')}>
             <Plus className="size-4" aria-hidden /> <span className="hidden sm:inline">Novo carrossel</span>
           </Button>
+        </div>
+
+        <div className="px-4 pb-3 lg:px-4 lg:pb-4">
+          <AccountSwitcher />
         </div>
 
         <nav aria-label="Principal" className="flex gap-1 overflow-x-auto px-3 pb-2 lg:flex-col lg:px-3 lg:pb-0">

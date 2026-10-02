@@ -113,6 +113,11 @@ export function useCarouselEditor(repo: CarouselRepository, initial: Carousel) {
     (accountId: string | null) => mutate((current) => ({ ...current, source: { ...current.source, accountId } })),
     [mutate],
   );
+  /** Theme and tags: what the carousel is about, crossed with performance in Analytics. */
+  const setLabels = useCallback(
+    (labels: { theme?: string; tags?: string[] }) => mutate((current) => ({ ...current, source: { ...current.source, ...labels } })),
+    [mutate],
+  );
   const setShade = useCallback(
     (shade: ImageShade) => mutate((current) => ({ ...current, source: { ...current.source, shade } })),
     [mutate],
@@ -125,7 +130,7 @@ export function useCarouselEditor(repo: CarouselRepository, initial: Carousel) {
     setCarousel((current) => ({ ...current, status }));
   }, []);
 
-  return { carousel, selectedId, setSelectedId, saveState, saveError, updateSlide, setTextStyleForAll, setShade, setAccount, setPlan, addSlide, duplicate, removeSlide, reorder, move, setTitle, setCaption, setFormat, setStatus };
+  return { carousel, selectedId, setSelectedId, saveState, saveError, updateSlide, setTextStyleForAll, setShade, setAccount, setPlan, setLabels, addSlide, duplicate, removeSlide, reorder, move, setTitle, setCaption, setFormat, setStatus };
 }
 
 export type CarouselEditor = ReturnType<typeof useCarouselEditor>;

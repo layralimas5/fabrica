@@ -4,36 +4,52 @@ import { toAvatarDataUrl } from '../app/avatarImage';
 import { useAccounts, useBrandKits } from '../app/data';
 import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
-import { emptyAccount, MAX_ACCOUNT_NAME, normalizeHandle, type Account, type AccountInput } from '../domain/account';
+import { useAccountScope } from '../app/accountScope';
+import {
+  ACCOUNT_STATUS_LABELS,
+  ACCOUNT_STATUSES,
+  emptyAccount,
+  MAX_ACCOUNT_NAME,
+  MAX_ACCOUNT_NOTES,
+  MAX_ACCOUNT_PROJECT,
+  normalizeHandle,
+  UPCOMING_PLATFORMS,
+  type Account,
+  type AccountInput,
+} from '../domain/account';
 import { isAcceptedImage, UPLOAD_RULES_MESSAGE } from '../domain/asset';
 import type { BrandKit } from '../domain/brandKit';
 import { PLATFORM_LABELS, PLATFORMS, type Platform } from '../domain/carousel';
-import { Alert, Badge, Button, Dialog, EmptyState, Field, Input, PageHeader, Select, Spinner } from '../ui/primitives';
+import { Alert, Badge, Button, Dialog, EmptyState, Field, Input, PageHeader, Select, Spinner, Textarea } from '../ui/primitives';
 
 export function AccountsPage() {
   const services = useServices();
   const accounts = useAccounts();
   const brands = useBrandKits();
-  const [editing, setEditing] = useState<{ id: string | null; input: AccountInput } | null>(null);
+  const scope = useAccountScope();
+  const [editing, setEditing] = useState<{ id: string | null; input: AccountInput; createdAt?: string } | null>(null);
 
   if (accounts.loading || brands.loading) return <Spinner />;
 
   const save = async (input: AccountInput) => {
     const saved = editing?.id ? await services.accounts.update(editing.id, input) : await services.accounts.create(input);
     accounts.setData((current) => (editing?.id ? current.map((item) => (item.id === saved.id ? saved : item)) : [...current, saved]));
+    await scope.reload();
   };
 
   const remove = async () => {
     if (!editing?.id) return;
     await services.accounts.remove(editing.id);
     accounts.setData((current) => current.filter((item) => item.id !== editing.id));
+    if (scope.current?.id === editing.id) scope.setCurrent(null);
+    await scope.reload();
   };
 
   return (
     <div className="mx-auto max-w-5xl">
       <PageHeader
         title="Contas"
-        description="Os perfis que você produz. No modelo Post, o nome, o @ e a foto da conta escolhida aparecem no topo de cada slide."
+        description="Os perfis que você produz. Cada carrossel pertence a uma conta, e o Analytics compara cada conta com ela mesma."
         action={
           <Button variant="primary" onClick={() => setEditing({ id: null, input: emptyAccount('instagram') })}>
             <Plus className="size-4" aria-hidden /> Nova conta
@@ -47,7 +63,10 @@ export function AccountsPage() {
       ) : (
         <div className="flex flex-col gap-8">
           {PLATFORMS.map((platform) => {
-            const items = accounts.data.filter((account) => account.platform === platform);
+            // Active first, then paused; each group by project.
+            const items = accounts.data
+              .filter((account) => account.platform === platform)
+              .sort((a, b) => (a.status === b.status ? 0 : a.status === 'paused' ? 1 : -1) || a.project.localeCompare(b.project) || a.name.localeCompare(b.name));
             if (items.length === 0) return null;
             return (
               <section key={platform} aria-labelledby={`accounts-${platform}`}>
@@ -57,7 +76,7 @@ export function AccountsPage() {
                 <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {items.map((account) => (
                     <li key={account.id}>
-                      <AccountCard account={account} brand={brands.data.find((kit) => kit.id === account.brandKitId)} onClick={() => setEditing({ id: account.id, input: toInput(account) })} />
+                      <AccountCard account={account} brand={brands.data.find((kit) => kit.id === account.brandKitId)} onClick={() => setEditing({ id: account.id, input: toInput(account), createdAt: account.createdAt })} />
                     </li>
                   ))}
                 </ul>
@@ -67,7 +86,7 @@ export function AccountsPage() {
         </div>
       )}
 
-      {editing && <AccountEditor key={editing.id ?? 'new'} isNew={!editing.id} initial={editing.input} brands={brands.data} onClose={() => setEditing(null)} onSave={save} onDelete={remove} />}
+      {editing && <AccountEditor key={editing.id ?? 'new'} isNew={!editing.id} createdAt={editing.createdAt} initial={editing.input} brands={brands.data} onClose={() => setEditing(null)} onSave={save} onDelete={remove} />}
     </div>
   );
 }
@@ -92,21 +111,26 @@ function AccountCard({ account, brand, onClick }: { account: Account; brand: Bra
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-3 rounded-2xl border border-line bg-surface p-4 text-left transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      className={`flex w-full items-center gap-3 rounded-2xl border border-line bg-surface p-4 text-left transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${account.status === 'paused' ? 'opacity-70' : ''}`}
     >
       <Avatar name={account.name} src={account.avatar} />
       <span className="min-w-0 flex-1">
+        {account.project && <span className="block truncate text-[11px] font-medium uppercase tracking-wider text-faint">{account.project}</span>}
         <span className="block truncate text-sm font-semibold text-ink">{account.name}</span>
         <span className="block truncate text-sm text-muted">@{account.handle}</span>
         {brand && <span className="mt-1 block truncate text-xs text-faint">Marca: {brand.name}</span>}
       </span>
-      <Badge>{PLATFORM_LABELS[account.platform]}</Badge>
+      <span className="flex flex-col items-end gap-1">
+        <Badge>{PLATFORM_LABELS[account.platform]}</Badge>
+        {account.status === 'paused' && <Badge tone="warning">Pausada</Badge>}
+      </span>
     </button>
   );
 }
 
 interface AccountEditorProps {
   isNew: boolean;
+  createdAt?: string;
   initial: AccountInput;
   brands: BrandKit[];
   onClose: () => void;
@@ -114,7 +138,7 @@ interface AccountEditorProps {
   onDelete: () => Promise<void>;
 }
 
-function AccountEditor({ isNew, initial, brands, onClose, onSave, onDelete }: AccountEditorProps) {
+function AccountEditor({ isNew, createdAt, initial, brands, onClose, onSave, onDelete }: AccountEditorProps) {
   const [draft, setDraft] = useState(initial);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -158,7 +182,7 @@ function AccountEditor({ isNew, initial, brands, onClose, onSave, onDelete }: Ac
               <Trash2 className="size-4" aria-hidden /> Excluir
             </Button>
           )}
-          <Button variant="primary" loading={pending} disabled={!valid} onClick={() => void run(() => onSave({ ...draft, name: draft.name.trim(), handle }))}>
+          <Button variant="primary" loading={pending} disabled={!valid} onClick={() => void run(() => onSave({ ...draft, name: draft.name.trim(), handle, project: draft.project.trim(), notes: draft.notes.trim() }))}>
             Salvar conta
           </Button>
         </>
@@ -198,6 +222,11 @@ function AccountEditor({ isNew, initial, brands, onClose, onSave, onDelete }: Ac
                   {PLATFORM_LABELS[platform]}
                 </option>
               ))}
+              {UPCOMING_PLATFORMS.map((name) => (
+                <option key={name} value={name} disabled>
+                  {name} (em breve)
+                </option>
+              ))}
             </Select>
           </Field>
           <Field label="Usuário" htmlFor="acc-handle" hint={handle ? `Aparece como @${handle}` : 'Sem o @, sem espaço.'}>
@@ -205,6 +234,18 @@ function AccountEditor({ isNew, initial, brands, onClose, onSave, onDelete }: Ac
           </Field>
           <Field label="Nome que aparece" htmlFor="acc-name" className="sm:col-span-2">
             <Input id="acc-name" value={draft.name} onChange={(e) => patch('name', e.target.value)} maxLength={MAX_ACCOUNT_NAME} placeholder="Ella Refina" />
+          </Field>
+          <Field label="Projeto" htmlFor="acc-project" hint="Ex.: Momentumm, Layra Lima. Vira o projeto padrão do que essa conta cria.">
+            <Input id="acc-project" value={draft.project} onChange={(e) => patch('project', e.target.value)} maxLength={MAX_ACCOUNT_PROJECT} placeholder="Momentumm" />
+          </Field>
+          <Field label="Status" htmlFor="acc-status" hint="Pausada some dos seletores, mas o histórico fica no Analytics.">
+            <Select id="acc-status" value={draft.status} onChange={(e) => patch('status', e.target.value as AccountInput['status'])}>
+              {ACCOUNT_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {ACCOUNT_STATUS_LABELS[status]}
+                </option>
+              ))}
+            </Select>
           </Field>
           <Field label="Marca dessa conta" htmlFor="acc-brand" hint="Vem selecionada sozinha quando você escolhe essa conta na tela Criar." className="sm:col-span-2">
             <Select id="acc-brand" value={draft.brandKitId ?? ''} onChange={(e) => patch('brandKitId', e.target.value || null)}>
@@ -216,7 +257,11 @@ function AccountEditor({ isNew, initial, brands, onClose, onSave, onDelete }: Ac
               ))}
             </Select>
           </Field>
+          <Field label="Observações" htmlFor="acc-notes" className="sm:col-span-2">
+            <Textarea id="acc-notes" rows={2} value={draft.notes} maxLength={MAX_ACCOUNT_NOTES} onChange={(e) => patch('notes', e.target.value)} placeholder="Ex.: conta de teste de ganchos contrarian" />
+          </Field>
         </div>
+        {!isNew && <p className="text-xs text-faint">Criada em {new Date(createdAt ?? Date.now()).toLocaleDateString('pt-BR')}</p>}
         {error && <Alert>{error}</Alert>}
       </div>
     </Dialog>

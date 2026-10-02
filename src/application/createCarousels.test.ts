@@ -124,6 +124,15 @@ describe('createCarousels', () => {
     expect(carousels[2].slides.map((slide) => slide.title)).not.toContain('Conversão');
   });
 
+  it('a copy may have its own slide model outside a format test', async () => {
+    const services = fakeServices();
+    const { carousels } = await createCarousels(
+      services,
+      request({ texts: ['Slide 1, Um.\nSlide 2, Fim.', 'Slide 1, Dois.\nSlide 2, Fim.'], copySettings: [{ objective: null, contentType: null, style: 'bold' }, { objective: null, contentType: null }] }),
+    );
+    expect(carousels.map((carousel) => carousel.source.visualStyle)).toEqual(['bold', 'minimalista']);
+  });
+
   it('only adds a CTA when asked', async () => {
     const services = fakeServices();
     const { carousels } = await createCarousels(services, request({ addCta: true }));

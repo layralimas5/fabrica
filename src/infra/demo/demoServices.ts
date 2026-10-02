@@ -12,7 +12,7 @@ import type {
   User,
 } from '../../application/ports';
 import { normalizeSettings, type Preset, type PresetInput } from '../../domain/preset';
-import type { Account, AccountInput } from '../../domain/account';
+import { normalizeAccount, type Account, type AccountInput } from '../../domain/account';
 import type { Asset, AssetUpload } from '../../domain/asset';
 import type { BrandKit, BrandKitInput } from '../../domain/brandKit';
 import { normalizeCarousel, type Carousel, type CarouselInput } from '../../domain/carousel';
@@ -179,8 +179,8 @@ export class DemoCarousels implements CarouselRepository {
 }
 
 export class DemoAccounts implements AccountRepository {
-  list(): Promise<Account[]> {
-    return readCollection<Account>('accounts');
+  async list(): Promise<Account[]> {
+    return (await readCollection<Account>('accounts')).map(normalizeAccount);
   }
 
   async create(input: AccountInput): Promise<Account> {

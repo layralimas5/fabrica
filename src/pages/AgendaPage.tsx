@@ -3,6 +3,7 @@ import { CalendarDays, CheckCheck, Download, MousePointerClick } from 'lucide-re
 import { useMemo, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { renderContextFor } from '../app/renderContextFor';
+import { useAccountScope } from '../app/accountScope';
 import { useAccounts, useAssets, useBrandKits, useCarousels } from '../app/data';
 import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
@@ -51,7 +52,12 @@ export function AgendaPage() {
   const today = todayIso();
 
   const projects = useMemo(() => [...new Set(carousels.data.map((carousel) => carousel.project).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [carousels.data]);
-  const visible = useMemo(() => carousels.data.filter((carousel) => !projectFilter || carousel.project === projectFilter), [carousels.data, projectFilter]);
+  const scope = useAccountScope();
+  // Archived carousels leave the agenda; the current account at the top narrows it too.
+  const visible = useMemo(
+    () => carousels.data.filter((carousel) => carousel.status !== 'archived' && scope.matches(carousel.source.accountId) && (!projectFilter || carousel.project === projectFilter)),
+    [carousels.data, projectFilter, scope],
+  );
   const groups = useMemo(() => groupByDay(visible, today), [visible, today]);
   /** Nothing shows until a day is picked; the day stays in the address so going back keeps it. */
   const [params, setParams] = useSearchParams();

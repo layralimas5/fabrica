@@ -1,8 +1,8 @@
 import { isIsoDate } from '../domain/schedule';
-import { identityOf, type Account } from '../domain/account';
+import { accountLabel, identityOf, isActiveAccount, type Account } from '../domain/account';
 import { CAROUSEL_FORMATS, formatSizeLabel, PLATFORM_LABELS } from '../domain/carousel';
 import { shadeOf } from '../domain/shade';
-import { ArrowLeft, Check, CloudOff, Eye, FolderDown, Loader2, Star, Wand2 } from 'lucide-react';
+import { ArrowLeft, BarChart3, Check, CloudOff, Eye, FolderDown, Loader2, Star, Wand2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAccounts, useAssets, useBrandKits, useCarousels } from '../app/data';
@@ -13,7 +13,7 @@ import { errorMessage } from '../app/useResource';
 import { brandContext } from '../application/brandContext';
 import type { Asset } from '../domain/asset';
 import { brandForCarousel, type BrandKit } from '../domain/brandKit';
-import { CAROUSEL_STATUSES, DEFAULT_CARD, nextToReview, STATUS_LABELS, type Carousel, type CarouselFormat, type CarouselStatus } from '../domain/carousel';
+import { CAROUSEL_STATUSES, DEFAULT_CARD, isPosted, nextToReview, normalizeTags, STATUS_LABELS, type Carousel, type CarouselFormat, type CarouselStatus } from '../domain/carousel';
 import { layoutWithImage } from '../domain/layouts';
 import { ExportMenu } from '../editor/ExportMenu';
 import { Filmstrip } from '../editor/Filmstrip';
@@ -25,6 +25,7 @@ import { useCarouselEditor, type SaveState } from '../editor/useCarouselEditor';
 import { CarouselViewer } from '../ui/CarouselViewer';
 import { Alert, Button, EmptyState, Field, Input, Select, Spinner, Textarea } from '../ui/primitives';
 import { useMarkWinner } from '../winners/useMarkWinner';
+import { useAddMetrics } from '../winners/useAddMetrics';
 
 export function EditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -68,7 +69,12 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
   const next = useMemo(() => nextToReview(carousel, allCarousels.data), [carousel, allCarousels.data]);
   const [aiBusy, setAiBusy] = useState<'shorten' | 'variation' | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
-  const winner = useMarkWinner();
+  // A posted carousel marked as a winner gets the "Vencedor" status too.
+  const winner = useMarkWinner((marked) => isPosted(marked) && editor.setStatus('winner'));
+  const [tagsDraft, setTagsDraft] = useState<string | null>(null);
+  const tagsText = tagsDraft ?? (carousel.source.tags ?? []).join(', ');
+  // After the first numbers, a posted carousel moves to "Em análise".
+  const metrics = useAddMetrics(() => carousel.status === 'published' && editor.setStatus('analyzing'));
 
   const index = Math.max(0, carousel.slides.findIndex((slide) => slide.id === editor.selectedId));
   const slide = carousel.slides[index];
@@ -138,10 +144,10 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
             <>
               <label htmlFor="carousel-account" className="sr-only">Conta</label>
               <Select id="carousel-account" value={carousel.source.accountId ?? ''} onChange={(e) => editor.setAccount(e.target.value || null)} className="!w-auto">
-                <option value="">Sem conta ({brand.name})</option>
-                {accounts.map((item) => (
+                {!carousel.source.accountId && <option value="">Sem conta ({brand.name})</option>}
+                {accounts.filter((item) => isActiveAccount(item) || item.id === carousel.source.accountId).map((item) => (
                   <option key={item.id} value={item.id}>
-                    @{item.handle} · {PLATFORM_LABELS[item.platform]}
+                    {accountLabel(item)} · {PLATFORM_LABELS[item.platform]}
                   </option>
                 ))}
               </Select>
@@ -161,6 +167,11 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
           <Button variant="secondary" onClick={() => setHooksOpen(true)}>
             <Wand2 className="size-4" aria-hidden /> Novos ganchos
           </Button>
+          {isPosted(carousel) && (
+            <Button variant="secondary" disabled={!metrics.ready} onClick={() => metrics.open(carousel)}>
+              <BarChart3 className="size-4" aria-hidden /> {metrics.recordOf(carousel)?.metricsUpdatedAt || carousel.metrics ? 'Atualizar métricas' : 'Adicionar métricas'}
+            </Button>
+          )}
           <Button variant="secondary" disabled={!winner.ready} onClick={() => winner.mark(carousel)}>
             <Star className={winner.isWinner(carousel) ? 'size-4 fill-amber-400 text-amber-500' : 'size-4'} aria-hidden />
             {winner.isWinner(carousel) ? 'Vencedor' : 'Marcar como vencedor'}
@@ -194,6 +205,22 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
             </Field>
             <Field label="Dia de postar" htmlFor="carousel-date" hint="Aparece na Agenda.">
               <Input id="carousel-date" type="date" value={carousel.scheduledFor ?? ''} onChange={(e) => editor.setPlan({ scheduledFor: isIsoDate(e.target.value) ? e.target.value : null })} />
+            </Field>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label="Tema" htmlFor="carousel-theme" hint="Ex.: constância. Aparece em Temas vencedores.">
+              <Input id="carousel-theme" value={carousel.source.theme ?? ''} onChange={(e) => editor.setLabels({ theme: e.target.value.slice(0, 60) })} placeholder="Sem tema" />
+            </Field>
+            <Field label="Tags" htmlFor="carousel-tags" hint="Separadas por vírgula: dor, identificação, ugc." className="sm:col-span-2">
+              <Input
+                id="carousel-tags"
+                value={tagsText}
+                onChange={(e) => {
+                  setTagsDraft(e.target.value);
+                  editor.setLabels({ tags: normalizeTags(e.target.value) });
+                }}
+                placeholder="#dor, #identificação"
+              />
             </Field>
           </div>
         </div>
@@ -237,6 +264,7 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
         }}
       />
       {winner.dialog}
+      {metrics.dialog}
       <SaveToFolderDialog
         open={folderOpen}
         onClose={() => setFolderOpen(false)}

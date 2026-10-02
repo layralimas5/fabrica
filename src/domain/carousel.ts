@@ -63,18 +63,45 @@ export interface Slide {
   card?: SlideCard | null;
 }
 
-export const CAROUSEL_STATUSES = ['draft', 'editing', 'ready', 'published'] as const;
+export const CAROUSEL_STATUSES = ['draft', 'editing', 'ready', 'published', 'analyzing', 'winner', 'weak', 'archived'] as const;
 export type CarouselStatus = (typeof CAROUSEL_STATUSES)[number];
 
 export const STATUS_LABELS: Record<CarouselStatus, string> = {
   draft: 'Rascunho',
   editing: 'Em edição',
-  ready: 'Pronto',
+  ready: 'Criado',
   published: 'Publicado',
+  analyzing: 'Em análise',
+  winner: 'Vencedor',
+  weak: 'Fraco',
+  archived: 'Arquivado',
 };
 
+export const STATUS_TONES: Record<CarouselStatus, 'neutral' | 'accent' | 'success' | 'warning'> = {
+  draft: 'neutral',
+  editing: 'warning',
+  ready: 'accent',
+  published: 'success',
+  analyzing: 'accent',
+  winner: 'success',
+  weak: 'warning',
+  archived: 'neutral',
+};
+
+/** Statuses of a carousel that already went out: after posting it is analysed and classified. */
+const POSTED_STATUSES: CarouselStatus[] = ['published', 'analyzing', 'winner', 'weak'];
+
+/** Not posted yet but with a day set: shown as "Agendado" without being a stored status. */
+export function isScheduled(carousel: Pick<Carousel, 'status' | 'scheduledFor'>): boolean {
+  return Boolean(carousel.scheduledFor) && (carousel.status === 'draft' || carousel.status === 'editing' || carousel.status === 'ready');
+}
+
+export function statusLabel(carousel: Pick<Carousel, 'status' | 'scheduledFor'>): string {
+  return isScheduled(carousel) ? 'Agendado' : STATUS_LABELS[carousel.status];
+}
+
 export function isPosted(carousel: Pick<Carousel, 'status'>): boolean {
-  return carousel.status === 'published';
+  return POSTED_STATUSES.includes(carousel.status);
 }
 
 /** Marking as posted is reversible: undoing goes back to "Pronto", the step right before posting. */
@@ -156,6 +183,10 @@ export interface CarouselSource {
   shade?: ImageShade;
   /** Account shown in the post-style header. */
   accountId?: string | null;
+  /** What the carousel is about, e.g. "constância". */
+  theme?: string;
+  /** Free labels crossed with performance in Analytics, e.g. "identificação", "ugc". */
+  tags?: string[];
 }
 
 export type CopyMode = 'manual' | 'ai';
@@ -212,6 +243,23 @@ export function normalizeTextStyle(raw: Partial<TextStyle> | undefined): TextSty
     textWidth: clampTo(TEXT_WIDTH_RANGE, raw?.textWidth, 1),
     lineHeight: clampTo(LINE_HEIGHT_RANGE, raw?.lineHeight, 1),
   };
+}
+
+export const MAX_TAGS = 12;
+const MAX_TAG_LENGTH = 30;
+
+/** "#Dor, identificação ,dor" → ["dor", "identificação"]: lowercase, no #, no repeats. */
+export function normalizeTags(raw: string[] | string): string[] {
+  const parts = Array.isArray(raw) ? raw : raw.split(/[,\n]/);
+  const seen = new Set<string>();
+  const tags: string[] = [];
+  for (const part of parts) {
+    const tag = part.trim().replace(/^#+/, '').replace(/\s+/g, ' ').toLowerCase().slice(0, MAX_TAG_LENGTH);
+    if (!tag || seen.has(tag)) continue;
+    seen.add(tag);
+    tags.push(tag);
+  }
+  return tags.slice(0, MAX_TAGS);
 }
 
 export function newSlideId(): string {
@@ -279,7 +327,8 @@ export function normalizeCarousel(carousel: Carousel): Carousel {
     folder: carousel.folder ?? '',
     scheduledFor: carousel.scheduledFor ?? null,
     origin: carousel.origin ?? null,
-    source: { ...carousel.source, folders: carousel.source.folders ?? [], shade: shadeOf(carousel.source) },
+    status: CAROUSEL_STATUSES.includes(carousel.status) ? carousel.status : 'draft',
+    source: { ...carousel.source, folders: carousel.source.folders ?? [], shade: shadeOf(carousel.source), theme: carousel.source.theme ?? '', tags: normalizeTags(carousel.source.tags ?? []) },
     slides: carousel.slides.map((slide) => ({ ...slide, style: { ...DEFAULT_SLIDE_STYLE, ...slide.style }, card: normalizeCard(slide.card) })),
   };
 }

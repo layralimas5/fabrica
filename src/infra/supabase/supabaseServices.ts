@@ -1,7 +1,7 @@
 import type { SupabaseClient, User as SupabaseUser } from '@supabase/supabase-js';
 import type { AccountRepository, AssetRepository, AuthService, BrandKitRepository, CarouselRepository, ContentRecordRepository, PresetRepository, User } from '../../application/ports';
 import { normalizeSettings, type CreateSettings, type Preset, type PresetInput } from '../../domain/preset';
-import type { Account, AccountInput } from '../../domain/account';
+import { normalizeAccount, type Account, type AccountInput } from '../../domain/account';
 import type { Asset, AssetUpload } from '../../domain/asset';
 import type { BrandKit, BrandKitInput } from '../../domain/brandKit';
 import { normalizeCarousel, type Carousel, type CarouselInput } from '../../domain/carousel';
@@ -282,7 +282,7 @@ interface AccountRow {
   updated_at: string;
 }
 
-const rowToAccount = (row: AccountRow): Account => ({ ...row.data, id: row.id, name: row.name, createdAt: row.created_at, updatedAt: row.updated_at });
+const rowToAccount = (row: AccountRow): Account => normalizeAccount({ ...row.data, id: row.id, name: row.name, createdAt: row.created_at, updatedAt: row.updated_at });
 
 export class SupabaseAccounts implements AccountRepository {
   constructor(private readonly client: SupabaseClient) {}

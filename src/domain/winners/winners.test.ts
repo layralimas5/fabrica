@@ -5,7 +5,7 @@ import { applyFilters, EMPTY_FILTERS, periodRange, sortRecords } from './filters
 import { generateInsights } from './insights';
 import { emptyPerformance, emptyRecordInput, sanitizeRecordInput, type ContentRecord, type PerformanceMetrics } from './record';
 import { buildRemixPrompt, defaultRemixRequest, remixProblem, scriptsToCopies } from './remix';
-import { contentScore, PRESET_WEIGHTS, scoreBand, scoreReference, suggestWinnerTypes } from './score';
+import { baselineFor, baselineOf, buildBaselines, performanceScore, PRESET_WEIGHTS, scoreBand, suggestWinnerTypes } from './score';
 
 let sequence = 0;
 function record(overrides: Partial<Omit<ContentRecord, 'metrics'>> & { metrics?: Partial<PerformanceMetrics> } = {}): ContentRecord {
@@ -84,25 +84,36 @@ describe('sanitizeRecordInput', () => {
   });
 });
 
-describe('content score', () => {
-  const viral = record({ metrics: { views: 100_000, signups: 10 } });
-  const converter = record({ metrics: { views: 12_000, signups: 80 } });
-  const reference = scoreReference([viral.metrics, converter.metrics]);
+describe('performance score', () => {
+  const m = (values: Partial<PerformanceMetrics>): PerformanceMetrics => ({ ...emptyPerformance(), ...values });
 
-  it('does not treat the most viewed content as the best for conversion', () => {
-    const viralScore = contentScore(viral.metrics, reference, PRESET_WEIGHTS.conversao);
-    const converterScore = contentScore(converter.metrics, reference, PRESET_WEIGHTS.conversao);
-    expect(converterScore!.value).toBeGreaterThan(viralScore!.value);
+  it('is 50 for a content exactly at the account usual, and rises with shares and saves', () => {
+    const usual = m({ views: 10_000, shares: 100, saves: 200 });
+    const baseline = baselineOf([usual, usual, usual]);
+    expect(performanceScore(usual, baseline, PRESET_WEIGHTS.equilibrado)?.value).toBe(50);
+    const shared = m({ views: 10_000, shares: 400, saves: 800 });
+    expect(performanceScore(shared, baseline, PRESET_WEIGHTS.equilibrado)!.value).toBeGreaterThan(80);
   });
 
-  it('favors reach on the awareness profile', () => {
-    const viralScore = contentScore(viral.metrics, reference, PRESET_WEIGHTS.alcance);
-    const converterScore = contentScore(converter.metrics, reference, PRESET_WEIGHTS.alcance);
-    expect(viralScore!.value).toBeGreaterThan(converterScore!.value);
+  it('does not treat the most viewed content as the best when it shares and saves less', () => {
+    const viral = m({ views: 100_000, shares: 300, saves: 500 });
+    const valuable = m({ views: 12_000, shares: 600, saves: 900 });
+    const baseline = baselineOf([viral, valuable, m({ views: 30_000, shares: 300, saves: 450 })]);
+    expect(performanceScore(valuable, baseline, PRESET_WEIGHTS.equilibrado)!.value).toBeGreaterThan(performanceScore(viral, baseline, PRESET_WEIGHTS.equilibrado)!.value);
   });
 
-  it('needs at least two measured metrics', () => {
-    expect(contentScore({ ...emptyPerformance(), views: 500 }, reference, PRESET_WEIGHTS.equilibrado)).toBeNull();
+  it('compares each account with itself: a small account is not punished for its audience', () => {
+    const big = [m({ views: 200_000, shares: 2_000, saves: 3_000 }), m({ views: 180_000, shares: 1_800, saves: 2_700 }), m({ views: 220_000, shares: 2_200, saves: 3_300 })];
+    const small = [m({ views: 2_000, shares: 20, saves: 30 }), m({ views: 1_800, shares: 18, saves: 27 }), m({ views: 2_200, shares: 22, saves: 33 })];
+    const baselines = buildBaselines([...big.map((metrics) => ({ account: 'id:big', metrics })), ...small.map((metrics) => ({ account: 'id:small', metrics }))]);
+    const bigScore = performanceScore(big[0], baselineFor(baselines, 'id:big'), PRESET_WEIGHTS.equilibrado)!.value;
+    const smallScore = performanceScore(small[0], baselineFor(baselines, 'id:small'), PRESET_WEIGHTS.equilibrado)!.value;
+    expect(Math.abs(bigScore - smallScore)).toBeLessThanOrEqual(2);
+  });
+
+  it('needs the views plus at least one rate', () => {
+    const baseline = baselineOf([m({ views: 500, shares: 5 })]);
+    expect(performanceScore(m({ views: 500 }), baseline, PRESET_WEIGHTS.equilibrado)).toBeNull();
   });
 
   it('bands the score', () => {

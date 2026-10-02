@@ -63,6 +63,11 @@ export interface CreateRequest {
 export interface CopySetting {
   objective: Objective | null;
   contentType: ContentType | null;
+  /** Slide model of this copy (from the Analytics plan); ignored in a format test. */
+  style?: VisualStyle | null;
+  slideCount?: SlideCountOption | null;
+  /** Direction for the writing AI, e.g. the account's winning hooks. */
+  guidance?: string | null;
 }
 
 export interface CreateResult {
@@ -78,6 +83,8 @@ interface PreparedCopy {
   mode: CopyMode;
   objective: Objective;
   contentType: ContentType;
+  /** Slide model chosen for this copy alone, when not testing formats. */
+  style?: VisualStyle;
 }
 
 /** Creates every carousel the request implies: one per script block (batch) times one per style (format test). */
@@ -94,9 +101,11 @@ export async function createCarousels(services: Services, request: CreateRequest
     if (!text) continue;
     const setting = request.copySettings?.[index];
     const defaults = { objective: setting?.objective ?? request.objective, contentType: setting?.contentType ?? request.contentType };
+    const style = styles.length === 1 ? (setting?.style ?? undefined) : undefined;
+    const tuning = { slideCount: setting?.slideCount ?? request.slideCount, guidance: setting?.guidance ?? null };
     // Numbered slides mean the user already split the copy: keep their slides even in AI mode.
-    if (request.mode === 'manual' || hasNumberedSlides(text)) copies.push(...manualCopies(text, defaults));
-    else copies.push(await aiCopy(services, request, text, styles[0], assets, product, defaults));
+    const prepared = request.mode === 'manual' || hasNumberedSlides(text) ? manualCopies(text, defaults) : [await aiCopy(services, request, text, style ?? styles[0], assets, product, defaults, tuning)];
+    copies.push(...prepared.map((copy) => ({ ...copy, style })));
   }
   if (copies.length === 0) throw new Error('Escreva pelo menos uma linha de texto.');
 
@@ -111,7 +120,9 @@ export async function createCarousels(services: Services, request: CreateRequest
 
   for (const [position, prepared] of copies.entries()) {
     const { caption, copy } = prepared;
-    const photoStyles = styles.filter((style) => !textOnly(style));
+    // A format test makes one variant per style; otherwise the copy may have its own style.
+    const copyStyles = isTest ? styles : [prepared.style ?? styles[0]];
+    const photoStyles = copyStyles.filter((style) => !textOnly(style));
     // As a card, the product slide needs a background photo like any other slide.
     const fullPrint = request.productDisplay === 'card' ? null : (product?.imageAssetId ?? null);
     const draft = await withMatchedPhotos(services, prepared.draft, assets, photoStyles, request.folders.length > 0, fullPrint, usage);
@@ -119,7 +130,7 @@ export async function createCarousels(services: Services, request: CreateRequest
     if (experimentId) experimentIds.push(experimentId);
     let previous: Slide[] | null = null;
 
-    for (const style of styles) {
+    for (const style of copyStyles) {
       // Variants share the images already picked so the test isolates the format, not the photo.
       const shared: CarouselDraft = previous
         ? { ...draft, slides: draft.slides.map((slide, index) => ({ ...slide, assetId: previous?.[index]?.assetId ?? slide.assetId })) }
@@ -280,13 +291,15 @@ async function aiCopy(
   assets: Asset[],
   product: BrandProduct | null,
   { objective, contentType }: Pick<PreparedCopy, 'objective' | 'contentType'>,
+  { slideCount, guidance }: { slideCount: SlideCountOption; guidance: string | null },
 ): Promise<PreparedCopy> {
   const draft = await services.ai.draftCarousel({
     copy: text,
     contentType,
     objective,
     visualStyle: style,
-    slideCount: request.slideCount === 'auto' ? null : request.slideCount,
+    slideCount: slideCount === 'auto' ? null : slideCount,
+    guidance,
     brand: brandContext(request.brand),
     product: product ? { name: product.name.trim(), pitch: product.pitch.trim(), hasImage: product.imageAssetId !== null } : null,
     assets: assets.slice(0, ASSET_CONTEXT_LIMIT).map(({ id, name, folder, kind, tags }) => ({ id, name, folder, kind, tags })),
