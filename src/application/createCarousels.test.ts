@@ -149,3 +149,15 @@ describe('createCarousels with a product', () => {
     expect(services.saved[0].slides.some((slide) => slide.role === 'product')).toBe(false);
   });
 });
+
+describe('createCarousels product image picked at creation', () => {
+  it('uses the image picked on the create screen instead of the brand kit one', async () => {
+    const services = fakeServices();
+    const withProduct: BrandKit = { ...brand, product: { name: 'Momentumm', pitch: 'Deixa o progresso visível.', imageAssetId: 'a0' } };
+    const copy = 'Você não precisa de mais motivação. Motivação some nos dias ruins. Disciplina é decidir antes. Comece pequeno.';
+    await createCarousels(services, request({ brand: withProduct, mode: 'ai', text: copy, includeProduct: true, productImageAssetId: 'a5' }));
+    const slides = services.saved[0].slides;
+    expect(slides.find((slide) => slide.role === 'product')?.assetId).toBe('a5');
+    expect(slides.filter((slide) => slide.assetId === 'a5')).toHaveLength(1);
+  });
+});

@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { ArrowRight, FlaskConical, Sparkles } from 'lucide-react';
+import { ArrowRight, FlaskConical, ImageIcon, Sparkles } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAssets, useBrandKits } from '../app/data';
@@ -8,6 +8,8 @@ import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
 import { createCarousels, MAX_TEST_VARIANTS } from '../application/createCarousels';
 import { StylePicker } from '../brand/StylePicker';
+import { ImagePickerDialog } from '../editor/ImagePickerDialog';
+import { AssetThumb } from '../ui/AssetThumb';
 import { inFolders, isPhotoLike } from '../domain/asset';
 import { MOMENTUMM_STARTER, productOf, type VisualStyle } from '../domain/brandKit';
 import type { CopyMode } from '../domain/carousel';
@@ -64,6 +66,8 @@ export function CreatePage() {
   const [objective, setObjective] = useState<Objective>('engajamento');
   const [addCta, setAddCta] = useState(false);
   const [includeProduct, setIncludeProduct] = useState(true);
+  const [productImageId, setProductImageId] = useState<string | null>(null);
+  const [pickingProductImage, setPickingProductImage] = useState(false);
   const [folders, setFolders] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,6 +86,7 @@ export function CreatePage() {
     setBrandId(brand.id);
     setStyles([brand.visualStyle]);
     setTesting(false);
+    setProductImageId(productOf(brand)?.imageAssetId ?? null);
   }, [brand?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const changeMode = (next: CopyMode) => {
@@ -135,6 +140,7 @@ export function CreatePage() {
         styles,
         addCta,
         includeProduct: product !== null && includeProduct,
+        productImageAssetId: productImageId,
       });
       if (result.experimentIds.length === 1) navigate(`/testes/${result.experimentIds[0]}`);
       else if (result.experimentIds.length > 1) navigate('/testes', { state: { created: result.carousels.length } });
@@ -149,7 +155,8 @@ export function CreatePage() {
   if (brands.loading) return <Spinner />;
 
   const ready = mode === 'manual' ? stats.slides > 0 : text.trim().length >= MIN_AI_COPY_LENGTH;
-  const photo = assets.data.find(isPhotoLike);
+  const photo = assets.data.find((asset) => isPhotoLike(asset) && asset.id !== productImageId);
+  const productImage = assets.data.find((asset) => asset.id === productImageId);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -254,15 +261,45 @@ export function CreatePage() {
 
           {mode === 'ai' && product && (
             <div className="border-t border-line p-4">
-              <label className="flex items-start gap-2 text-sm text-ink">
-                <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]" checked={includeProduct} onChange={(e) => setIncludeProduct(e.target.checked)} disabled={generating} />
-                <span>
-                  Mostrar o {product.name} num slide, como parte da solução
-                  <span className="block text-xs text-faint">
-                    {product.imageAssetId ? 'Entra com o print do produto cadastrado no Brand Kit.' : 'Sem print cadastrado no Brand Kit: o slide usa uma foto da biblioteca.'}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <label className="flex items-start gap-2 text-sm text-ink">
+                  <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]" checked={includeProduct} onChange={(e) => setIncludeProduct(e.target.checked)} disabled={generating} />
+                  <span>
+                    Mostrar o {product.name} num slide, como parte da solução
+                    <span className="block text-xs text-faint">Um slide só, com a imagem do produto. As outras fotos nunca repetem ela.</span>
                   </span>
-                </span>
-              </label>
+                </label>
+                {includeProduct && (
+                  <div className="flex items-center gap-3 pl-6 sm:pl-0">
+                    {productImage ? (
+                      <AssetThumb asset={productImage} className="size-14 shrink-0 rounded-lg ring-1 ring-line" />
+                    ) : (
+                      <span className="grid size-14 shrink-0 place-items-center rounded-lg bg-subtle text-faint ring-1 ring-line" aria-hidden>
+                        <ImageIcon className="size-5" />
+                      </span>
+                    )}
+                    <div className="flex flex-col items-start gap-1">
+                      <Button size="sm" variant="secondary" onClick={() => setPickingProductImage(true)} disabled={generating || assets.data.length === 0}>
+                        {productImage ? 'Trocar imagem do produto' : 'Escolher imagem do produto'}
+                      </Button>
+                      {assets.data.length === 0 && <span className="text-xs text-faint">Suba o print na Biblioteca primeiro.</span>}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <ImagePickerDialog
+                open={pickingProductImage}
+                title={`Imagem do ${product.name}`}
+                assets={assets.data}
+                currentId={productImageId}
+                slideText={`${product.name} ${product.pitch} app tela print produto`}
+                carouselFolders={[]}
+                onPick={(id) => {
+                  setProductImageId(id);
+                  setPickingProductImage(false);
+                }}
+                onClose={() => setPickingProductImage(false)}
+              />
             </div>
           )}
 

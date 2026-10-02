@@ -27,6 +27,8 @@ export interface CreateRequest {
   addCta: boolean;
   /** AI mode only: show the brand's product in one slide. */
   includeProduct: boolean;
+  /** Image for the product slide picked at creation time. Undefined keeps the one saved in the brand kit. */
+  productImageAssetId?: string | null;
 }
 
 export interface CreateResult {
@@ -47,7 +49,7 @@ export async function createCarousels(services: Services, request: CreateRequest
   const styles = [...new Set(request.styles)].slice(0, MAX_TEST_VARIANTS);
   if (styles.length === 0) throw new Error('Escolha pelo menos um estilo visual.');
 
-  const product = request.mode === 'ai' && request.includeProduct ? productOf(request.brand) : null;
+  const product = request.mode === 'ai' && request.includeProduct ? productForRequest(request) : null;
   const brandOnly = new Set([request.brand.logoAssetId, request.brand.avatarAssetId, product?.imageAssetId].filter(Boolean));
   const assets = request.library.filter((asset) => !brandOnly.has(asset.id) && inFolders(asset, request.folders));
   const copies = request.mode === 'manual' ? manualCopies(request.text) : [await aiCopy(services, request, styles[0], assets, product)];
@@ -103,6 +105,12 @@ export async function createCarousels(services: Services, request: CreateRequest
   }
 
   return { carousels, experimentIds };
+}
+
+function productForRequest(request: CreateRequest): BrandProduct | null {
+  const product = productOf(request.brand);
+  if (!product || request.productImageAssetId === undefined) return product;
+  return { ...product, imageAssetId: request.productImageAssetId };
 }
 
 function manualCopies(text: string): PreparedCopy[] {

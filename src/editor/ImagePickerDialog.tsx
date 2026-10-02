@@ -10,6 +10,7 @@ const SCOPE_CAROUSEL = '__carousel__';
 
 interface ImagePickerDialogProps {
   open: boolean;
+  title?: string;
   assets: Asset[];
   currentId: string | null;
   slideText: string;
@@ -20,7 +21,7 @@ interface ImagePickerDialogProps {
 }
 
 /** Library picker ranked by how well each image's tags match the slide text. */
-export function ImagePickerDialog({ open, assets, currentId, slideText, carouselFolders, onPick, onClose }: ImagePickerDialogProps) {
+export function ImagePickerDialog({ open, title = 'Trocar imagem', assets, currentId, slideText, carouselFolders, onPick, onClose }: ImagePickerDialogProps) {
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<string>(carouselFolders.length > 0 ? SCOPE_CAROUSEL : SCOPE_ALL);
   const allFolders = useMemo(() => [...new Set(assets.map((asset) => asset.folder))].sort((a, b) => a.localeCompare(b)), [assets]);
@@ -37,7 +38,7 @@ export function ImagePickerDialog({ open, assets, currentId, slideText, carousel
   }, [assets, slideText, query, scopeFolders]);
 
   return (
-    <Dialog title="Trocar imagem" open={open} onClose={onClose} size="xl">
+    <Dialog title={title} open={open} onClose={onClose} size="xl">
       <div className="mb-4 grid gap-2 sm:grid-cols-[220px_minmax(0,1fr)]">
         <Select aria-label="Pastas" value={scope} onChange={(e) => setScope(e.target.value)}>
           {carouselFolders.length > 0 && <option value={SCOPE_CAROUSEL}>Pastas deste carrossel</option>}
