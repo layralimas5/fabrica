@@ -72,6 +72,8 @@ export interface CopySetting {
   slideCount?: SlideCountOption | null;
   /** Direction for the writing AI, e.g. the account's winning hooks. */
   guidance?: string | null;
+  /** App or product image of this copy alone; wins over the batch image in its product slide. */
+  productImageAssetId?: string | null;
 }
 
 export interface CreateResult {
@@ -89,6 +91,10 @@ interface PreparedCopy {
   contentType: ContentType;
   /** Slide model chosen for this copy alone, when not testing formats. */
   style?: VisualStyle;
+  /** Image the product slide shows; null leaves the copy without one. */
+  productImageId: string | null;
+  /** Position of the copy box, for error messages. */
+  copyNumber: number;
 }
 
 /** Creates every carousel the request implies: one per script block (batch) times one per style (format test). */
@@ -97,7 +103,8 @@ export async function createCarousels(services: Services, request: CreateRequest
   if (styles.length === 0) throw new Error('Escolha pelo menos um estilo visual.');
 
   const product = request.includeProduct ? productForRequest(request) : null;
-  const brandOnly = new Set([request.brand.logoAssetId, request.brand.avatarAssetId, product?.imageAssetId].filter(Boolean));
+  const copyImages = (request.copySettings ?? []).map((setting) => setting?.productImageAssetId ?? null);
+  const brandOnly = new Set([request.brand.logoAssetId, request.brand.avatarAssetId, product?.imageAssetId, ...copyImages].filter(Boolean));
   const assets = request.library.filter((asset) => !brandOnly.has(asset.id) && inFolders(asset, request.folders));
   const copies: PreparedCopy[] = [];
   for (const [index, raw] of request.texts.entries()) {
@@ -107,11 +114,14 @@ export async function createCarousels(services: Services, request: CreateRequest
     const defaults = { objective: setting?.objective ?? request.objective, contentType: setting?.contentType ?? request.contentType };
     const style = styles.length === 1 ? (setting?.style ?? undefined) : undefined;
     const tuning = { slideCount: setting?.slideCount ?? request.slideCount, guidance: setting?.guidance ?? null };
+    const productImageId = copyImages[index] ?? product?.imageAssetId ?? null;
+    const copyProduct = product ? { ...product, imageAssetId: productImageId } : null;
     // Numbered slides mean the user already split the copy: keep their slides even in AI mode.
-    const prepared = request.mode === 'manual' || hasNumberedSlides(text) ? manualCopies(text, defaults) : [await aiCopy(services, request, text, style ?? styles[0], assets, product, defaults, tuning)];
-    copies.push(...prepared.map((copy) => ({ ...copy, style })));
+    const prepared = request.mode === 'manual' || hasNumberedSlides(text) ? manualCopies(text, defaults) : [await aiCopy(services, request, text, style ?? styles[0], assets, copyProduct, defaults, tuning)];
+    copies.push(...prepared.map((copy) => ({ ...copy, style, productImageId, copyNumber: index + 1 })));
   }
   if (copies.length === 0) throw new Error('Escreva pelo menos uma linha de texto.');
+  assertAppSlidesHaveImage(copies);
 
   const isTest = styles.length > 1;
   const carousels: Carousel[] = [];
@@ -128,7 +138,7 @@ export async function createCarousels(services: Services, request: CreateRequest
     const copyStyles = isTest ? styles : [prepared.style ?? styles[0]];
     const photoStyles = copyStyles.filter((style) => !textOnly(style));
     // As a card, the product slide needs a background photo like any other slide.
-    const fullPrint = request.productDisplay === 'card' ? null : (product?.imageAssetId ?? null);
+    const fullPrint = request.productDisplay === 'card' ? null : prepared.productImageId;
     const draft = await withMatchedPhotos(services, prepared.draft, assets, photoStyles, request.folders.length > 0, fullPrint, usage);
     const experimentId = isTest ? crypto.randomUUID() : null;
     if (experimentId) experimentIds.push(experimentId);
@@ -145,7 +155,7 @@ export async function createCarousels(services: Services, request: CreateRequest
         visualStyle: style,
         preserveText: prepared.mode === 'manual',
         addCta: prepared.mode === 'ai' || request.addCta,
-        productAssetId: product?.imageAssetId ?? null,
+        productAssetId: prepared.productImageId,
         productDisplay: request.productDisplay ?? 'full',
         autoMatch: false,
         textOnly: textOnly(style),
@@ -201,6 +211,17 @@ type PhotoUsage = Map<string, number>;
  * get a photo from them. With every folder selected, an unmatched slide stays text-only.
  * Photos the AI already picked while drafting are kept.
  */
+/** The slide marked APP or PRODUTO in a written copy shows the app image: never a random photo, so creation stops when it has none. */
+function assertAppSlidesHaveImage(copies: PreparedCopy[]): void {
+  const missing = [...new Set(copies.filter((copy) => copy.mode === 'manual' && !copy.productImageId && copy.draft.slides.some((slide) => slide.role === 'product')).map((copy) => copy.copyNumber))];
+  if (missing.length === 0) return;
+  const which = missing.length === 1 ? `A copy ${missing[0]} tem` : `As copys ${missing.join(', ')} têm`;
+  throw new Error(`${which} slide do app, mas nenhuma imagem do app foi escolhida. Use "Enviar" ou "Biblioteca" embaixo da copy.`);
+}
+
+/** A copy as written or drafted, before the batch gives it its number and app image. */
+type DraftedCopy = Omit<PreparedCopy, 'productImageId' | 'copyNumber'>;
+
 async function withMatchedPhotos(
   services: Services,
   draft: CarouselDraft,
@@ -264,7 +285,7 @@ function productForRequest(request: CreateRequest): BrandProduct | null {
 }
 
 /** Written scripts: an "Objetivo:" or "Tipo:" line inside a carousel wins over the screen choice. */
-function manualCopies(text: string, defaults: Pick<PreparedCopy, 'objective' | 'contentType'>): PreparedCopy[] {
+function manualCopies(text: string, defaults: Pick<PreparedCopy, 'objective' | 'contentType'>): DraftedCopy[] {
   return parseScript(text).map((block) => ({
     mode: 'manual' as const,
     objective: block.objective ?? defaults.objective,
@@ -297,7 +318,7 @@ async function aiCopy(
   product: BrandProduct | null,
   { objective, contentType }: Pick<PreparedCopy, 'objective' | 'contentType'>,
   { slideCount, guidance }: { slideCount: SlideCountOption; guidance: string | null },
-): Promise<PreparedCopy> {
+): Promise<DraftedCopy> {
   const draft = await services.ai.draftCarousel({
     copy: text,
     contentType,

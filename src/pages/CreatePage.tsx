@@ -12,6 +12,7 @@ import { useContentRecords } from '../app/data';
 import { recordFromCarousel } from '../domain/winners/fromCarousel';
 import { EXPLORATION_LEVELS, guidanceFor, planCopies, type ExplorationLevel } from '../domain/analytics/intelligence';
 import { TextStylePanel } from '../create/TextStylePanel';
+import { CopyAppImage } from '../create/CopyAppImage';
 import type { CreateSettings, Preset } from '../domain/preset';
 import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
@@ -26,7 +27,7 @@ import { DEFAULT_SHADE, type ImageShade } from '../domain/shade';
 import { countByDay, distributeDates, formatDay, MAX_PER_DAY, todayIso } from '../domain/schedule';
 import { ImagePickerDialog } from '../editor/ImagePickerDialog';
 import { AssetThumb } from '../ui/AssetThumb';
-import { ACCEPTED_IMAGE_TYPES, inFolders, isAcceptedImage, isPhotoLike, PRODUCT_FOLDER, UPLOAD_RULES_MESSAGE } from '../domain/asset';
+import { ACCEPTED_IMAGE_TYPES, type Asset, inFolders, isAcceptedImage, isPhotoLike, PRODUCT_FOLDER, UPLOAD_RULES_MESSAGE } from '../domain/asset';
 import { MOMENTUMM_STARTER, photoFoldersOf, productOf, type VisualStyle } from '../domain/brandKit';
 import { accountLabel, accountsFor, identityOf, isActiveAccount } from '../domain/account';
 import { useAccountScope } from '../app/accountScope';
@@ -166,6 +167,11 @@ export function CreatePage() {
   const [uploadingProductImage, setUploadingProductImage] = useState(false);
   const productFileInput = useRef<HTMLInputElement>(null);
   const copyFileInput = useRef<HTMLInputElement>(null);
+  const copyImageInput = useRef<HTMLInputElement>(null);
+  /** Copy box receiving the next uploaded or picked app image. */
+  const [copyImageTarget, setCopyImageTarget] = useState<number | null>(null);
+  const [pickingCopyImage, setPickingCopyImage] = useState(false);
+  const [uploadingCopyImage, setUploadingCopyImage] = useState<number | null>(null);
   const [folders, setFolders] = useState<string[]>([]);
   const [shade, setShade] = useState<ImageShade>(DEFAULT_SHADE);
   const [postWithImages, setPostWithImages] = useState(true);
@@ -201,7 +207,8 @@ export function CreatePage() {
         const parsed = parseScript(copy);
         // An "Objetivo:" or "Tipo:" line written in the copy wins over the box selection.
         const fromScript = { objective: parsed.find((block) => block.objective)?.objective ?? null, contentType: parsed.find((block) => block.contentType)?.contentType ?? null };
-        return { copy, numbered: hasNumberedSlides(copy), stats: scriptStats(parsed), fromScript };
+        const hasAppSlide = parsed.some((block) => block.productIndex !== null);
+        return { copy, numbered: hasNumberedSlides(copy), stats: scriptStats(parsed), fromScript, hasAppSlide };
       }),
     [copies],
   );
@@ -436,14 +443,35 @@ export function CreatePage() {
     }
   };
 
+  /** Saves an app print in the Produto folder of the library. */
+  const uploadAppPrint = async (file: File): Promise<Asset> => {
+    const asset = await services.assets.upload({ file, folder: PRODUCT_FOLDER, kind: 'screenshot', tags: ['app', 'tela', 'produto'] });
+    assets.setData((current) => [asset, ...current]);
+    return asset;
+  };
+
+  const uploadCopyImage = async (file: File | undefined, index: number | null) => {
+    if (!file || index === null) return;
+    if (!isAcceptedImage(file)) return setError(`Esse arquivo não serve: ${UPLOAD_RULES_MESSAGE}.`);
+    setUploadingCopyImage(index);
+    setError(null);
+    try {
+      const asset = await uploadAppPrint(file);
+      updateSetting(index, { productImageAssetId: asset.id });
+    } catch (cause) {
+      setError(errorMessage(cause));
+    } finally {
+      setUploadingCopyImage(null);
+    }
+  };
+
   const uploadProductImage = async (file: File | undefined) => {
     if (!file || !brand || !product) return;
     if (!isAcceptedImage(file)) return setError(`Esse arquivo não serve: ${UPLOAD_RULES_MESSAGE}.`);
     setUploadingProductImage(true);
     setError(null);
     try {
-      const asset = await services.assets.upload({ file, folder: PRODUCT_FOLDER, kind: 'screenshot', tags: ['app', 'tela', 'produto'] });
-      assets.setData((current) => [asset, ...current]);
+      const asset = await uploadAppPrint(file);
       setProductImageId(asset.id);
       // The first print sent becomes the brand default, so next time it is already selected.
       if (!product.imageAssetId) {
@@ -587,6 +615,28 @@ export function CreatePage() {
   const updateCopy = (index: number, value: string) => setCopies((current) => current.map((copy, position) => (position === index ? value : copy)));
   const photo = assets.data.find((asset) => isPhotoLike(asset) && asset.id !== productImageId);
   const productImage = assets.data.find((asset) => asset.id === productImageId);
+  /** Image every copy without its own uses in the APP slide. */
+  const batchAppImage = product && includeProduct ? (productImage ?? null) : null;
+  const assetById = (id: string | null | undefined) => (id ? (assets.data.find((asset) => asset.id === id) ?? null) : null);
+  const chooseCopyImage = (index: number, source: 'upload' | 'library') => {
+    setCopyImageTarget(index);
+    if (source === 'upload') copyImageInput.current?.click();
+    else setPickingCopyImage(true);
+  };
+  const copyAppImage = (index: number) => (
+    <CopyAppImage
+      index={index}
+      asset={assetById(settingAt(index).productImageAssetId)}
+      fallback={batchAppImage}
+      required={(mode === 'manual' || copyInfo[index].numbered) && copyInfo[index].hasAppSlide}
+      library={assets.data.length > 0}
+      uploading={uploadingCopyImage === index}
+      disabled={generating}
+      onUpload={() => chooseCopyImage(index, 'upload')}
+      onPick={() => chooseCopyImage(index, 'library')}
+      onClear={() => updateSetting(index, { productImageAssetId: null })}
+    />
+  );
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -705,6 +755,9 @@ export function CreatePage() {
                     className={clsx('min-h-60 border-0 bg-transparent px-4 py-3 text-base focus-visible:ring-0', mode === 'manual' && 'font-mono text-[14px]')}
                     disabled={generating}
                   />
+                  <div className="px-4 pb-3">
+                    {copyAppImage(0)}
+                  </div>
                 </>
               ) : (
                 <ol className="divide-y divide-line">
@@ -738,10 +791,35 @@ export function CreatePage() {
                         className={clsx('text-sm', mode === 'manual' && 'font-mono text-[13px]')}
                         disabled={generating}
                       />
+                      {copyAppImage(index)}
                     </li>
                   ))}
                 </ol>
               )}
+              <input
+                ref={copyImageInput}
+                type="file"
+                accept={ACCEPTED_IMAGE_TYPES.join(',')}
+                className="hidden"
+                aria-label="Enviar imagem do app da copy"
+                onChange={(event) => {
+                  void uploadCopyImage(event.target.files?.[0], copyImageTarget);
+                  event.target.value = '';
+                }}
+              />
+              <ImagePickerDialog
+                open={pickingCopyImage}
+                title={copyImageTarget === null ? 'Imagem do app' : `Imagem do app da copy ${copyImageTarget + 1}`}
+                assets={assets.data}
+                currentId={copyImageTarget === null ? null : (settingAt(copyImageTarget).productImageAssetId ?? null)}
+                slideText={`${product?.name ?? ''} app tela print produto`}
+                carouselFolders={[]}
+                onPick={(id) => {
+                  if (copyImageTarget !== null) updateSetting(copyImageTarget, { productImageAssetId: id });
+                  setPickingCopyImage(false);
+                }}
+                onClose={() => setPickingCopyImage(false)}
+              />
 
               {(mode === 'manual' || numbered) && (
                 <div className="flex flex-col gap-1 px-4 pb-3 text-xs text-faint sm:flex-row sm:items-center sm:justify-between">
