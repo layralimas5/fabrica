@@ -192,3 +192,59 @@ describe('createCarousels photo context', () => {
     expect(slides[1].assetId).toBe('beach');
   });
 });
+
+describe('parseScript numbered slides', () => {
+  it('reads "Slide 1, texto" lines as slides without the label', () => {
+    const [carousel] = parseScript('Slide 1, ninguém te conta isso\nSlide 2: você não precisa de motivação\nslide 3 - comece pequeno');
+    expect(carousel.slides).toEqual(['ninguém te conta isso', 'você não precisa de motivação', 'comece pequeno']);
+  });
+
+  it('reads the content prompt output: title, slides with text below, caption, ignored notes', () => {
+    const raw = [
+      'Tema do carrossel:',
+      'Rotina que sobrevive ao dia ruim',
+      'Objetivo:',
+      'gerar identificação',
+      'Slide 1:',
+      '**Se sua rotina só funciona nos dias bons, ela não funciona.**',
+      'Slide 2:',
+      'Você planeja tudo no domingo.',
+      'Na quarta, desandou.',
+      'Slide 6:',
+      'O Momentumm mostra o que você já fez.',
+      'Instrução visual: [Inserir imagem/tela/foto do produto aqui]',
+      'Slide 9 (opcional):',
+      'Salva pra lembrar.',
+      'Legenda curta sugerida:',
+      'Constância é recomeçar sem culpa.',
+      'Ideia visual geral:',
+      'fundo claro, muito respiro',
+    ].join('\n');
+    const [carousel] = parseScript(raw);
+    expect(carousel.title).toBe('Rotina que sobrevive ao dia ruim');
+    expect(carousel.slides).toEqual([
+      'Se sua rotina só funciona nos dias bons, ela não funciona.',
+      'Você planeja tudo no domingo.\nNa quarta, desandou.',
+      'O Momentumm mostra o que você já fez.',
+      'Salva pra lembrar.',
+    ]);
+    expect(carousel.caption).toBe('Constância é recomeçar sem culpa.');
+  });
+});
+
+describe('createCarousels folder as photo context', () => {
+  it('fills every slide from the chosen folder when no tag matches the text', async () => {
+    const services = fakeServices();
+    await createCarousels(services, request({ text: 'Slide 1, primeira frase\nSlide 2, segunda frase', folders: ['Pinterest'], styles: ['tiktok'] }));
+    const slides = services.saved[0].slides;
+    expect(slides.every((slide) => slide.assetId && ['a0', 'a1', 'a2'].includes(slide.assetId))).toBe(true);
+    expect(new Set(slides.map((slide) => slide.assetId)).size).toBe(slides.length);
+  });
+
+  it('keeps unmatched slides text-only when every folder is selected', async () => {
+    const services = fakeServices();
+    await createCarousels(services, request({ text: 'Slide 1, primeira frase', folders: [], styles: ['tiktok'] }));
+    expect(services.saved[0].slides[0].assetId).toBeNull();
+  });
+});
+

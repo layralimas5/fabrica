@@ -65,7 +65,7 @@ export async function createCarousels(services: Services, request: CreateRequest
 
   for (const prepared of copies) {
     const { caption, copy } = prepared;
-    const draft = await withMatchedPhotos(services, prepared.draft, assets, styles);
+    const draft = await withMatchedPhotos(services, prepared.draft, assets, styles, request.folders.length > 0);
     const experimentId = isTest ? crypto.randomUUID() : null;
     if (experimentId) experimentIds.push(experimentId);
     let previous: Slide[] | null = null;
@@ -116,10 +116,18 @@ export async function createCarousels(services: Services, request: CreateRequest
 }
 
 /**
- * Every slide that wants a photo (in any of the chosen styles) gets one that fits its text, or none.
+ * Every slide that wants a photo (in any of the chosen styles) gets one that fits its text.
+ * When the user picked specific folders, those folders are the context: slides no photo matched by text
+ * get a photo from them. With every folder selected, an unmatched slide stays text-only.
  * Photos the AI already picked while drafting are kept.
  */
-async function withMatchedPhotos(services: Services, draft: CarouselDraft, assets: Asset[], styles: VisualStyle[]): Promise<CarouselDraft> {
+async function withMatchedPhotos(
+  services: Services,
+  draft: CarouselDraft,
+  assets: Asset[],
+  styles: VisualStyle[],
+  folderIsContext: boolean,
+): Promise<CarouselDraft> {
   const photos = assets.filter(isPhotoLike);
   const known = new Set(photos.map((asset) => asset.id));
   const wants = styles.map((style) => slidesWantingImages(draft, style));
@@ -139,9 +147,23 @@ async function withMatchedPhotos(services: Services, draft: CarouselDraft, asset
   const slides = draft.slides.map((slide) => ({ ...slide }));
   pending.forEach(({ index }, position) => {
     slides[index].assetId = matched[position] ?? null;
-    if (slides[index].assetId) slides[index].wantsImage = true;
   });
+  if (folderIsContext) fillFromFolder(slides, pending.map(({ index }) => index), candidates);
+  for (const slide of slides) if (slide.assetId) slide.wantsImage = true;
   return { ...draft, slides };
+}
+
+/** Gives every still empty slide a photo from the chosen folders, using each photo once before repeating. */
+function fillFromFolder(slides: CarouselDraft['slides'], indexes: number[], photos: Asset[]): void {
+  const uses = new Map(photos.map((photo) => [photo.id, slides.filter((slide) => slide.assetId === photo.id).length]));
+  for (const index of indexes) {
+    if (slides[index].assetId) continue;
+    const leastUsed = Math.min(...uses.values());
+    const options = photos.filter((photo) => uses.get(photo.id) === leastUsed);
+    const chosen = options[Math.floor(Math.random() * options.length)];
+    slides[index].assetId = chosen.id;
+    uses.set(chosen.id, leastUsed + 1);
+  }
 }
 
 function productForRequest(request: CreateRequest): BrandProduct | null {
@@ -155,7 +177,7 @@ function manualCopies(text: string): PreparedCopy[] {
     caption: block.caption,
     copy: block.slides.join('\n'),
     draft: {
-      title: limitWords(stripTrailingPeriod(block.slides[0].replace(/\n/g, ' ')), 8),
+      title: block.title || limitWords(stripTrailingPeriod(block.slides[0].replace(/\n/g, ' ')), 8),
       caption: block.caption,
       slides: block.slides.map((line, index) => ({
         role: index === 0 ? 'hook' : 'point',

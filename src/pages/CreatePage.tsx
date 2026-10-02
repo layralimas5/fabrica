@@ -51,14 +51,14 @@ const PLATFORM_STORAGE_KEY = 'fabrica:platform';
 const FORMAT_STORAGE_KEY = 'fabrica:format';
 const PLATFORM_DETAILS: Record<Platform, string> = { instagram: 'Feed, perfil, stories', tiktok: 'Carrossel de fotos' };
 
-const MANUAL_PLACEHOLDER = `ninguém te conta isso sobre disciplina
-você não precisa de motivação // precisa de rotina
-comece com 10 minutos por dia
-legenda: salva pra lembrar amanhã #rotina
+const MANUAL_PLACEHOLDER = `Tema do carrossel: Rotina que sobrevive ao dia ruim
+Slide 1, ninguém te conta isso sobre disciplina
+Slide 2, você não precisa de motivação // precisa de rotina
+Slide 3, comece com 10 minutos por dia
+Legenda: salva pra lembrar amanhã #rotina
 ---
-3 hábitos que mudaram minha manhã
-acordar sem celular
-água antes do café`;
+Slide 1, 3 hábitos que mudaram minha manhã
+Slide 2, acordar sem celular`;
 
 function readStored<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
   try {
@@ -273,7 +273,7 @@ export function CreatePage() {
           <Step number={2} title="A copy">
             <div role="radiogroup" aria-label="Como a copy entra nos slides" className="mb-3 grid grid-cols-2 gap-1 rounded-2xl bg-subtle p-1">
               <ChoiceCard active={mode === 'ai'} onClick={() => changeMode('ai')} title="Separar pra mim" detail="Cola a copy inteira e a ferramenta divide nos slides" />
-              <ChoiceCard active={mode === 'manual'} onClick={() => changeMode('manual')} title="Já separei" detail="Uma linha = um slide, sem mudar nenhuma palavra" />
+              <ChoiceCard active={mode === 'manual'} onClick={() => changeMode('manual')} title="Já separei" detail="Slide 1, texto · Slide 2, texto, sem mudar nenhuma palavra" />
             </div>
             <div className="rounded-2xl border border-line">
               <label htmlFor="copy" className="sr-only">
@@ -292,10 +292,10 @@ export function CreatePage() {
               {mode === 'manual' && (
                 <div className="flex flex-col gap-1 px-4 pb-3 text-xs text-faint sm:flex-row sm:items-center sm:justify-between">
                   <p>
-                    Uma linha = um slide · <code className="text-muted">//</code> quebra a linha · <code className="text-muted">---</code> separa carrosséis · <code className="text-muted">legenda:</code> vira a legenda
+                    <code className="text-muted">Slide 1, texto</code> vira o slide 1 (só o texto aparece) · sem "Slide N", cada linha é um slide · <code className="text-muted">//</code> quebra a linha · <code className="text-muted">---</code> separa carrosséis · <code className="text-muted">Legenda:</code> e <code className="text-muted">Tema do carrossel:</code> são lidos à parte
                   </p>
                   <p className="shrink-0 font-medium text-muted" aria-live="polite">
-                    {stats.carousels} carrossé{stats.carousels === 1 ? 'l' : 'is'} · {stats.slides} slides
+                    {stats.carousels} {stats.carousels === 1 ? 'carrossel' : 'carrosséis'} · {stats.slides} slides
                   </p>
                 </div>
               )}
@@ -454,7 +454,13 @@ export function CreatePage() {
                 </Link>
               </p>
             )}
-            {folderCounts.size > 0 && <p className="mt-2 text-xs text-faint">A ferramenta escolhe uma foto por slide pelas tags, sem repetir. Depois você pode trocar qualquer uma no editor.</p>}
+            {folderCounts.size > 0 && (
+              <p className="mt-2 text-xs text-faint">
+                {folders.length > 0
+                  ? 'Cada slide ganha uma foto das pastas marcadas: primeiro a que combina com a frase pelas tags, senão outra da pasta, sem repetir. Depois dá pra trocar qualquer uma no editor.'
+                  : 'Com "Todas", só entra foto cuja tag combine com a frase; o resto sai só com texto. Pra ter foto em todo slide (como a Ella), marque a pasta das fotos dessa conta.'}
+              </p>
+            )}
           </Step>
 
           <div className="flex flex-col gap-3 p-4 sm:flex-row sm:p-5 sm:items-center sm:justify-between">
