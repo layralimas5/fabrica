@@ -1,8 +1,9 @@
+import type { Account } from '../domain/account';
 import { Download, Eye, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { renderContextFor } from '../app/renderContextFor';
-import { useAssets, useBrandKits, useCarousels } from '../app/data';
+import { useAccounts, useAssets, useBrandKits, useCarousels } from '../app/data';
 import { useServices } from '../app/services';
 import type { RenderContext } from '../app/slideRendering';
 import { errorMessage } from '../app/useResource';
@@ -25,6 +26,7 @@ export function ProjectsPage() {
   const carousels = useCarousels();
   const brands = useBrandKits();
   const assets = useAssets();
+  const accounts = useAccounts();
   const [query, setQuery] = useState('');
   const [brandFilter, setBrandFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<CarouselStatus | ''>('');
@@ -55,7 +57,7 @@ export function ProjectsPage() {
 
   const contextOf = (carousel: Carousel): RenderContext | null => {
     const brand = brands.data.find((kit) => kit.id === carousel.brandKitId);
-    return brand ? renderContextFor(carousel, brand, assets.data, services.assets) : null;
+    return brand ? renderContextFor(carousel, brand, assets.data, services.assets, accounts.data) : null;
   };
 
   const exportFiltered = async () => {
@@ -137,7 +139,7 @@ export function ProjectsPage() {
             return (
               <li key={carousel.id} className="group relative overflow-hidden rounded-2xl border border-line bg-surface transition-shadow hover:shadow-md">
                 <Link to={`/carrossel/${carousel.id}`} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent">
-                  {brand && <CoverPreview carousel={carousel} brand={brand} assets={assets.data} />}
+                  {brand && <CoverPreview carousel={carousel} brand={brand} assets={assets.data} accounts={accounts.data} />}
                   <div className="p-4">
                     <p className="line-clamp-2 text-sm font-semibold leading-snug text-ink">{carousel.title}</p>
                     <p className="mt-1 text-xs text-muted">
@@ -167,8 +169,8 @@ export function ProjectsPage() {
   );
 }
 
-function CoverPreview({ carousel, brand, assets }: { carousel: Carousel; brand: BrandKit; assets: Asset[] }) {
+function CoverPreview({ carousel, brand, assets, accounts }: { carousel: Carousel; brand: BrandKit; assets: Asset[]; accounts: Account[] }) {
   const { assets: repo } = useServices();
-  const context = useMemo(() => renderContextFor(carousel, brand, assets, repo), [carousel, brand, assets, repo]);
+  const context = useMemo(() => renderContextFor(carousel, brand, assets, repo, accounts), [carousel, brand, assets, repo, accounts]);
   return <SlideCanvas context={context} slide={carousel.slides[0]} index={0} scale={0.3} label={`Capa de ${carousel.title}`} className="!aspect-[4/5]" />;
 }

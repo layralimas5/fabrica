@@ -1,9 +1,10 @@
-import { CAROUSEL_FORMATS, formatSizeLabel } from '../domain/carousel';
+import { identityOf, type Account } from '../domain/account';
+import { CAROUSEL_FORMATS, formatSizeLabel, PLATFORM_LABELS } from '../domain/carousel';
 import { shadeOf } from '../domain/shade';
 import { ArrowLeft, Check, CloudOff, Eye, Loader2, Wand2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { useAssets, useBrandKits } from '../app/data';
+import { useAccounts, useAssets, useBrandKits } from '../app/data';
 import { useServices } from '../app/services';
 import type { RenderContext } from '../app/slideRendering';
 import { errorMessage } from '../app/useResource';
@@ -27,6 +28,7 @@ export function EditorPage() {
   const { carousels } = useServices();
   const brands = useBrandKits();
   const assets = useAssets();
+  const accounts = useAccounts();
   const [carousel, setCarousel] = useState<Carousel | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,19 +41,20 @@ export function EditorPage() {
   }, [carousels, id]);
 
   if (error) return <Alert>{error}</Alert>;
-  if (carousel === undefined || brands.loading || assets.loading) return <Spinner label="Abrindo o carrossel" />;
+  if (carousel === undefined || brands.loading || assets.loading || accounts.loading) return <Spinner label="Abrindo o carrossel" />;
   if (carousel === null) return <EmptyState title="Carrossel não encontrado" description="Ele pode ter sido excluído." action={<Link to="/projetos" className="text-sm text-accent underline">Ver projetos</Link>} />;
 
   const brand = brands.data.find((kit) => kit.id === carousel.brandKitId);
   if (!brand) return <Alert>A marca desse carrossel foi removida. Recrie a marca pra editar.</Alert>;
 
-  return <Editor key={carousel.id} initial={carousel} brand={brand} assets={assets.data} />;
+  return <Editor key={carousel.id} initial={carousel} brand={brand} assets={assets.data} accounts={accounts.data} />;
 }
 
-function Editor({ initial, brand, assets }: { initial: Carousel; brand: BrandKit; assets: Asset[] }) {
+function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand: BrandKit; assets: Asset[]; accounts: Account[] }) {
   const services = useServices();
   const editor = useCarouselEditor(services.carousels, initial);
   const { carousel } = editor;
+  const account = accounts.find((item) => item.id === carousel.source.accountId);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [hooksOpen, setHooksOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -62,8 +65,17 @@ function Editor({ initial, brand, assets }: { initial: Carousel; brand: BrandKit
   const slide = carousel.slides[index];
 
   const context: RenderContext = useMemo(
-    () => ({ brand, assets, repo: services.assets, format: carousel.format, visualStyle: carousel.source.visualStyle, total: carousel.slides.length, shade: shadeOf(carousel.source) }),
-    [brand, assets, services.assets, carousel.format, carousel.source.visualStyle, carousel.slides.length, carousel.source.shade],
+    () => ({
+      brand,
+      assets,
+      repo: services.assets,
+      format: carousel.format,
+      visualStyle: carousel.source.visualStyle,
+      total: carousel.slides.length,
+      shade: shadeOf(carousel.source),
+      account: account ? identityOf(account) : null,
+    }),
+    [brand, assets, services.assets, carousel.format, carousel.source.visualStyle, carousel.slides.length, carousel.source.shade, account],
   );
 
   const rewrite = useCallback(
@@ -113,6 +125,19 @@ function Editor({ initial, brand, assets }: { initial: Carousel; brand: BrandKit
               </option>
             ))}
           </Select>
+          {accounts.length > 0 && (
+            <>
+              <label htmlFor="carousel-account" className="sr-only">Conta</label>
+              <Select id="carousel-account" value={carousel.source.accountId ?? ''} onChange={(e) => editor.setAccount(e.target.value || null)} className="!w-auto">
+                <option value="">Sem conta ({brand.name})</option>
+                {accounts.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    @{item.handle} · {PLATFORM_LABELS[item.platform]}
+                  </option>
+                ))}
+              </Select>
+            </>
+          )}
           <label htmlFor="carousel-status" className="sr-only">Status</label>
           <Select id="carousel-status" value={carousel.status} onChange={(e) => editor.setStatus(e.target.value as CarouselStatus)} className="!w-auto">
             {CAROUSEL_STATUSES.map((status) => (

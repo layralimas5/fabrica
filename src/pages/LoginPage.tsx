@@ -14,7 +14,8 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  if (user) return <Navigate to="/criar" replace />;
+  // Local mode has no login: the session opens by itself.
+  if (user || auth.mode === 'local') return <Navigate to="/criar" replace />;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -73,10 +74,6 @@ export function LoginPage() {
             {mode === 'signin' ? 'Não tem conta? Criar agora' : 'Já tenho conta'}
           </button>
         </form>
-
-        {auth.mode === 'demo' && (
-          <p className="mt-4 text-center text-xs text-faint">Modo demo: qualquer e-mail funciona e tudo fica salvo só neste navegador.</p>
-        )}
       </div>
     </main>
   );

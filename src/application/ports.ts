@@ -1,4 +1,5 @@
 import type { CarouselDraft, DraftRequest, HooksRequest, MatchRequest, RewriteRequest, SlideText, TagImageRequest } from '../domain/aiContract';
+import type { Account, AccountInput } from '../domain/account';
 import type { Asset, AssetUpload } from '../domain/asset';
 import type { BrandKit, BrandKitInput } from '../domain/brandKit';
 import type { Carousel, CarouselInput } from '../domain/carousel';
@@ -9,7 +10,8 @@ export interface User {
 }
 
 export interface AuthService {
-  readonly mode: 'supabase' | 'demo';
+  /** 'local': no login, everything saved in this browser. */
+  readonly mode: 'supabase' | 'local';
   currentUser(): Promise<User | null>;
   onChange(listener: (user: User | null) => void): () => void;
   signInWithPassword(email: string, password: string): Promise<void>;
@@ -32,6 +34,27 @@ export interface AssetRepository {
   renameFolder(from: string, to: string): Promise<void>;
   remove(id: string): Promise<void>;
   fetchBlob(asset: Asset): Promise<Blob>;
+}
+
+export interface AccountRepository {
+  list(): Promise<Account[]>;
+  create(input: AccountInput): Promise<Account>;
+  update(id: string, input: AccountInput): Promise<Account>;
+  remove(id: string): Promise<void>;
+}
+
+export interface BackupSummary {
+  accounts: number;
+  brandKits: number;
+  assets: number;
+  carousels: number;
+}
+
+/** Local mode only: everything lives in this browser, so it can be saved to a file and restored anywhere. */
+export interface BackupService {
+  exportAll(): Promise<Blob>;
+  /** Adds what is in the file; items with the same id are replaced by the backup version. */
+  importAll(file: Blob): Promise<BackupSummary>;
 }
 
 export interface CarouselRepository {
@@ -58,5 +81,7 @@ export interface Services {
   brandKits: BrandKitRepository;
   assets: AssetRepository;
   carousels: CarouselRepository;
+  accounts: AccountRepository;
   ai: AiService;
+  backup: BackupService | null;
 }

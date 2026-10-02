@@ -106,6 +106,10 @@ export function useCarouselEditor(repo: CarouselRepository, initial: Carousel) {
       mutate((current) => ({ ...current, slides: current.slides.map((slide) => ({ ...slide, style: { ...slide.style, ...patch } })) })),
     [mutate],
   );
+  const setAccount = useCallback(
+    (accountId: string | null) => mutate((current) => ({ ...current, source: { ...current.source, accountId } })),
+    [mutate],
+  );
   const setShade = useCallback(
     (shade: ImageShade) => mutate((current) => ({ ...current, source: { ...current.source, shade } })),
     [mutate],
@@ -118,7 +122,7 @@ export function useCarouselEditor(repo: CarouselRepository, initial: Carousel) {
     setCarousel((current) => ({ ...current, status }));
   }, []);
 
-  return { carousel, selectedId, setSelectedId, saveState, saveError, updateSlide, setTextStyleForAll, setShade, addSlide, duplicate, removeSlide, reorder, move, setTitle, setCaption, setFormat, setStatus };
+  return { carousel, selectedId, setSelectedId, saveState, saveError, updateSlide, setTextStyleForAll, setShade, setAccount, addSlide, duplicate, removeSlide, reorder, move, setTitle, setCaption, setFormat, setStatus };
 }
 
 export type CarouselEditor = ReturnType<typeof useCarouselEditor>;

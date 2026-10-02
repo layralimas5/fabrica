@@ -1,5 +1,6 @@
 import type { SupabaseClient, User as SupabaseUser } from '@supabase/supabase-js';
-import type { AssetRepository, AuthService, BrandKitRepository, CarouselRepository, User } from '../../application/ports';
+import type { AccountRepository, AssetRepository, AuthService, BrandKitRepository, CarouselRepository, User } from '../../application/ports';
+import type { Account, AccountInput } from '../../domain/account';
 import type { Asset, AssetUpload } from '../../domain/asset';
 import type { BrandKit, BrandKitInput } from '../../domain/brandKit';
 import { normalizeCarousel, type Carousel, type CarouselInput } from '../../domain/carousel';
@@ -256,5 +257,44 @@ export class SupabaseCarousels implements CarouselRepository {
   async remove(id: string): Promise<void> {
     const { error } = await this.client.from('carousels').delete().eq('id', id);
     if (error) fail('Não consegui excluir o carrossel', error);
+  }
+}
+
+interface AccountRow {
+  id: string;
+  name: string;
+  data: Omit<AccountInput, 'name'>;
+  created_at: string;
+  updated_at: string;
+}
+
+const rowToAccount = (row: AccountRow): Account => ({ ...row.data, id: row.id, name: row.name, createdAt: row.created_at, updatedAt: row.updated_at });
+
+export class SupabaseAccounts implements AccountRepository {
+  constructor(private readonly client: SupabaseClient) {}
+
+  async list(): Promise<Account[]> {
+    const { data, error } = await this.client.from('accounts').select('*').order('created_at');
+    if (error) fail('Não consegui carregar as contas', error);
+    return (data as AccountRow[]).map(rowToAccount);
+  }
+
+  async create(input: AccountInput): Promise<Account> {
+    const { name, ...rest } = input;
+    const { data, error } = await this.client.from('accounts').insert({ name, data: rest }).select().single();
+    if (error) fail('Não consegui salvar a conta', error);
+    return rowToAccount(data as AccountRow);
+  }
+
+  async update(id: string, input: AccountInput): Promise<Account> {
+    const { name, ...rest } = input;
+    const { data, error } = await this.client.from('accounts').update({ name, data: rest }).eq('id', id).select().single();
+    if (error) fail('Não consegui atualizar a conta', error);
+    return rowToAccount(data as AccountRow);
+  }
+
+  async remove(id: string): Promise<void> {
+    const { error } = await this.client.from('accounts').delete().eq('id', id);
+    if (error) fail('Não consegui excluir a conta', error);
   }
 }

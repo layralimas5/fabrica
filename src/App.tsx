@@ -13,6 +13,7 @@ const LibraryPage = lazy(() => import('./pages/LibraryPage').then((m) => ({ defa
 const BrandKitsPage = lazy(() => import('./pages/BrandKitsPage').then((m) => ({ default: m.BrandKitsPage })));
 const ExperimentsPage = lazy(() => import('./pages/ExperimentsPage').then((m) => ({ default: m.ExperimentsPage })));
 const ExperimentDetailPage = lazy(() => import('./pages/ExperimentDetailPage').then((m) => ({ default: m.ExperimentDetailPage })));
+const AccountsPage = lazy(() => import('./pages/AccountsPage').then((m) => ({ default: m.AccountsPage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -41,6 +42,7 @@ export default function App({ services }: { services: Services }) {
               <Route path="/projetos" element={<ProjectsPage />} />
               <Route path="/testes" element={<ExperimentsPage />} />
               <Route path="/testes/:id" element={<ExperimentDetailPage />} />
+              <Route path="/contas" element={<AccountsPage />} />
               <Route path="/biblioteca" element={<LibraryPage />} />
               <Route path="/marcas" element={<BrandKitsPage />} />
               <Route path="/configuracoes" element={<SettingsPage />} />

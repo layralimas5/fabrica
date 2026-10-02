@@ -16,6 +16,8 @@ function fakeServices(): Services & { saved: Carousel[] } {
     auth: {} as Services['auth'],
     brandKits: {} as Services['brandKits'],
     assets: { list: unused, upload: unused, update: unused, renameFolder: unused, remove: unused, fetchBlob: unused },
+    accounts: {} as Services['accounts'],
+    backup: null,
     ai: new HeuristicAi(),
     carousels: {
       list: async () => saved,
@@ -53,6 +55,7 @@ acordar sem celular`;
 
 const request = (overrides: Partial<CreateRequest> = {}): CreateRequest => ({
   platform: 'instagram',
+  accountId: null,
   format: '4:5',
   brand,
   library: photos,

@@ -3,7 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight, FlaskConical, ImageIcon, Sparkles, Upload } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAssets, useBrandKits } from '../app/data';
+import { useAccounts, useAssets, useBrandKits } from '../app/data';
 import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
 import { createCarousels, MAX_TEST_VARIANTS } from '../application/createCarousels';
@@ -15,6 +15,7 @@ import { ImagePickerDialog } from '../editor/ImagePickerDialog';
 import { AssetThumb } from '../ui/AssetThumb';
 import { ACCEPTED_IMAGE_TYPES, inFolders, isAcceptedImage, isPhotoLike, PRODUCT_FOLDER, UPLOAD_RULES_MESSAGE } from '../domain/asset';
 import { MOMENTUMM_STARTER, photoFoldersOf, productOf, type VisualStyle } from '../domain/brandKit';
+import { accountsFor, identityOf } from '../domain/account';
 import {
   CAROUSEL_FORMATS,
   defaultFormatFor,
@@ -49,6 +50,7 @@ const AI_PLACEHOLDER = 'Cole sua copy ou só o tema. Ex: Metas sem sistema são 
 const MODE_STORAGE_KEY = 'fabrica:copy-mode';
 const PLATFORM_STORAGE_KEY = 'fabrica:platform';
 const FORMAT_STORAGE_KEY = 'fabrica:format';
+const ACCOUNT_STORAGE_KEY = 'fabrica:account';
 const PLATFORM_DETAILS: Record<Platform, string> = { instagram: 'Feed, perfil, stories', tiktok: 'Carrossel de fotos' };
 
 const MANUAL_PLACEHOLDER = `Tema do carrossel: Rotina que sobrevive ao dia ruim
@@ -69,6 +71,25 @@ function readStored<T extends string>(key: string, allowed: readonly T[], fallba
   }
 }
 
+function readStoredText(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function rememberText(key: string, value: string | null): void {
+  if (value) remember(key, value);
+  else {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // Remembering a choice is a convenience; the page works without storage.
+    }
+  }
+}
+
 function remember(key: string, value: string): void {
   try {
     localStorage.setItem(key, value);
@@ -82,6 +103,7 @@ export function CreatePage() {
   const navigate = useNavigate();
   const brands = useBrandKits();
   const assets = useAssets();
+  const accounts = useAccounts();
 
   const [platform, setPlatform] = useState<Platform>(() => readStored(PLATFORM_STORAGE_KEY, PLATFORMS, 'instagram'));
   const [format, setFormat] = useState<CarouselFormat>(() => {
@@ -91,6 +113,7 @@ export function CreatePage() {
   const [mode, setMode] = useState<CopyMode>(() => readStored(MODE_STORAGE_KEY, ['manual', 'ai'] as const, 'manual'));
   const [text, setText] = useState('');
   const [brandId, setBrandId] = useState('');
+  const [accountId, setAccountId] = useState<string | null>(() => readStoredText(ACCOUNT_STORAGE_KEY));
   const [contentType, setContentType] = useState<ContentType>('auto');
   const [slideCount, setSlideCount] = useState<SlideCountOption>('auto');
   const [styles, setStyles] = useState<VisualStyle[]>(['minimalista']);
@@ -109,6 +132,9 @@ export function CreatePage() {
   const [creatingStarter, setCreatingStarter] = useState(false);
 
   const brand = brands.data.find((kit) => kit.id === brandId) ?? brands.data[0];
+  const platformAccounts = accountsFor(accounts.data, platform);
+  const account = platformAccounts.find((item) => item.id === accountId) ?? platformAccounts[0] ?? null;
+  const accountIdentity = useMemo(() => (account ? identityOf(account) : null), [account]);
   const product = brand ? productOf(brand) : null;
   const folderCounts = useMemo(() => countByFolder(assets.data), [assets.data]);
   const availableImages = assets.data.filter((asset) => inFolders(asset, folders)).length;
@@ -125,6 +151,18 @@ export function CreatePage() {
     setProductImageId(productOf(brand)?.imageAssetId ?? null);
     setFolders(photoFoldersOf(brand));
   }, [brand?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const chooseAccount = (id: string | null) => {
+    setAccountId(id);
+    rememberText(ACCOUNT_STORAGE_KEY, id);
+    const chosen = accounts.data.find((item) => item.id === id);
+    if (chosen?.brandKitId && brands.data.some((kit) => kit.id === chosen.brandKitId)) setBrandId(chosen.brandKitId);
+  };
+
+  // The account's brand comes along when the account is picked or changes with the network.
+  useEffect(() => {
+    if (account?.brandKitId && brands.data.some((kit) => kit.id === account.brandKitId)) setBrandId(account.brandKitId);
+  }, [account?.id, brands.data.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const changeMode = (next: CopyMode) => {
     setMode(next);
@@ -196,6 +234,7 @@ export function CreatePage() {
     try {
       const result = await createCarousels(services, {
         platform,
+        accountId: account?.id ?? null,
         format,
         brand,
         library: assets.data,
@@ -223,8 +262,8 @@ export function CreatePage() {
 
   const previewStyle = styles[0] ?? brand?.visualStyle ?? 'minimalista';
   const shadeContext: Omit<RenderContext, 'shade'> | null = useMemo(
-    () => (brand ? { brand, assets: assets.data, repo: services.assets, format, visualStyle: previewStyle, total: 1 } : null),
-    [brand, assets.data, services.assets, format, previewStyle],
+    () => (brand ? { brand, assets: assets.data, repo: services.assets, format, visualStyle: previewStyle, total: 1, account: accountIdentity } : null),
+    [brand, assets.data, services.assets, format, previewStyle, accountIdentity],
   );
 
   if (brands.loading) return <Spinner />;
@@ -268,6 +307,24 @@ export function CreatePage() {
               {PLATFORM_FORMAT_OPTIONS[platform].map((option) => (
                 <FormatCard key={option.format} format={option.format} use={option.use} active={format === option.format} onClick={() => changeFormat(option.format)} disabled={generating} />
               ))}
+            </div>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              {platformAccounts.length > 0 ? (
+                <Field label={`Conta do ${PLATFORM_LABELS[platform]}`} htmlFor="account" className="sm:w-80">
+                  <Select id="account" value={account?.id ?? ''} onChange={(e) => chooseAccount(e.target.value || null)} disabled={generating}>
+                    {platformAccounts.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} · @{item.handle}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              ) : (
+                <p className="text-xs text-faint">Nenhuma conta do {PLATFORM_LABELS[platform]} ainda. No modelo Post, o topo dos slides mostra o nome da marca.</p>
+              )}
+              <Link to="/contas" className="text-xs font-medium text-muted underline underline-offset-4 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+                {platformAccounts.length > 0 ? 'Gerenciar contas' : 'Cadastrar conta'}
+              </Link>
             </div>
           </Step>
 
@@ -377,6 +434,7 @@ export function CreatePage() {
                   multiple={testing}
                   disabled={generating}
                   shade={shade}
+                  account={accountIdentity}
                 />
               </div>
               <div>

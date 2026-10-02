@@ -1,5 +1,11 @@
 import { FORMAT_SIZES, type CarouselFormat, type Slide } from '../domain/carousel';
 import type { ImageShade } from '../domain/shade';
+
+/** Name and @ shown in the post-style header. */
+export interface PostIdentity {
+  name: string;
+  handle: string;
+}
 import { splitSentences } from '../domain/text';
 import { withAlpha, type SlideTheme } from '../domain/theme';
 import { ensureFont } from './fonts';
@@ -17,6 +23,7 @@ export interface SlideRenderInput {
   avatar: ImageBitmap | null;
   /** Darkening applied to every photo. */
   shade: ImageShade;
+  identity: PostIdentity;
 }
 
 interface Frame {
@@ -248,10 +255,10 @@ function drawPhotoText(frame: Frame, text: string): void {
 
 const POST_AVATAR = 132;
 
-/** Social-post header: round avatar and bold display name. Returns its bottom edge. */
+/** Social-post header: round photo, bold name and @handle of the account. Returns its bottom edge. */
 function drawPostHeader(frame: Frame, top: number): number {
   const { ctx } = frame;
-  const { theme, avatar } = frame.input;
+  const { theme, avatar, identity } = frame.input;
   const x = theme.padding;
   const radius = POST_AVATAR / 2;
   const centerY = top + radius;
@@ -273,7 +280,7 @@ function drawPostHeader(frame: Frame, top: number): number {
     ctx.font = `700 ${Math.round(POST_AVATAR * 0.42)}px "${theme.bodyFont}", system-ui, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText((theme.displayName.trim()[0] ?? '?').toUpperCase(), x + radius, centerY + 2);
+    ctx.fillText((identity.name.trim()[0] ?? '?').toUpperCase(), x + radius, centerY + 2);
   }
   ctx.restore();
 
@@ -283,7 +290,12 @@ function drawPostHeader(frame: Frame, top: number): number {
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = theme.text;
   ctx.font = `700 46px "${theme.bodyFont}", system-ui, sans-serif`;
-  ctx.fillText(theme.displayName, textX, centerY + 16);
+  ctx.fillText(identity.name, textX, identity.handle ? centerY - 6 : centerY + 16);
+  if (identity.handle) {
+    ctx.fillStyle = theme.muted;
+    ctx.font = `400 36px "${theme.bodyFont}", system-ui, sans-serif`;
+    ctx.fillText(`@${identity.handle}`, textX, centerY + 42);
+  }
   ctx.restore();
   return top + POST_AVATAR;
 }

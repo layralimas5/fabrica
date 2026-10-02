@@ -96,6 +96,8 @@ export interface CarouselSource {
   copyMode?: CopyMode;
   /** Darkening over every photo. Older carousels have none. */
   shade?: ImageShade;
+  /** Account shown in the post-style header. */
+  accountId?: string | null;
 }
 
 export type CopyMode = 'manual' | 'ai';

@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import type { Account } from '../domain/account';
 import type { Asset } from '../domain/asset';
 import type { BrandKit } from '../domain/brandKit';
 import type { Carousel } from '../domain/carousel';
@@ -18,4 +19,9 @@ export function useAssets() {
 export function useCarousels() {
   const { carousels } = useServices();
   return useResource<Carousel[]>(useCallback(() => carousels.list(), [carousels]), []);
+}
+
+export function useAccounts() {
+  const { accounts } = useServices();
+  return useResource<Account[]>(useCallback(() => accounts.list(), [accounts]), []);
 }

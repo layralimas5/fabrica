@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { FlaskConical, FolderKanban, Images, Palette, Plus, Settings, Sparkles } from 'lucide-react';
+import { FlaskConical, FolderKanban, Images, Palette, Plus, Settings, Sparkles, UsersRound } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useServices } from '../app/services';
 import { Badge, Button } from './primitives';
@@ -8,6 +8,7 @@ const NAV = [
   { to: '/criar', label: 'Criar', icon: Sparkles },
   { to: '/projetos', label: 'Projetos', icon: FolderKanban },
   { to: '/testes', label: 'Testes', icon: FlaskConical },
+  { to: '/contas', label: 'Contas', icon: UsersRound },
   { to: '/biblioteca', label: 'Biblioteca', icon: Images },
   { to: '/marcas', label: 'Brand Kits', icon: Palette },
   { to: '/configuracoes', label: 'Configurações', icon: Settings },
@@ -55,7 +56,7 @@ export function Shell() {
         </nav>
 
         <div className="hidden px-5 pb-6 lg:absolute lg:bottom-0 lg:block">
-          {auth.mode === 'demo' && <Badge tone="warning">Modo demo · dados neste navegador</Badge>}
+          {auth.mode === 'local' && <Badge tone="neutral">Salvo neste navegador</Badge>}
           {auth.mode === 'supabase' && ai.engine === 'heuristic' && <Badge tone="warning">IA local</Badge>}
         </div>
       </aside>

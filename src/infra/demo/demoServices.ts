@@ -1,5 +1,15 @@
 import { createStore, del, get, set, type UseStore } from 'idb-keyval';
-import type { AssetRepository, AuthService, BrandKitRepository, CarouselRepository, User } from '../../application/ports';
+import type {
+  AccountRepository,
+  AssetRepository,
+  AuthService,
+  BackupService,
+  BackupSummary,
+  BrandKitRepository,
+  CarouselRepository,
+  User,
+} from '../../application/ports';
+import type { Account, AccountInput } from '../../domain/account';
 import type { Asset, AssetUpload } from '../../domain/asset';
 import type { BrandKit, BrandKitInput } from '../../domain/brandKit';
 import { normalizeCarousel, type Carousel, type CarouselInput } from '../../domain/carousel';
@@ -10,13 +20,21 @@ const SESSION_KEY = 'session';
 
 const now = () => new Date().toISOString();
 
-/** Local-only auth for demo mode: any e-mail works, data stays in this browser. */
+const LOCAL_USER: User = { id: 'local', email: 'Neste computador' };
+
+/**
+ * Local mode has no login: the first visit opens a local session and keeps it.
+ * A session created by the old e-mail screen is kept, so data saved before stays visible.
+ */
 export class DemoAuth implements AuthService {
-  readonly mode = 'demo' as const;
+  readonly mode = 'local' as const;
   private readonly listeners = new Set<(user: User | null) => void>();
 
   async currentUser(): Promise<User | null> {
-    return (await get<User>(SESSION_KEY, store)) ?? null;
+    const existing = await get<User>(SESSION_KEY, store);
+    if (existing) return existing;
+    await set(SESSION_KEY, LOCAL_USER, store);
+    return LOCAL_USER;
   }
 
   onChange(listener: (user: User | null) => void): () => void {
@@ -153,5 +171,110 @@ export class DemoCarousels implements CarouselRepository {
 
   async remove(id: string): Promise<void> {
     await writeCollection('carousels', (await this.list()).filter((item) => item.id !== id));
+  }
+}
+
+export class DemoAccounts implements AccountRepository {
+  list(): Promise<Account[]> {
+    return readCollection<Account>('accounts');
+  }
+
+  async create(input: AccountInput): Promise<Account> {
+    const account: Account = { ...input, id: crypto.randomUUID(), createdAt: now(), updatedAt: now() };
+    await writeCollection('accounts', [...(await this.list()), account]);
+    return account;
+  }
+
+  async update(id: string, input: AccountInput): Promise<Account> {
+    const accounts = await this.list();
+    const updated: Account = { ...requireItem(accounts, id, 'Conta'), ...input, updatedAt: now() };
+    await writeCollection('accounts', accounts.map((account) => (account.id === id ? updated : account)));
+    return updated;
+  }
+
+  async remove(id: string): Promise<void> {
+    await writeCollection('accounts', (await this.list()).filter((account) => account.id !== id));
+  }
+}
+
+const BACKUP_APP = 'fabrica';
+const BACKUP_VERSION = 1;
+
+interface BackupFile {
+  app: typeof BACKUP_APP;
+  version: number;
+  exportedAt: string;
+  accounts: Account[];
+  brandKits: BrandKit[];
+  assets: Asset[];
+  carousels: Carousel[];
+  /** Image files by asset id, as data URLs. */
+  files: Record<string, string>;
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error('Não consegui ler a imagem.'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
+  return (await fetch(dataUrl)).blob();
+}
+
+function isBackupFile(value: unknown): value is BackupFile {
+  if (!value || typeof value !== 'object') return false;
+  const file = value as Partial<BackupFile>;
+  return file.app === BACKUP_APP && Array.isArray(file.accounts) && Array.isArray(file.brandKits) && Array.isArray(file.assets) && Array.isArray(file.carousels) && typeof file.files === 'object';
+}
+
+/** Replaces items with the same id and keeps the rest. */
+function upsertById<T extends { id: string }>(current: T[], incoming: T[]): T[] {
+  const ids = new Set(incoming.map((item) => item.id));
+  return [...current.filter((item) => !ids.has(item.id)), ...incoming];
+}
+
+export class LocalBackup implements BackupService {
+  async exportAll(): Promise<Blob> {
+    const assets = await readCollection<Asset>('assets');
+    const files: Record<string, string> = {};
+    for (const asset of assets) {
+      const blob = await get<Blob>(await scopedKey(`blob:${asset.id}`), store);
+      if (blob) files[asset.id] = await blobToDataUrl(blob);
+    }
+    const backup: BackupFile = {
+      app: BACKUP_APP,
+      version: BACKUP_VERSION,
+      exportedAt: now(),
+      accounts: await readCollection<Account>('accounts'),
+      brandKits: await readCollection<BrandKit>('brandKits'),
+      assets,
+      carousels: await readCollection<Carousel>('carousels'),
+      files,
+    };
+    return new Blob([JSON.stringify(backup)], { type: 'application/json' });
+  }
+
+  async importAll(file: Blob): Promise<BackupSummary> {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(await file.text());
+    } catch {
+      throw new Error('Esse arquivo não é um backup da Fábrica.');
+    }
+    if (!isBackupFile(parsed)) throw new Error('Esse arquivo não é um backup da Fábrica.');
+
+    for (const [assetId, dataUrl] of Object.entries(parsed.files)) {
+      await set(await scopedKey(`blob:${assetId}`), await dataUrlToBlob(dataUrl), store);
+    }
+    const restoredAssets = parsed.assets.filter((asset) => asset.id in parsed.files);
+    await writeCollection('assets', upsertById(await readCollection<Asset>('assets'), restoredAssets));
+    await writeCollection('accounts', upsertById(await readCollection<Account>('accounts'), parsed.accounts));
+    await writeCollection('brandKits', upsertById(await readCollection<BrandKit>('brandKits'), parsed.brandKits));
+    await writeCollection('carousels', upsertById(await readCollection<Carousel>('carousels'), parsed.carousels));
+    return { accounts: parsed.accounts.length, brandKits: parsed.brandKits.length, assets: restoredAssets.length, carousels: parsed.carousels.length };
   }
 }

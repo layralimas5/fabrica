@@ -16,6 +16,8 @@ export const MAX_TEST_VARIANTS = 4;
 
 export interface CreateRequest {
   platform: Platform;
+  /** Account posting the carousel; its name, @ and photo go in the post-style header. */
+  accountId: string | null;
   format: CarouselFormat;
   brand: BrandKit;
   library: Asset[];
@@ -104,6 +106,7 @@ export async function createCarousels(services: Services, request: CreateRequest
             folders: request.folders,
             copyMode: mode,
             shade: request.shade,
+            accountId: request.accountId,
           },
           slides,
           caption,

@@ -1,4 +1,5 @@
 import type { AssetRepository } from '../application/ports';
+import type { AccountIdentity } from '../domain/account';
 import type { Asset } from '../domain/asset';
 import type { BrandKit, VisualStyle } from '../domain/brandKit';
 import type { CarouselFormat, Slide } from '../domain/carousel';
@@ -16,6 +17,26 @@ export interface RenderContext {
   visualStyle: VisualStyle;
   total: number;
   shade: ImageShade;
+  /** Account shown in the post-style header; falls back to the brand name and profile photo. */
+  account?: AccountIdentity | null;
+}
+
+const dataUrlBitmaps = new Map<string, Promise<ImageBitmap>>();
+
+/** Account photos are small data URLs; decode each once. */
+function bitmapFromDataUrl(dataUrl: string): Promise<ImageBitmap | null> {
+  let pending = dataUrlBitmaps.get(dataUrl);
+  if (!pending) {
+    pending = fetch(dataUrl)
+      .then((response) => response.blob())
+      .then((blob) => createImageBitmap(blob));
+    pending.catch(() => dataUrlBitmaps.delete(dataUrl));
+    dataUrlBitmaps.set(dataUrl, pending);
+  }
+  return pending.catch((error: unknown) => {
+    console.warn('Foto da conta indisponível; cabeçalho com a inicial.', error);
+    return null;
+  });
 }
 
 async function optionalBitmap(context: RenderContext, assetId: string | null): Promise<ImageBitmap | null> {
@@ -33,10 +54,11 @@ export async function renderCarouselSlide(context: RenderContext, slide: Slide, 
   const [image, logo, avatar] = await Promise.all([
     optionalBitmap(context, slide.assetId),
     optionalBitmap(context, context.brand.logoAssetId),
-    optionalBitmap(context, context.brand.avatarAssetId ?? null),
+    context.account?.avatar ? bitmapFromDataUrl(context.account.avatar) : optionalBitmap(context, context.brand.avatarAssetId ?? null),
   ]);
+  const identity = context.account?.name ? { name: context.account.name, handle: context.account.handle } : { name: context.brand.name, handle: '' };
   return renderSlideToCanvas(
-    { slide, theme: resolveTheme(context.brand, context.visualStyle), format: context.format, index, total: context.total, image, logo, avatar, shade: context.shade },
+    { slide, theme: resolveTheme(context.brand, context.visualStyle), format: context.format, index, total: context.total, image, logo, avatar, shade: context.shade, identity },
     scale,
   );
 }

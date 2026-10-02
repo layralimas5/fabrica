@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import { ArrowLeft, Eye, Pencil, Trophy } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { useAssets, useBrandKits, useCarousels } from '../app/data';
+import { useAccounts, useAssets, useBrandKits, useCarousels } from '../app/data';
 import { renderContextFor } from '../app/renderContextFor';
 import { useServices } from '../app/services';
 import type { Carousel } from '../domain/carousel';
@@ -21,6 +21,7 @@ export function ExperimentDetailPage() {
   const carousels = useCarousels();
   const brands = useBrandKits();
   const assets = useAssets();
+  const accounts = useAccounts();
   const [goal, setGoal] = useState<RankingGoal>('engagement');
   const [previewing, setPreviewing] = useState<Carousel | null>(null);
 
@@ -33,7 +34,7 @@ export function ExperimentDetailPage() {
   const secondary: RankingGoal = goal === 'engagement' ? 'saves' : goal;
   const contextOf = (carousel: Carousel) => {
     const brand = brands.data.find((kit) => kit.id === carousel.brandKitId);
-    return brand ? renderContextFor(carousel, brand, assets.data, services.assets) : null;
+    return brand ? renderContextFor(carousel, brand, assets.data, services.assets, accounts.data) : null;
   };
 
   const saveMetrics = async (carousel: Carousel, metrics: Metrics) => {
