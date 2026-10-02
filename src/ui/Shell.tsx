@@ -29,7 +29,7 @@ export function Shell() {
             <span className="grid size-7 place-items-center rounded-lg bg-ink text-[13px] font-bold text-canvas" aria-hidden>
               F
             </span>
-            <span className="text-sm font-semibold tracking-tight text-ink">Fábrica de Carrosséis</span>
+            <span className="text-sm font-semibold tracking-tight text-ink">Fábrica</span>
           </div>
           <Button variant="primary" size="md" className="lg:w-full" onClick={() => navigate('/criar')}>
             <Plus className="size-4" aria-hidden /> <span className="hidden sm:inline">Novo carrossel</span>

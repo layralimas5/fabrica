@@ -1,5 +1,5 @@
 {
-  "name": "fabrica-carrosseis-saas",
+  "name": "fabrica",
   "version": "1.0.0",
   "scripts": {
     "dev": "vite",

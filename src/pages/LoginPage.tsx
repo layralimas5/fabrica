@@ -41,7 +41,7 @@ export function LoginPage() {
           <span className="mx-auto mb-5 grid size-10 place-items-center rounded-xl bg-ink text-base font-bold text-canvas" aria-hidden>
             F
           </span>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">Fábrica de Carrosséis</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-ink">Fábrica</h1>
           <p className="mt-2 text-sm text-muted">Cole sua copy e receba um carrossel pronto no seu estilo.</p>
         </div>
 

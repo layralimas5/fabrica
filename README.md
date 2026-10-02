@@ -1,8 +1,12 @@
-# Fábrica de Carrosséis
+# Fábrica
 
-Cole sua copy e receba um carrossel pronto no seu estilo.
+Onde eu aplico minhas ideias de conteúdo: cola a copy, escolhe a conta e recebe o carrossel pronto, com as fotos certas em cada slide.
 
-Fluxo: **copy → estrutura → slides → design → imagens → revisão → exportação**.
+Fluxo: **plataforma → copy → formatação → fotos da biblioteca → slides → revisão → exportação**.
+
+Serve pra qualquer conta: cada uma é um Brand Kit com tom de voz, produto opcional e as pastas de fotos dela.
+
+Fotos com contexto: a IA analisa cada foto ao subir (tags do que aparece e dos temas que ela ilustra) e, ao gerar, escolhe a foto que faz sentido pra cada frase. Slide sem foto que combine sai só com texto.
 
 ## Rodar local
 
