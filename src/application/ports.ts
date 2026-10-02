@@ -5,6 +5,8 @@ import type { Preset, PresetInput } from '../domain/preset';
 import type { BrandKit, BrandKitInput } from '../domain/brandKit';
 import type { Carousel, CarouselInput } from '../domain/carousel';
 import type { ContentRecord, ContentRecordInput } from '../domain/winners/record';
+import type { Experiment, ExperimentInput } from '../domain/experiments/experiment';
+import type { CalendarEntry, CalendarEntryInput } from '../domain/calendar/calendar';
 import type { RemixScript } from '../domain/winners/remix';
 
 export interface User {
@@ -60,6 +62,8 @@ export interface BackupSummary {
   assets: number;
   carousels: number;
   contentRecords: number;
+  experiments: number;
+  calendarEntries: number;
 }
 
 /** Local mode only: everything lives in this browser, so it can be saved to a file and restored anywhere. */
@@ -85,6 +89,17 @@ export interface ContentRecordRepository {
   remove(id: string): Promise<void>;
 }
 
+/** Same four operations for every simple collection. */
+export interface Repository<T, Input> {
+  list(): Promise<T[]>;
+  create(input: Input): Promise<T>;
+  update(id: string, input: Input): Promise<T>;
+  remove(id: string): Promise<void>;
+}
+
+export type ExperimentRepository = Repository<Experiment, ExperimentInput>;
+export type CalendarEntryRepository = Repository<CalendarEntry, CalendarEntryInput>;
+
 export interface AiService {
   readonly engine: 'claude' | 'heuristic';
   draftCarousel(request: DraftRequest): Promise<CarouselDraft>;
@@ -108,6 +123,8 @@ export interface Services {
   accounts: AccountRepository;
   presets: PresetRepository;
   contentRecords: ContentRecordRepository;
+  experiments: ExperimentRepository;
+  calendarEntries: CalendarEntryRepository;
   ai: AiService;
   backup: BackupService | null;
 }

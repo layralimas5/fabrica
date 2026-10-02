@@ -1,5 +1,5 @@
 import type { VisualStyle } from './brandKit';
-import type { ContentType, Objective, SlideCountOption, SlideRole } from './content';
+import { CONTENT_CATEGORIES, deriveCategory, type ContentCategory, type ContentType, type Objective, type SlideCountOption, type SlideRole } from './content';
 import type { LayoutId } from './layouts';
 import type { Metrics } from './metrics';
 import { shadeOf, type ImageShade } from './shade';
@@ -68,8 +68,8 @@ export type CarouselStatus = (typeof CAROUSEL_STATUSES)[number];
 
 export const STATUS_LABELS: Record<CarouselStatus, string> = {
   draft: 'Rascunho',
-  editing: 'Em edição',
-  ready: 'Criado',
+  editing: 'Em produção',
+  ready: 'Pronto',
   published: 'Publicado',
   analyzing: 'Em análise',
   winner: 'Vencedor',
@@ -187,6 +187,10 @@ export interface CarouselSource {
   theme?: string;
   /** Free labels crossed with performance in Analytics, e.g. "identificação", "ugc". */
   tags?: string[];
+  /** Editorial category; derived from the objective and type when never picked. */
+  category?: ContentCategory;
+  /** Posting time 'HH:MM', set on the calendar. */
+  scheduledTime?: string | null;
 }
 
 export type CopyMode = 'manual' | 'ai';
@@ -243,6 +247,15 @@ export function normalizeTextStyle(raw: Partial<TextStyle> | undefined): TextSty
     textWidth: clampTo(TEXT_WIDTH_RANGE, raw?.textWidth, 1),
     lineHeight: clampTo(LINE_HEIGHT_RANGE, raw?.lineHeight, 1),
   };
+}
+
+export function categoryOf(source: Pick<CarouselSource, 'category' | 'contentType' | 'objective'>): ContentCategory {
+  return source.category && CONTENT_CATEGORIES.includes(source.category) ? source.category : deriveCategory(source.contentType, source.objective);
+}
+
+/** 'HH:MM' in 24h, or null. */
+export function normalizeTime(raw: unknown): string | null {
+  return typeof raw === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(raw) ? raw : null;
 }
 
 export const MAX_TAGS = 12;
@@ -328,7 +341,7 @@ export function normalizeCarousel(carousel: Carousel): Carousel {
     scheduledFor: carousel.scheduledFor ?? null,
     origin: carousel.origin ?? null,
     status: CAROUSEL_STATUSES.includes(carousel.status) ? carousel.status : 'draft',
-    source: { ...carousel.source, folders: carousel.source.folders ?? [], shade: shadeOf(carousel.source), theme: carousel.source.theme ?? '', tags: normalizeTags(carousel.source.tags ?? []) },
+    source: { ...carousel.source, folders: carousel.source.folders ?? [], shade: shadeOf(carousel.source), theme: carousel.source.theme ?? '', tags: normalizeTags(carousel.source.tags ?? []), category: categoryOf(carousel.source), scheduledTime: normalizeTime(carousel.source.scheduledTime) },
     slides: carousel.slides.map((slide) => ({ ...slide, style: { ...DEFAULT_SLIDE_STYLE, ...slide.style }, card: normalizeCard(slide.card) })),
   };
 }

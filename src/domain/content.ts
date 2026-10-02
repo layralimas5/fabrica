@@ -175,3 +175,28 @@ export function parseContentType(raw: string): Exclude<ContentType, 'auto'> | nu
   const type = matchOption(raw, CONTENT_TYPES, CONTENT_TYPE_LABELS);
   return type === 'auto' ? null : type;
 }
+
+/** Editorial category: what the content does for the audience, used by the calendar and its distribution. */
+export const CONTENT_CATEGORIES = ['dor', 'identificacao', 'educativo', 'autoridade', 'conversao', 'produto', 'storytelling', 'outros'] as const;
+export type ContentCategory = (typeof CONTENT_CATEGORIES)[number];
+export const CONTENT_CATEGORY_LABELS: Record<ContentCategory, string> = {
+  dor: 'Dor',
+  identificacao: 'Identificação',
+  educativo: 'Educativo',
+  autoridade: 'Autoridade',
+  conversao: 'Conversão',
+  produto: 'Produto',
+  storytelling: 'Storytelling',
+  outros: 'Outros',
+};
+
+/** Category when none was picked: the objective speaks first (conversion, authority), then the narrative type. */
+export function deriveCategory(contentType: ContentType, objective: Objective): ContentCategory {
+  if (objective === 'conversao') return 'conversao';
+  if (objective === 'autoridade') return 'autoridade';
+  if (contentType === 'dor') return 'dor';
+  if (contentType === 'storytelling' || contentType === 'transformacao') return 'storytelling';
+  if (['educativo', 'lista', 'tutorial', 'framework', 'erros'].includes(contentType)) return 'educativo';
+  if (contentType === 'contrarian' || contentType === 'manifesto') return 'identificacao';
+  return 'outros';
+}

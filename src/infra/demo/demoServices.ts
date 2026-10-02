@@ -8,6 +8,7 @@ import type {
   BrandKitRepository,
   CarouselRepository,
   ContentRecordRepository,
+  Repository,
   PresetRepository,
   User,
 } from '../../application/ports';
@@ -17,6 +18,8 @@ import type { Asset, AssetUpload } from '../../domain/asset';
 import type { BrandKit, BrandKitInput } from '../../domain/brandKit';
 import { normalizeCarousel, type Carousel, type CarouselInput } from '../../domain/carousel';
 import { normalizeRecord, sanitizeRecordInput, type ContentRecord, type ContentRecordInput } from '../../domain/winners/record';
+import { sanitizeExperimentInput, type Experiment, type ExperimentInput } from '../../domain/experiments/experiment';
+import { sanitizeEntryInput, type CalendarEntry, type CalendarEntryInput } from '../../domain/calendar/calendar';
 import { readImageSize } from '../imageSize';
 
 const store: UseStore = createStore('fabrica-carrosseis-demo', 'kv');
@@ -216,6 +219,9 @@ interface BackupFile {
   carousels: Carousel[];
   /** Missing in backups made before the winners library existed. */
   contentRecords?: ContentRecord[];
+  /** Missing in backups made before experiments and the calendar existed. */
+  experiments?: Experiment[];
+  calendarEntries?: CalendarEntry[];
   /** Image files by asset id, as data URLs. */
   files: Record<string, string>;
 }
@@ -263,6 +269,8 @@ export class LocalBackup implements BackupService {
       assets,
       carousels: await readCollection<Carousel>('carousels'),
       contentRecords: await readCollection<ContentRecord>('contentRecords'),
+      experiments: await readCollection<Experiment>('experiments'),
+      calendarEntries: await readCollection<CalendarEntry>('calendarEntries'),
       files,
     };
     return new Blob([JSON.stringify(backup)], { type: 'application/json' });
@@ -289,6 +297,10 @@ export class LocalBackup implements BackupService {
     await writeCollection('presets', upsertById(await readCollection<Preset>('presets'), presets));
     const contentRecords = (parsed.contentRecords ?? []).map(normalizeRecord);
     await writeCollection('contentRecords', upsertById(await readCollection<ContentRecord>('contentRecords'), contentRecords));
+    const experiments = parsed.experiments ?? [];
+    await writeCollection('experiments', upsertById(await readCollection<Experiment>('experiments'), experiments));
+    const calendarEntries = parsed.calendarEntries ?? [];
+    await writeCollection('calendarEntries', upsertById(await readCollection<CalendarEntry>('calendarEntries'), calendarEntries));
     return {
       presets: presets.length,
       accounts: parsed.accounts.length,
@@ -296,6 +308,8 @@ export class LocalBackup implements BackupService {
       assets: restoredAssets.length,
       carousels: parsed.carousels.length,
       contentRecords: contentRecords.length,
+      experiments: experiments.length,
+      calendarEntries: calendarEntries.length,
     };
   }
 }
@@ -345,3 +359,36 @@ export class DemoContentRecords implements ContentRecordRepository {
     await writeCollection('contentRecords', (await readCollection<ContentRecord>('contentRecords')).filter((record) => record.id !== id));
   }
 }
+
+/** A simple collection kept in this browser: every input goes through the domain sanitizer. */
+class DemoCollection<T extends { id: string; createdAt: string; updatedAt: string }, Input> implements Repository<T, Input> {
+  constructor(
+    private readonly collection: string,
+    private readonly label: string,
+    private readonly sanitize: (input: Partial<Input>) => Input,
+  ) {}
+
+  async list(): Promise<T[]> {
+    return (await readCollection<T>(this.collection)).map((item) => ({ ...item, ...this.sanitize(item as unknown as Partial<Input>) }));
+  }
+
+  async create(input: Input): Promise<T> {
+    const item = { ...this.sanitize(input), id: crypto.randomUUID(), createdAt: now(), updatedAt: now() } as unknown as T;
+    await writeCollection(this.collection, [item, ...(await readCollection<T>(this.collection))]);
+    return item;
+  }
+
+  async update(id: string, input: Input): Promise<T> {
+    const items = await readCollection<T>(this.collection);
+    const updated = { ...requireItem(items, id, this.label), ...this.sanitize(input), updatedAt: now() } as T;
+    await writeCollection(this.collection, items.map((item) => (item.id === id ? updated : item)));
+    return updated;
+  }
+
+  async remove(id: string): Promise<void> {
+    await writeCollection(this.collection, (await readCollection<T>(this.collection)).filter((item) => item.id !== id));
+  }
+}
+
+export const demoExperiments = () => new DemoCollection<Experiment, ExperimentInput>('experiments', 'Experimento', sanitizeExperimentInput);
+export const demoCalendarEntries = () => new DemoCollection<CalendarEntry, CalendarEntryInput>('calendarEntries', 'Conteúdo do calendário', sanitizeEntryInput);

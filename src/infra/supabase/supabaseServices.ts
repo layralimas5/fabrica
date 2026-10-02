@@ -1,11 +1,13 @@
 import type { SupabaseClient, User as SupabaseUser } from '@supabase/supabase-js';
-import type { AccountRepository, AssetRepository, AuthService, BrandKitRepository, CarouselRepository, ContentRecordRepository, PresetRepository, User } from '../../application/ports';
+import type { AccountRepository, AssetRepository, AuthService, BrandKitRepository, CarouselRepository, ContentRecordRepository, PresetRepository, Repository, User } from '../../application/ports';
 import { normalizeSettings, type CreateSettings, type Preset, type PresetInput } from '../../domain/preset';
 import { normalizeAccount, type Account, type AccountInput } from '../../domain/account';
 import type { Asset, AssetUpload } from '../../domain/asset';
 import type { BrandKit, BrandKitInput } from '../../domain/brandKit';
 import { normalizeCarousel, type Carousel, type CarouselInput } from '../../domain/carousel';
 import { normalizeRecord, sanitizeRecordInput, type ContentRecord, type ContentRecordInput } from '../../domain/winners/record';
+import { sanitizeExperimentInput, type Experiment, type ExperimentInput } from '../../domain/experiments/experiment';
+import { sanitizeEntryInput, type CalendarEntry, type CalendarEntryInput } from '../../domain/calendar/calendar';
 import { readImageSize } from '../imageSize';
 
 const BUCKET = 'assets';
@@ -394,3 +396,55 @@ export class SupabaseContentRecords implements ContentRecordRepository {
     if (error) fail('Não consegui excluir o conteúdo', error);
   }
 }
+
+interface JsonRow<T> {
+  id: string;
+  data: T;
+  created_at: string;
+  updated_at: string;
+}
+
+/** A simple collection in a table with id, data (jsonb) and owner columns; RLS keeps it per user. */
+class SupabaseCollection<T extends { id: string; createdAt: string; updatedAt: string }, Input> implements Repository<T, Input> {
+  constructor(
+    private readonly client: SupabaseClient,
+    private readonly table: string,
+    private readonly label: string,
+    private readonly sanitize: (input: Partial<Input>) => Input,
+    private readonly columns: (input: Input) => Record<string, unknown> = () => ({}),
+  ) {}
+
+  private toItem(row: JsonRow<Input>): T {
+    return { ...this.sanitize(row.data), id: row.id, createdAt: row.created_at, updatedAt: row.updated_at } as unknown as T;
+  }
+
+  async list(): Promise<T[]> {
+    const { data, error } = await this.client.from(this.table).select('*').order('created_at', { ascending: false });
+    if (error) fail(`Não consegui carregar ${this.label}`, error);
+    return (data as JsonRow<Input>[]).map((row) => this.toItem(row));
+  }
+
+  async create(input: Input): Promise<T> {
+    const clean = this.sanitize(input);
+    const { data, error } = await this.client.from(this.table).insert({ data: clean, ...this.columns(clean) }).select().single();
+    if (error) fail(`Não consegui salvar ${this.label}`, error);
+    return this.toItem(data as JsonRow<Input>);
+  }
+
+  async update(id: string, input: Input): Promise<T> {
+    const clean = this.sanitize(input);
+    const { data, error } = await this.client.from(this.table).update({ data: clean, ...this.columns(clean) }).eq('id', id).select().single();
+    if (error) fail(`Não consegui salvar ${this.label}`, error);
+    return this.toItem(data as JsonRow<Input>);
+  }
+
+  async remove(id: string): Promise<void> {
+    const { error } = await this.client.from(this.table).delete().eq('id', id);
+    if (error) fail(`Não consegui excluir ${this.label}`, error);
+  }
+}
+
+export const supabaseExperiments = (client: SupabaseClient) =>
+  new SupabaseCollection<Experiment, ExperimentInput>(client, 'experiments', 'os experimentos', sanitizeExperimentInput);
+export const supabaseCalendarEntries = (client: SupabaseClient) =>
+  new SupabaseCollection<CalendarEntry, CalendarEntryInput>(client, 'calendar_entries', 'o calendário', sanitizeEntryInput, (input) => ({ date: input.date }));

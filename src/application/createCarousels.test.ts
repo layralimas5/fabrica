@@ -19,6 +19,8 @@ function fakeServices(): Services & { saved: Carousel[] } {
     accounts: {} as Services['accounts'],
     presets: {} as Services['presets'],
     contentRecords: {} as Services['contentRecords'],
+    experiments: {} as Services['experiments'],
+    calendarEntries: {} as Services['calendarEntries'],
     backup: null,
     ai: new HeuristicAi(),
     carousels: {

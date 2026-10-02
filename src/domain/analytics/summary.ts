@@ -177,3 +177,44 @@ export function weeklyChampion(items: AnalyticsItem[], scoreOf: ScoreOf, today: 
   const week = applyAnalyticsFilters(items, { accountId: null, platform: 'all', period: '7', from: '', to: '', kind: 'all' }, today);
   return scoredItems(week, scoreOf)[0] ?? null;
 }
+
+export interface ThemeFrequency {
+  theme: string;
+  count: number;
+  share: number;
+  /** Used so much that the account risks sounding repetitive. */
+  overused: boolean;
+}
+
+/** A theme is overused from this share of the period on, with at least this many contents. */
+const OVERUSE_SHARE = 0.3;
+const OVERUSE_MIN = 4;
+
+/** How often each theme was used in the filtered period, most used first. */
+export function themeFrequency(items: AnalyticsItem[]): ThemeFrequency[] {
+  const counts = new Map<string, { theme: string; count: number }>();
+  for (const item of items) {
+    const theme = item.record.theme.trim();
+    if (!theme) continue;
+    const key = theme.toLowerCase();
+    const current = counts.get(key) ?? { theme, count: 0 };
+    current.count += 1;
+    counts.set(key, current);
+  }
+  const withTheme = [...counts.values()].reduce((sum, entry) => sum + entry.count, 0);
+  return [...counts.values()]
+    .map((entry) => {
+      const share = withTheme ? entry.count / withTheme : 0;
+      return { ...entry, share, overused: entry.count >= OVERUSE_MIN && share >= OVERUSE_SHARE };
+    })
+    .sort((a, b) => b.count - a.count);
+}
+
+/** Good contents old enough to come back in a new version. */
+export const RECYCLE_MIN_SCORE = 60;
+
+export function recycleCandidates(items: AnalyticsItem[], scoreOf: ScoreOf, today: string, minAgeDays: number): (Scored & { ageDays: number })[] {
+  return scoredItems(items, scoreOf)
+    .map((entry) => ({ ...entry, ageDays: Math.round((Date.parse(`${today}T12:00:00`) - Date.parse(`${recordDay(entry.item.record)}T12:00:00`)) / 86_400_000) }))
+    .filter((entry) => entry.score >= RECYCLE_MIN_SCORE && entry.ageDays >= minAgeDays);
+}
