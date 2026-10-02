@@ -9,9 +9,10 @@ import { errorMessage } from '../app/useResource';
 import type { Account } from '../domain/account';
 import type { Asset } from '../domain/asset';
 import type { BrandKit } from '../domain/brandKit';
-import { STATUS_LABELS, toCarouselInput, type Carousel } from '../domain/carousel';
+import { isPosted, postedStatus, STATUS_LABELS, toCarouselInput, type Carousel } from '../domain/carousel';
 import { formatDay, isIsoDate, todayIso } from '../domain/schedule';
 import { CarouselCover } from '../ui/CarouselCover';
+import { PostedToggle } from '../ui/PostedToggle';
 import { Alert, Badge, Button, EmptyState, Input, PageHeader, Select, Spinner } from '../ui/primitives';
 
 interface DayGroup {
@@ -84,11 +85,11 @@ export function AgendaPage() {
   };
 
   const markPosted = async (day: DayGroup) => {
-    for (const carousel of day.carousels) if (carousel.status !== 'published') await save(carousel, { status: 'published' });
+    for (const carousel of day.carousels) if (!isPosted(carousel)) await save(carousel, { status: postedStatus(true) });
   };
 
   const renderDay = (day: DayGroup, tone: 'late' | 'normal') => {
-    const pending = day.carousels.filter((carousel) => carousel.status !== 'published').length;
+    const pending = day.carousels.filter((carousel) => !isPosted(carousel)).length;
     return (
       <section key={day.date} aria-labelledby={`day-${day.date}`} className="rounded-2xl border border-line bg-surface p-4 sm:p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -108,7 +109,7 @@ export function AgendaPage() {
             </Button>
             {pending > 0 && (
               <Button size="sm" variant="secondary" disabled={busyDay !== null} onClick={() => void markPosted(day)}>
-                <CheckCheck className="size-4" aria-hidden /> Marcar como postado
+                <CheckCheck className="size-4" aria-hidden /> Marcar o dia como postado
               </Button>
             )}
           </div>
@@ -123,6 +124,7 @@ export function AgendaPage() {
               assets={assets.data}
               accounts={accounts.data}
               onReschedule={(date) => void save(carousel, { scheduledFor: date })}
+              onPosted={(posted) => save(carousel, { status: postedStatus(posted) })}
             />
           ))}
         </ul>
@@ -136,7 +138,7 @@ export function AgendaPage() {
     <div className="mx-auto max-w-6xl">
       <PageHeader
         title="Agenda"
-        description="Os carrosséis programados, dia a dia. Baixe o dia, poste e marque como postado."
+        description="Os carrosséis programados, dia a dia. Baixe o dia, poste e marque cada um como postado."
         action={
           projects.length > 0 && (
             <Select aria-label="Filtrar por projeto" value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} className="!w-auto">
@@ -186,9 +188,10 @@ interface AgendaItemProps {
   assets: Asset[];
   accounts: Account[];
   onReschedule: (date: string | null) => void;
+  onPosted: (posted: boolean) => Promise<void>;
 }
 
-function AgendaItem({ carousel, brand, account, assets, accounts, onReschedule }: AgendaItemProps) {
+function AgendaItem({ carousel, brand, account, assets, accounts, onReschedule, onPosted }: AgendaItemProps) {
   return (
     <li className="flex flex-col gap-2">
       <Link to={`/carrossel/${carousel.id}`} className="overflow-hidden rounded-xl ring-1 ring-line transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
@@ -197,9 +200,12 @@ function AgendaItem({ carousel, brand, account, assets, accounts, onReschedule }
       <div className="min-w-0">
         <p className="line-clamp-2 text-xs font-medium leading-snug text-ink">{carousel.title}</p>
         <p className="truncate text-[11px] text-muted">{[account ? `@${account.handle}` : brand?.name, carousel.project, carousel.folder].filter(Boolean).join(' · ')}</p>
-        <div className="mt-1.5 flex items-center gap-1.5">
-          <Badge tone={carousel.status === 'published' ? 'success' : carousel.status === 'ready' ? 'accent' : 'neutral'}>{STATUS_LABELS[carousel.status]}</Badge>
-        </div>
+        {!isPosted(carousel) && (
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <Badge tone={carousel.status === 'ready' ? 'accent' : 'neutral'}>{STATUS_LABELS[carousel.status]}</Badge>
+          </div>
+        )}
+        <PostedToggle carousel={carousel} onChange={onPosted} className="mt-2 w-full" />
         <label className="mt-2 block">
           <span className="sr-only">Mudar a data de {carousel.title}</span>
           <Input type="date" value={carousel.scheduledFor ?? ''} onChange={(e) => onReschedule(isIsoDate(e.target.value) ? e.target.value : null)} className="h-8 px-2 text-xs" />

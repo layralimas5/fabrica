@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { CalendarDays, Download, Eye, Folder, FolderOpen, Search, Star, Trash2 } from 'lucide-react';
+import { CalendarDays, Check, CheckSquare, Download, Eye, Folder, FolderOpen, Search, Star, Trash2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { renderContextFor } from '../app/renderContextFor';
@@ -7,10 +7,11 @@ import { useAccounts, useAssets, useBrandKits, useCarousels } from '../app/data'
 import { useServices } from '../app/services';
 import type { RenderContext } from '../app/slideRendering';
 import { errorMessage } from '../app/useResource';
-import { CAROUSEL_STATUSES, STATUS_LABELS, type Carousel, type CarouselStatus } from '../domain/carousel';
+import { CAROUSEL_STATUSES, isPosted, postedStatus, STATUS_LABELS, toCarouselInput, type Carousel, type CarouselStatus } from '../domain/carousel';
 import { Alert, Badge, Button, EmptyState, Input, PageHeader, Select, Spinner } from '../ui/primitives';
 import { CarouselViewer } from '../ui/CarouselViewer';
 import { CarouselCover } from '../ui/CarouselCover';
+import { PostedToggle } from '../ui/PostedToggle';
 import { formatDay } from '../domain/schedule';
 import { useMarkWinner } from '../winners/useMarkWinner';
 
@@ -37,6 +38,10 @@ export function ProjectsPage() {
   const [previewing, setPreviewing] = useState<Carousel | null>(null);
   const [exporting, setExporting] = useState<{ done: number; total: number } | null>(null);
   const winner = useMarkWinner();
+  /** Selection mode: pick many carousels and mark them as posted at once. */
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const created = (useLocation().state as { created?: number } | null)?.created;
 
   const filtered = useMemo(() => {
@@ -58,6 +63,39 @@ export function ProjectsPage() {
       carousels.setData((current) => current.filter((item) => item.id !== carousel.id));
     } catch (cause) {
       setError(errorMessage(cause));
+    }
+  };
+
+  const setPosted = async (carousel: Carousel, posted: boolean) => {
+    setError(null);
+    try {
+      const saved = await services.carousels.update(carousel.id, toCarouselInput({ ...carousel, status: postedStatus(posted) }));
+      carousels.setData((current) => current.map((item) => (item.id === saved.id ? saved : item)));
+    } catch (cause) {
+      setError(errorMessage(cause));
+    }
+  };
+
+  const toggleSelected = (id: string) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const exitSelection = () => {
+    setSelecting(false);
+    setSelected(new Set());
+  };
+
+  const markSelected = async (posted: boolean) => {
+    setBulkBusy(true);
+    try {
+      for (const carousel of carousels.data) if (selected.has(carousel.id) && isPosted(carousel) !== posted) await setPosted(carousel, posted);
+      exitSelection();
+    } finally {
+      setBulkBusy(false);
     }
   };
 
@@ -94,10 +132,17 @@ export function ProjectsPage() {
         description="Seus carrosséis, organizados por projeto e pasta."
         action={
           filtered.length > 0 && (
-            <Button variant="secondary" loading={exporting !== null} onClick={() => void exportFiltered()}>
-              {!exporting && <Download className="size-4" aria-hidden />}
-              {exporting ? `Gerando ${exporting.done}/${exporting.total} slides` : `Baixar ${filtered.length} em ZIP`}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              {!selecting && (
+                <Button variant="secondary" onClick={() => setSelecting(true)}>
+                  <CheckSquare className="size-4" aria-hidden /> Selecionar
+                </Button>
+              )}
+              <Button variant="secondary" loading={exporting !== null} onClick={() => void exportFiltered()}>
+                {!exporting && <Download className="size-4" aria-hidden />}
+                {exporting ? `Gerando ${exporting.done}/${exporting.total} slides` : `Baixar ${filtered.length} em ZIP`}
+              </Button>
+            </div>
           )
         }
       />
@@ -131,6 +176,28 @@ export function ProjectsPage() {
       </div>
 
       {(error ?? carousels.error) && <div className="mb-4"><Alert>{error ?? carousels.error}</Alert></div>}
+
+      {selecting && (
+        <div className="sticky top-16 z-20 mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-accent/40 bg-surface/95 p-3 shadow-sm backdrop-blur lg:top-4">
+          <p className="px-1 text-sm font-medium text-ink" aria-live="polite">
+            {selected.size === 0 ? 'Toque nos carrosséis pra selecionar' : `${selected.size} ${selected.size === 1 ? 'selecionado' : 'selecionados'}`}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="ghost" disabled={bulkBusy} onClick={() => setSelected(new Set(filtered.map((carousel) => carousel.id)))}>
+              Selecionar todos ({filtered.length})
+            </Button>
+            <Button size="sm" variant="primary" loading={bulkBusy} disabled={selected.size === 0} onClick={() => void markSelected(true)}>
+              {!bulkBusy && <Check className="size-4" aria-hidden />} Marcar como postado
+            </Button>
+            <Button size="sm" variant="secondary" disabled={selected.size === 0 || bulkBusy} onClick={() => void markSelected(false)}>
+              Desmarcar postado
+            </Button>
+            <Button size="sm" variant="ghost" disabled={bulkBusy} onClick={exitSelection}>
+              <X className="size-4" aria-hidden /> Sair da seleção
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
       <nav aria-label="Projetos e pastas" className="flex flex-col gap-1 lg:sticky lg:top-8 lg:self-start">
@@ -170,7 +237,13 @@ export function ProjectsPage() {
           {filtered.map((carousel) => {
             const brand = brands.data.find((kit) => kit.id === carousel.brandKitId);
             return (
-              <li key={carousel.id} className="group relative overflow-hidden rounded-2xl border border-line bg-surface transition-shadow hover:shadow-md">
+              <li
+                key={carousel.id}
+                className={clsx(
+                  'group relative flex flex-col overflow-hidden rounded-2xl border bg-surface transition-shadow hover:shadow-md',
+                  selecting && selected.has(carousel.id) ? 'border-accent ring-2 ring-accent' : 'border-line',
+                )}
+              >
                 <Link to={`/carrossel/${carousel.id}`} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent">
                   {brand && <CarouselCover carousel={carousel} brand={brand} assets={assets.data} accounts={accounts.data} />}
                   <div className="p-4">
@@ -180,7 +253,7 @@ export function ProjectsPage() {
                     </p>
                     {(carousel.project || carousel.folder) && <p className="mt-1 truncate text-xs text-faint">{[carousel.project, carousel.folder].filter(Boolean).join(' / ')}</p>}
                     <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                      <Badge tone={STATUS_TONE[carousel.status]}>{STATUS_LABELS[carousel.status]}</Badge>
+                      {!isPosted(carousel) && <Badge tone={STATUS_TONE[carousel.status]}>{STATUS_LABELS[carousel.status]}</Badge>}
                       {winner.isWinner(carousel) && <Badge tone="warning">⭐ Vencedor</Badge>}
                       {carousel.scheduledFor && (
                         <Badge>
@@ -191,7 +264,29 @@ export function ProjectsPage() {
                     </div>
                   </div>
                 </Link>
-                <div className="absolute right-3 top-3 flex gap-1.5 opacity-100 sm:opacity-0 sm:focus-within:opacity-100 sm:group-hover:opacity-100">
+                <div className="mt-auto px-4 pb-4">
+                  <PostedToggle carousel={carousel} onChange={(posted) => setPosted(carousel, posted)} className="w-full" />
+                </div>
+                {selecting && (
+                  <button
+                    type="button"
+                    aria-pressed={selected.has(carousel.id)}
+                    aria-label={`Selecionar ${carousel.title}`}
+                    onClick={() => toggleSelected(carousel.id)}
+                    className="absolute inset-0 z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+                  >
+                    <span
+                      className={clsx(
+                        'absolute left-3 top-3 grid size-6 place-items-center rounded-md border-2 shadow-sm',
+                        selected.has(carousel.id) ? 'border-accent bg-accent text-white' : 'border-white bg-black/20',
+                      )}
+                      aria-hidden
+                    >
+                      {selected.has(carousel.id) && <Check className="size-4" />}
+                    </span>
+                  </button>
+                )}
+                <div className={clsx('absolute right-3 top-3 flex gap-1.5 opacity-100 sm:opacity-0 sm:focus-within:opacity-100 sm:group-hover:opacity-100', selecting && 'hidden')}>
                   <Button
                     variant="secondary"
                     size="sm"

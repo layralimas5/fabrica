@@ -38,6 +38,15 @@ export const STATUS_LABELS: Record<CarouselStatus, string> = {
   published: 'Publicado',
 };
 
+export function isPosted(carousel: Pick<Carousel, 'status'>): boolean {
+  return carousel.status === 'published';
+}
+
+/** Marking as posted is reversible: undoing goes back to "Pronto", the step right before posting. */
+export function postedStatus(posted: boolean): CarouselStatus {
+  return posted ? 'published' : 'ready';
+}
+
 export const CAROUSEL_FORMATS = ['4:5', '3:4', '1:1', '9:16'] as const;
 export type CarouselFormat = (typeof CAROUSEL_FORMATS)[number];
 
