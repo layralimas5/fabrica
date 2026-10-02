@@ -5,6 +5,7 @@ import type { Asset } from './asset';
 import { composeSlides } from './composeCarousel';
 import { productSlideIndex } from './content';
 import { matchImages } from './imageMatching';
+import { recentPhotoUsage } from './photoHistory';
 import { assignLayouts, LAYOUTS } from './layouts';
 import { limitWords, splitSentences, wordCount } from './text';
 
@@ -199,3 +200,30 @@ describe('HeuristicAi.matchImages', () => {
     expect(result).toEqual(['cafe', null]);
   });
 });
+
+describe('recentPhotoUsage', () => {
+  const carousel = (overrides: Record<string, unknown>) =>
+    ({
+      id: 'c',
+      brandKitId: 'ella',
+      createdAt: '2026-10-01T10:00:00Z',
+      source: { accountId: 'acc-ella' },
+      slides: [{ assetId: 'p1' }, { assetId: 'p1' }, { assetId: 'p2' }],
+      ...overrides,
+    }) as never;
+
+  it('counts photos of the same account in the last weeks, once per carousel', () => {
+    const usage = recentPhotoUsage([carousel({}), carousel({ id: 'c2', slides: [{ assetId: 'p2' }] })], { brandKitId: 'ella', accountId: 'acc-ella' }, new Date('2026-10-02T00:00:00Z'));
+    expect(Object.fromEntries(usage)).toEqual({ p1: 1, p2: 2 });
+  });
+
+  it('ignores other accounts and old carousels', () => {
+    const usage = recentPhotoUsage(
+      [carousel({ source: { accountId: 'acc-aura' } }), carousel({ createdAt: '2026-06-01T00:00:00Z' })],
+      { brandKitId: 'ella', accountId: 'acc-ella' },
+      new Date('2026-10-02T00:00:00Z'),
+    );
+    expect(usage.size).toBe(0);
+  });
+});
+

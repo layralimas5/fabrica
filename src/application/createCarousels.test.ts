@@ -328,3 +328,15 @@ describe('createCarousels text style', () => {
   });
 });
 
+describe('createCarousels photos across weeks', () => {
+  it('a new batch starts with photos the account did not post recently', async () => {
+    const services = fakeServices();
+    const library: Asset[] = Array.from({ length: 4 }, (_, i) => ({ ...photos[0], id: `w${i}`, folder: 'Ella', tags: [] }));
+    await createCarousels(services, request({ library, texts: ['Slide 1, um\nSlide 2, dois'], folders: ['Ella'], styles: ['tiktok'] }));
+    const firstWeek = new Set(services.saved[0].slides.map((slide) => slide.assetId));
+    await createCarousels(services, request({ library, texts: ['Slide 1, tres\nSlide 2, quatro'], folders: ['Ella'], styles: ['tiktok'] }));
+    const secondWeek = services.saved[1].slides.map((slide) => slide.assetId);
+    expect(secondWeek.some((id) => firstWeek.has(id))).toBe(false);
+  });
+});
+

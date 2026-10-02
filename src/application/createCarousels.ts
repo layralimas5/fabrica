@@ -8,6 +8,7 @@ import type { ContentType, Objective, SlideCountOption } from '../domain/content
 import { hasNumberedSlides, parseScript } from '../domain/script';
 import type { ImageShade } from '../domain/shade';
 import { distributeDates, type SchedulePlan } from '../domain/schedule';
+import { recentPhotoUsage } from '../domain/photoHistory';
 import { limitWords, stripTrailingPeriod } from '../domain/text';
 import { brandContext } from './brandContext';
 import type { Services } from './ports';
@@ -84,8 +85,9 @@ export async function createCarousels(services: Services, request: CreateRequest
   const experimentIds: string[] = [];
   const dates = request.schedule ? distributeDates(copies.length, request.schedule) : [];
   const textOnly = (style: VisualStyle) => style === 'post' && !request.postWithImages;
-  // Shared by the whole batch: each copy gets photos the others have not used yet.
-  const usage: PhotoUsage = new Map();
+  // Shared by the whole batch and seeded with the account's recent posts: each copy gets photos
+  // neither the other copies nor last weeks' carousels used yet.
+  const usage: PhotoUsage = recentPhotoUsage(await services.carousels.list(), { brandKitId: request.brand.id, accountId: request.accountId });
 
   for (const [position, prepared] of copies.entries()) {
     const { caption, copy } = prepared;
@@ -148,7 +150,7 @@ export async function createCarousels(services: Services, request: CreateRequest
   return { carousels, experimentIds };
 }
 
-/** How many carousels of the current batch already use each photo. */
+/** How many carousels (recent ones of the account plus the current batch) already use each photo. */
 type PhotoUsage = Map<string, number>;
 
 /**
