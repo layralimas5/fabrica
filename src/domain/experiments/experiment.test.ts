@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Carousel } from '../carousel';
 import type { AnalyticsItem } from '../analytics/items';
 import { emptyPerformance, emptyRecordInput, type PerformanceMetrics } from '../winners/record';
-import { allExperiments, emptyExperiment, evaluateExperiment, testMap, type Experiment } from './experiment';
+import { allExperiments, emptyExperiment, evaluateExperiment, sanitizeTimes, testMap, type Experiment } from './experiment';
 
 const experiment: Experiment = { ...emptyExperiment('a'), id: 'exp', name: 'Teste de Gancho #03', createdAt: '2026-09-20', updatedAt: '2026-09-20' };
 let sequence = 0;
@@ -37,6 +37,23 @@ describe('experiments', () => {
     const many = ['A', 'A', 'A', 'B', 'B', 'B'].map((variant) => member(variant, { views: 1000, shares: variant === 'A' ? 40 : 10 }));
     expect(evaluateExperiment(experiment, many, scoreOf, '2026-10-02').confidence).toBe('alta');
     expect(evaluateExperiment({ ...experiment, concludedAt: '2026-10-01' }, many, scoreOf, '2026-10-02').status).toBe('concluido');
+  });
+
+  it('a carousel only scheduled for today does not count as posted', () => {
+    const scheduled = { ...member('08:00', null, '2026-10-02'), carousel: { experiment: { id: 'exp', name: 'Teste', variant: '08:00' }, status: 'ready', scheduledFor: '2026-10-02' } as Carousel };
+    const result = evaluateExperiment(experiment, [scheduled], scoreOf, '2026-10-02');
+    expect(result.status).toBe('planejado');
+    expect(result.period).toBeNull();
+  });
+
+  it('ranks the versions by the metric the test cares about', () => {
+    const members = [member('Manhã', { views: 1000, shares: 40, saves: 5 }), member('Noite', { views: 1000, shares: 10, saves: 30 })];
+    expect(evaluateExperiment(experiment, members, scoreOf, '2026-10-02').leader?.label).toBe('Manhã');
+    expect(evaluateExperiment({ ...experiment, goalMetric: 'saves' }, members, scoreOf, '2026-10-02').leader?.label).toBe('Noite');
+  });
+
+  it('keeps posting times valid, sorted and without repeats', () => {
+    expect(sanitizeTimes(['19:00', '08:00', '19:00', '25:00', 'manhã'])).toEqual(['08:00', '19:00']);
   });
 
   it('keeps old format tests as Design experiments and maps what was tested', () => {

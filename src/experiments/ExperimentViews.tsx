@@ -12,6 +12,9 @@ import {
   type ExperimentResult,
   type ExperimentStatus,
 } from '../domain/experiments/experiment';
+import type { AnalyticsItem } from '../domain/analytics/items';
+import { isScheduled } from '../domain/carousel';
+import { TEST_METRIC_LABELS } from '../domain/experiments/experiment';
 import { Badge } from '../ui/primitives';
 
 export const EXPERIMENT_STATUS_TONES: Record<ExperimentStatus, 'neutral' | 'accent' | 'success' | 'warning'> = {
@@ -22,6 +25,16 @@ export const EXPERIMENT_STATUS_TONES: Record<ExperimentStatus, 'neutral' | 'acce
 };
 
 const formatDay = (day: string) => new Date(`${day}T12:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+const formatWeekday = (day: string) => new Date(`${day}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+
+/** When a test member goes out: posted day, or the planned day and time. */
+export function postingLabel(item: AnalyticsItem): string {
+  const carousel = item.carousel;
+  const time = carousel?.source.scheduledTime ?? null;
+  if (carousel?.scheduledFor && isScheduled(carousel)) return `Programado ${formatWeekday(carousel.scheduledFor)}${time ? ` às ${time}` : ''}`;
+  if (item.record.publishedAt) return `Postado ${formatWeekday(item.record.publishedAt)}${time ? ` · ${time}` : ''}`;
+  return time ? `Sem data · ${time}` : 'Sem data';
+}
 
 export function ExperimentCard({ experiment, result, accountName }: { experiment: Experiment; result: ExperimentResult; accountName: string }) {
   return (
@@ -32,6 +45,10 @@ export function ExperimentCard({ experiment, result, accountName }: { experiment
       </div>
       <p className="text-sm font-semibold text-ink">{experiment.name}</p>
       {experiment.hypothesis && <p className="line-clamp-2 text-sm text-muted">{experiment.hypothesis}</p>}
+      <p className="text-xs text-muted">
+        Decide: {TEST_METRIC_LABELS[experiment.goalMetric]}
+        {experiment.times.length > 0 && ` · ${experiment.times.join(' · ')}`}
+      </p>
       <p className="mt-auto text-xs text-faint">
         {accountName} · {result.members} {result.members === 1 ? 'conteúdo' : 'conteúdos'}
         {result.period ? ` · ${formatDay(result.period.from)} a ${formatDay(result.period.to)}` : ''}

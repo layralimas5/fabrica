@@ -6,13 +6,13 @@ import { useAccountScope } from '../app/accountScope';
 import { errorMessage } from '../app/useResource';
 import { accountLabel } from '../domain/account';
 import { statusLabel, type Carousel } from '../domain/carousel';
-import { CONFIDENCE_LABELS, EXPERIMENT_LIMITS, EXPERIMENT_STATUS_LABELS, TEST_VARIABLE_LABELS, toExperimentInput, variantOf, type Experiment } from '../domain/experiments/experiment';
+import { CONFIDENCE_LABELS, EXPERIMENT_LIMITS, EXPERIMENT_STATUS_LABELS, TEST_METRIC_LABELS, TEST_VARIABLE_LABELS, toExperimentInput, variantOf, type Experiment } from '../domain/experiments/experiment';
 import { formatPercent } from '../domain/winners/record';
 import { ExperimentForm } from '../experiments/ExperimentForm';
 import { useExperimentLab } from '../experiments/useExperimentLab';
 import { Alert, Badge, Button, Dialog, EmptyState, Field, Input, Spinner, Textarea } from '../ui/primitives';
 import { useAddMetrics } from '../winners/useAddMetrics';
-import { EXPERIMENT_STATUS_TONES } from '../experiments/ExperimentViews';
+import { EXPERIMENT_STATUS_TONES, postingLabel } from '../experiments/ExperimentViews';
 
 export function ExperimentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -97,8 +97,17 @@ export function ExperimentDetailPage() {
         <Card label="Hipótese" className="sm:col-span-3">
           {experiment.hypothesis || <span className="text-faint">Sem hipótese. Use Editar pra registrar o que você espera.</span>}
         </Card>
-        <Card label="Controle">{experiment.control || <span className="text-faint">—</span>}</Card>
-        <Card label="Variação">{experiment.variation || <span className="text-faint">—</span>}</Card>
+        {/* In a time test the times are the versions, shown in their own card. */}
+        {experiment.variable !== 'horario' && (
+          <>
+            <Card label="Controle">{experiment.control || <span className="text-faint">—</span>}</Card>
+            <Card label="Variação">{experiment.variation || <span className="text-faint">—</span>}</Card>
+          </>
+        )}
+        <Card label="Métrica que decide">{TEST_METRIC_LABELS[experiment.goalMetric]}</Card>
+        <Card label={experiment.variable === 'horario' ? 'Horários testados' : 'Horário de postagem'}>
+          {experiment.times.length > 0 ? experiment.times.join(' · ') : <span className="text-faint">Sem horário definido</span>}
+        </Card>
         <Card label="Período">
           {result.period ? `${formatDay(result.period.from)} a ${formatDay(result.period.to)}` : <span className="text-faint">Nada publicado ainda</span>}
         </Card>
@@ -160,7 +169,7 @@ export function ExperimentDetailPage() {
                     {item.record.hook || item.record.title}
                   </Link>
                   <p className="text-xs text-faint">
-                    {variantOf(item)} · {item.carousel ? statusLabel(item.carousel) : ''}
+                    <span className="font-medium text-muted">{variantOf(item)}</span> · {postingLabel(item)} · {item.carousel ? statusLabel(item.carousel) : ''}
                   </p>
                 </div>
                 {item.carousel && (

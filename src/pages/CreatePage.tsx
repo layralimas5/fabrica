@@ -8,11 +8,14 @@ import { PresetBar } from '../create/PresetBar';
 import { AnalyticsAssist, useRecommendations } from '../create/AnalyticsAssist';
 import { checkCopies, SimilarityDialog, type CopyWarning } from '../create/SimilarityCheck';
 import { useSimilaritySettings } from '../app/planningSettings';
-import { useContentRecords } from '../app/data';
+import { useContentRecords, useExperiments } from '../app/data';
 import { recordFromCarousel } from '../domain/winners/fromCarousel';
 import { EXPLORATION_LEVELS, guidanceFor, planCopies, type ExplorationLevel } from '../domain/analytics/intelligence';
 import { TextStylePanel } from '../create/TextStylePanel';
 import { CopyAppImage } from '../create/CopyAppImage';
+import { TestBriefCard } from '../create/TestBriefCard';
+import { briefProblems, defaultBrief, defaultVersion, VERSION_LABELS, versionsChosenPerCopy, type TestBrief } from '../domain/experiments/brief';
+import type { TestVariable } from '../domain/experiments/experiment';
 import type { CreateSettings, Preset } from '../domain/preset';
 import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
@@ -194,6 +197,12 @@ export function CreatePage() {
   const account = platformAccounts.find((item) => item.id === accountId) ?? platformAccounts[0] ?? null;
   const intelligence = useRecommendations(account?.id ?? null);
   const records = useContentRecords();
+  const experiments = useExperiments();
+  /** Ficha do teste: the batch becomes one experiment in Testes. */
+  const [testOn, setTestOn] = useState(false);
+  const [brief, setBrief] = useState<TestBrief>(() => defaultBrief('horario'));
+  /** Controle / Variação marked on each copy box; null keeps the alternating default. */
+  const [copyVersions, setCopyVersions] = useState<(string | null)[]>([]);
   const { settings: similaritySettings } = useSimilaritySettings();
   /** Detector de Similaridade: warnings shown before creating; null when nothing to show. */
   const [warnings, setWarnings] = useState<CopyWarning[] | null>(null);
@@ -231,6 +240,15 @@ export function CreatePage() {
   const maxPerDay = Math.max(1, Math.min(MAX_PER_DAY, blocks || MAX_PER_DAY));
   const effectivePerDay = Math.min(perDay, maxPerDay);
   const total = blocks * styles.length;
+  /** With "Testar formatos" on, the test is about the slide model whatever the ficha says. */
+  const testBrief: TestBrief = testing ? { ...brief, variable: 'design' } : brief;
+  const testProblems = testOn
+    ? briefProblems(testBrief, {
+        carousels: total,
+        styles: styles.length,
+        copyVersions: copies.flatMap((copy, index) => (copy.trim() ? [copyVersions[index] ?? defaultVersion(index)] : [])),
+      })
+    : [];
   const knownProjects = useMemo(() => namesWithCounts(savedCarousels.data.map((carousel) => carousel.project)), [savedCarousels.data]);
   const knownFolders = useMemo(
     () => namesWithCounts(savedCarousels.data.filter((carousel) => carousel.project === project.trim()).map((carousel) => carousel.folder)),
@@ -418,9 +436,19 @@ export function CreatePage() {
     remember(FORMAT_STORAGE_KEY, next);
   };
 
+  /** Opens the ficha with suggestions for the variable, or points an open one at the format test. */
+  const startTest = (variable: TestVariable) => {
+    if (!testOn) {
+      setTestOn(true);
+      setBrief(defaultBrief(variable, experiments.data.filter((item) => item.variable === variable).length + 1));
+    } else if (variable === 'design') setBrief((current) => ({ ...current, variable, times: current.times.slice(0, 1) }));
+  };
+
   const toggleTesting = (enabled: boolean) => {
     setTesting(enabled);
     setStyles((current) => (enabled ? current : current.slice(0, 1)));
+    if (enabled) startTest('design');
+    else if (brief.variable === 'design') setTestOn(false);
   };
 
   const toggleStyle = (style: VisualStyle) => {
@@ -577,10 +605,12 @@ export function CreatePage() {
         folder,
         schedule: scheduling ? { startDate, perDay: effectivePerDay } : null,
         origin,
+        test: testOn ? { brief: testBrief, copyVersions: copies.map((_, index) => copyVersions[index] ?? null) } : null,
       });
       // The planned entry is replaced by the carousels just created.
       if (calendarPlan?.entryId) await services.calendarEntries.remove(calendarPlan.entryId).catch(() => undefined);
-      if (scheduling) navigate(`/calendario?visao=semana&data=${startDate}`, { state: { created: result.carousels.length } });
+      if (testOn && result.experimentIds[0]) navigate(`/testes/${result.experimentIds[0]}`);
+      else if (scheduling) navigate(`/calendario?visao=semana&data=${startDate}`, { state: { created: result.carousels.length } });
       else if (result.experimentIds.length === 1) navigate(`/testes/${result.experimentIds[0]}`);
       else if (result.experimentIds.length > 1) navigate('/testes', { state: { created: result.carousels.length } });
       else if (result.carousels.length === 1) navigate(`/carrossel/${result.carousels[0].id}`);
@@ -604,7 +634,12 @@ export function CreatePage() {
   const changeCopyCount = (count: number) => {
     setCopies((current) => (count <= current.length ? current.slice(0, count) : [...current, ...Array.from({ length: count - current.length }, () => '')]));
     setCopySettings((current) => current.slice(0, count));
+    setCopyVersions((current) => current.slice(0, count));
   };
+  const versionAt = (index: number) => copyVersions[index] ?? defaultVersion(index);
+  const setVersionAt = (index: number, version: string) =>
+    setCopyVersions((current) => Array.from({ length: Math.max(current.length, index + 1) }, (_, position) => (position === index ? version : (current[position] ?? null))));
+  const choosesVersions = testOn && versionsChosenPerCopy(testBrief.variable);
   const settingAt = (index: number): CopySetting => copySettings[index] ?? { objective: null, contentType: null };
   const updateSetting = (index: number, patch: Partial<CopySetting>) =>
     setCopySettings((current) => {
@@ -780,6 +815,7 @@ export function CreatePage() {
                           manual={mode === 'manual'}
                           disabled={generating}
                           onChange={(patch) => updateSetting(index, patch)}
+                          version={choosesVersions ? { value: versionAt(index), onChange: (value) => setVersionAt(index, value) } : null}
                         />
                       </div>
                       <Textarea
@@ -913,11 +949,13 @@ export function CreatePage() {
                 onEnabled={(enabled) => {
                   setUseAnalytics(enabled);
                   remember(ANALYTICS_STORAGE_KEY, enabled ? 'on' : 'off');
+                  if (enabled && exploration !== 'safe') startTest('template');
                 }}
                 level={exploration}
                 onLevel={(level) => {
                   setExploration(level);
                   remember(EXPLORATION_STORAGE_KEY, level);
+                  if (useAnalytics && level !== 'safe') startTest('template');
                 }}
                 recommendations={intelligence.recommendations}
                 accountName={account ? accountLabel(account) : null}
@@ -956,6 +994,15 @@ export function CreatePage() {
                   </div>
                 </div>
               )}
+              <TestBriefCard
+                enabled={testOn}
+                onEnabled={(enabled) => (enabled ? startTest(testing ? 'design' : 'horario') : setTestOn(false))}
+                brief={testBrief}
+                onChange={(patch) => setBrief((current) => ({ ...current, ...patch }))}
+                formatTest={testing}
+                problems={testProblems}
+                disabled={generating}
+              />
               <div>
                 <p className="mb-3 text-xs font-medium text-muted">Sombreamento das fotos (vale pra todas)</p>
                 {shadeContext && <ShadePicker context={shadeContext} photo={photo} value={shade} onChange={setShade} disabled={generating} />}
@@ -1155,9 +1202,9 @@ export function CreatePage() {
               {mode === 'ai' && services.ai.engine === 'heuristic' && ' · IA local (sem Claude)'}
               {total > 1 && ` · vai criar ${total} carrosséis`}
             </p>
-            <Button variant="primary" size="lg" disabled={!ready || (testing && styles.length < 2)} loading={generating} onClick={() => void generate()}>
+            <Button variant="primary" size="lg" disabled={!ready || (testing && styles.length < 2) || testProblems.length > 0} loading={generating} onClick={() => void generate()}>
               {!generating && <Sparkles className="size-4" aria-hidden />}
-              {testing ? 'Gerar teste' : total > 1 ? `Gerar ${total} carrosséis` : 'Gerar carrossel'}
+              {testing || testOn ? 'Gerar teste' : total > 1 ? `Gerar ${total} carrosséis` : 'Gerar carrossel'}
               {!generating && <ArrowRight className="size-4" aria-hidden />}
             </Button>
           </div>
@@ -1286,13 +1333,24 @@ interface CopyTagsProps {
   manual: boolean;
   disabled: boolean;
   onChange: (patch: Partial<CopySetting>) => void;
+  /** Controle / Variação of this copy, shown while a test compares copies. */
+  version: { value: string; onChange: (value: string) => void } | null;
 }
 
 /** Objective and type of one copy box, so each carousel of a batch records why it was made. */
-function CopyTags({ index, setting, fromScript, defaults, manual, disabled, onChange }: CopyTagsProps) {
+function CopyTags({ index, setting, fromScript, defaults, manual, disabled, onChange, version }: CopyTagsProps) {
   const selectClass = '!h-8 !w-auto max-w-full !rounded-lg !py-0 !pl-2 text-xs';
   return (
     <div className="flex flex-wrap items-center gap-1.5">
+      {version && (
+        <Select aria-label={`Versão da copy ${index + 1} no teste`} value={version.value} onChange={(e) => version.onChange(e.target.value)} disabled={disabled} className={clsx(selectClass, 'font-medium text-accent')}>
+          {VERSION_LABELS.map((label) => (
+            <option key={label} value={label}>
+              Teste: {label}
+            </option>
+          ))}
+        </Select>
+      )}
       {fromScript.objective ? (
         <span className="rounded-lg bg-subtle px-2 py-1 text-xs text-muted" title='Definido pela linha "Objetivo:" da copy'>
           {OBJECTIVE_LABELS[fromScript.objective]} · no texto

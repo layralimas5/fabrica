@@ -1,4 +1,4 @@
-import type { Carousel } from '../carousel';
+import { isScheduled, normalizeTime, type Carousel } from '../carousel';
 import { isMeasured, type AnalyticsItem } from '../analytics/items';
 import { pooledRate } from '../analytics/summary';
 import type { ScoreOf } from '../winners/insights';
@@ -25,6 +25,19 @@ export const TEST_VARIABLE_LABELS: Record<TestVariable, string> = {
   outro: 'Outro',
 };
 
+/** What decides the winner of a test. */
+export const TEST_METRICS = ['score', 'shares', 'saves', 'follows'] as const;
+export type TestMetric = (typeof TEST_METRICS)[number];
+export const TEST_METRIC_LABELS: Record<TestMetric, string> = {
+  score: 'Performance Score',
+  shares: 'Compartilhamentos',
+  saves: 'Salvamentos',
+  follows: 'Seguidores',
+};
+
+/** A test compares at most this many posting times. */
+export const MAX_TEST_TIMES = 4;
+
 export interface Experiment {
   id: string;
   name: string;
@@ -36,6 +49,10 @@ export interface Experiment {
   control: string;
   /** Tested version, e.g. "Você não precisa de mais disciplina". */
   variation: string;
+  /** Metric that decides which version won. Older experiments use the Performance Score. */
+  goalMetric: TestMetric;
+  /** Planned posting times ("08:00"). In a time test, each one is a version. */
+  times: string[];
   /** What was learned, written by the user when concluding. */
   learning: string;
   concludedAt: string | null;
@@ -50,7 +67,7 @@ export const EXPERIMENT_LIMITS = { name: 80, hypothesis: 400, version: 300, lear
 const text = (value: unknown, max: number) => (typeof value === 'string' ? value.trim().slice(0, max) : '');
 
 export function emptyExperiment(accountId: string | null, variable: TestVariable = 'gancho'): ExperimentInput {
-  return { name: '', accountId, variable, hypothesis: '', control: '', variation: '', learning: '', concludedAt: null };
+  return { name: '', accountId, variable, hypothesis: '', control: '', variation: '', goalMetric: 'score', times: [], learning: '', concludedAt: null };
 }
 
 export function sanitizeExperimentInput(raw: Partial<ExperimentInput>): ExperimentInput {
@@ -61,9 +78,18 @@ export function sanitizeExperimentInput(raw: Partial<ExperimentInput>): Experime
     hypothesis: text(raw.hypothesis, EXPERIMENT_LIMITS.hypothesis),
     control: text(raw.control, EXPERIMENT_LIMITS.version),
     variation: text(raw.variation, EXPERIMENT_LIMITS.version),
+    goalMetric: TEST_METRICS.includes(raw.goalMetric as TestMetric) ? (raw.goalMetric as TestMetric) : 'score',
+    times: sanitizeTimes(raw.times),
     learning: text(raw.learning, EXPERIMENT_LIMITS.learning),
     concludedAt: typeof raw.concludedAt === 'string' ? raw.concludedAt : null,
   };
+}
+
+/** Valid "HH:MM" times, without repeats, in clock order. */
+export function sanitizeTimes(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const valid = raw.map(normalizeTime).filter((time): time is string => time !== null);
+  return [...new Set(valid)].sort().slice(0, MAX_TEST_TIMES);
 }
 
 export function toExperimentInput(experiment: Experiment): ExperimentInput {
@@ -89,6 +115,8 @@ export function allExperiments(entities: Experiment[], carousels: Carousel[]): E
       hypothesis: '',
       control: '',
       variation: '',
+      goalMetric: 'score',
+      times: [],
       learning: '',
       concludedAt: null,
       createdAt: carousel.createdAt,
@@ -146,7 +174,8 @@ export function variantOf(item: AnalyticsItem): string {
 export function evaluateExperiment(experiment: Experiment, members: AnalyticsItem[], scoreOf: ScoreOf, today: string, planned = 0): ExperimentResult {
   const groups = new Map<string, AnalyticsItem[]>();
   for (const item of members) groups.set(variantOf(item), [...(groups.get(variantOf(item)) ?? []), item]);
-  const variants: VariantResult[] = [...groups.entries()].map(([label, items]) => {
+  // Sorted so versions read in order: 08:00 before 19:00, Controle before Variação.
+  const variants: VariantResult[] = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b, 'pt-BR', { numeric: true })).map(([label, items]) => {
     const measured = items.filter(isMeasured);
     const scores = measured.map((item) => scoreOf(item.record.metrics, accountKey(item.record))).filter((value): value is number => value !== null);
     return {
@@ -159,18 +188,20 @@ export function evaluateExperiment(experiment: Experiment, members: AnalyticsIte
       followRate: pooledRate(measured, 'follows'),
     };
   });
-  const posted = members.filter((item) => item.record.publishedAt && recordDay(item.record) <= today);
+  // A carousel only scheduled for today is not posted yet.
+  const posted = members.filter((item) => item.record.publishedAt && recordDay(item.record) <= today && !(item.carousel && isScheduled(item.carousel)));
   const days = posted.map((item) => recordDay(item.record)).sort();
   const period = days.length ? { from: days[0], to: days[days.length - 1] } : null;
-  const ranked = variants.filter((variant) => variant.averageScore !== null).sort((a, b) => (b.averageScore ?? 0) - (a.averageScore ?? 0));
+  const goal = goalValue(experiment.goalMetric ?? 'score');
+  const ranked = variants.filter((variant) => goal(variant) !== null).sort((a, b) => (goal(b) ?? 0) - (goal(a) ?? 0));
   const leader = ranked.length >= 2 ? ranked[0] : null;
 
   let confidence: Confidence | null = null;
   let message: string;
   if (leader) {
-    const gap = (ranked[0].averageScore ?? 0) - (ranked[1].averageScore ?? 0);
     const minSamples = Math.min(...ranked.map((variant) => variant.measured));
-    confidence = minSamples >= SOLID_SAMPLES && gap >= 15 ? 'alta' : minSamples >= 2 && gap >= 10 ? 'media' : 'baixa';
+    const { clear, visible } = goalGap(experiment.goalMetric ?? 'score', goal(ranked[0]) ?? 0, goal(ranked[1]) ?? 0);
+    confidence = minSamples >= SOLID_SAMPLES && clear ? 'alta' : minSamples >= 2 && visible ? 'media' : 'baixa';
     message =
       confidence === 'baixa'
         ? 'Esse padrão apareceu neste teste, mas ainda existem poucos dados para considerá-lo um padrão consolidado.'
@@ -189,6 +220,21 @@ export function evaluateExperiment(experiment: Experiment, members: AnalyticsIte
   else status = period && daysBetween(period.to, today) >= DAYS_TO_WAIT ? 'dados_insuficientes' : 'em_andamento';
 
   return { status, variants, leader, confidence, message, period, members: members.length + planned };
+}
+
+/** The number a variant is ranked by, for the metric the test cares about. */
+function goalValue(metric: TestMetric): (variant: VariantResult) => number | null {
+  if (metric === 'shares') return (variant) => variant.shareRate;
+  if (metric === 'saves') return (variant) => variant.saveRate;
+  if (metric === 'follows') return (variant) => variant.followRate;
+  return (variant) => variant.averageScore;
+}
+
+/** Score points are compared as a difference; rates, relative to the runner-up (a 30% bigger rate is clear). */
+function goalGap(metric: TestMetric, first: number, second: number): { clear: boolean; visible: boolean } {
+  if (metric === 'score') return { clear: first - second >= 15, visible: first - second >= 10 };
+  const lift = second > 0 ? (first - second) / second : first > 0 ? Infinity : 0;
+  return { clear: lift >= 0.3, visible: lift >= 0.15 };
 }
 
 export type CoverageLevel = 'bastante' | 'pouco' | 'nunca';

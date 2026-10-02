@@ -11,6 +11,7 @@ import type { ContentOrigin } from '../domain/winners/record';
 import { distributeDates, type SchedulePlan } from '../domain/schedule';
 import { recentPhotoUsage } from '../domain/photoHistory';
 import { limitWords, stripTrailingPeriod } from '../domain/text';
+import { briefProblems, defaultVersion, experimentFromBrief, slotFor, versionsChosenPerCopy, type TestBrief } from '../domain/experiments/brief';
 import { brandContext } from './brandContext';
 import type { Services } from './ports';
 
@@ -61,6 +62,14 @@ export interface CreateRequest {
   plan?: { theme?: string; category?: ContentCategory; scheduledTime?: string | null };
   /** Joins every carousel to an experiment under this variant name. */
   experiment?: ExperimentRef | null;
+  /** Ficha do teste: the batch becomes one experiment in Testes, with versions and posting times. */
+  test?: BatchTest | null;
+}
+
+export interface BatchTest {
+  brief: TestBrief;
+  /** Version marked on each copy box (same order as texts), used when versions are chosen per copy. */
+  copyVersions: (string | null)[];
 }
 
 /** Objective and type picked for one copy box. */
@@ -128,6 +137,9 @@ export async function createCarousels(services: Services, request: CreateRequest
   const isTest = styles.length > 1;
   const carousels: Carousel[] = [];
   const experimentIds: string[] = [];
+  const versionOf = (copy: PreparedCopy) => request.test?.copyVersions[copy.copyNumber - 1] ?? defaultVersion(copy.copyNumber - 1);
+  const test = request.test ? await startTest(services, request.test.brief, request.accountId, { carousels: copies.length * (isTest ? styles.length : 1), styles: styles.length, copyVersions: copies.map(versionOf) }) : null;
+  if (test) experimentIds.push(test.id);
   const dates = request.schedule ? distributeDates(copies.length, request.schedule) : [];
   const textOnly = (style: VisualStyle) => style === 'post' && !request.postWithImages;
   // Shared by the whole batch and seeded with the account's recent posts: each copy gets photos
@@ -142,7 +154,8 @@ export async function createCarousels(services: Services, request: CreateRequest
     // As a card, the product slide needs a background photo like any other slide.
     const fullPrint = request.productDisplay === 'card' ? null : prepared.productImageId;
     const draft = await withMatchedPhotos(services, prepared.draft, assets, photoStyles, fullPrint, usage);
-    const experimentId = isTest ? crypto.randomUUID() : null;
+    // Without a ficha, each copy of a format test is its own small test, as before.
+    const experimentId = isTest && !test ? crypto.randomUUID() : null;
     if (experimentId) experimentIds.push(experimentId);
     let previous: Slide[] | null = null;
 
@@ -165,7 +178,12 @@ export async function createCarousels(services: Services, request: CreateRequest
       });
       previous = slides;
 
-      const experiment: ExperimentRef | null = experimentId ? { id: experimentId, name: draft.title, variant: VISUAL_STYLE_LABELS[style] } : (request.experiment ?? null);
+      const slot = test ? slotFor(test.brief, { copyIndex: prepared.copyNumber - 1, position, styleLabel: VISUAL_STYLE_LABELS[style], copyVersion: versionOf(prepared) }) : null;
+      const experiment: ExperimentRef | null = test && slot
+        ? { id: test.id, name: test.brief.name.trim(), variant: slot.variant }
+        : experimentId
+          ? { id: experimentId, name: draft.title, variant: VISUAL_STYLE_LABELS[style] }
+          : (request.experiment ?? null);
       carousels.push(
         await services.carousels.create({
           brandKitId: request.brand.id,
@@ -183,6 +201,7 @@ export async function createCarousels(services: Services, request: CreateRequest
             shade: request.shade,
             accountId: request.accountId,
             ...(request.plan ?? {}),
+            ...(slot?.time ? { scheduledTime: slot.time } : {}),
           },
           slides,
           caption,
@@ -213,6 +232,15 @@ type PhotoUsage = Map<string, number>;
  * A photo never repeats inside the same carousel: when the library runs out, the remaining slides stay text-only.
  * Photos the AI already picked while drafting are kept.
  */
+/** Checks the ficha against the batch and saves the experiment every carousel will join. */
+async function startTest(services: Services, brief: TestBrief, accountId: string | null, batch: Parameters<typeof briefProblems>[1]): Promise<{ id: string; brief: TestBrief }> {
+  const copyVersions = versionsChosenPerCopy(brief.variable) ? batch.copyVersions : [];
+  const problems = briefProblems(brief, { ...batch, copyVersions });
+  if (problems.length > 0) throw new Error(problems.join(' '));
+  const saved = await services.experiments.create(experimentFromBrief(brief, accountId));
+  return { id: saved.id, brief };
+}
+
 /** The slide marked APP or PRODUTO in a written copy shows the app image: never a random photo, so creation stops when it has none. */
 function assertAppSlidesHaveImage(copies: PreparedCopy[]): void {
   const missing = [...new Set(copies.filter((copy) => copy.mode === 'manual' && !copy.productImageId && copy.draft.slides.some((slide) => slide.role === 'product')).map((copy) => copy.copyNumber))];
