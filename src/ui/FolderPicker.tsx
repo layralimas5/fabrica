@@ -14,9 +14,9 @@ interface FolderPickerProps {
 export function FolderPicker({ label, counts, selected, onChange, disabled }: FolderPickerProps) {
   const total = [...counts.values()].reduce((sum, count) => sum + count, 0);
 
+  // Keeps exactly what was clicked; only the "Todas" chip goes back to every folder.
   const toggle = (folder: string) => {
-    const next = selected.includes(folder) ? selected.filter((item) => item !== folder) : [...selected, folder];
-    onChange(next.length === counts.size ? [] : next);
+    onChange(selected.includes(folder) ? selected.filter((item) => item !== folder) : [...selected, folder]);
   };
 
   return (
