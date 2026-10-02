@@ -79,8 +79,10 @@ export interface AiService {
   draftCarousel(request: DraftRequest): Promise<CarouselDraft>;
   rewriteSlide(request: RewriteRequest): Promise<SlideText>;
   generateHooks(request: HooksRequest): Promise<string[]>;
-  /** Tags describing what a photo shows and which themes it illustrates. Empty when the engine cannot see images. */
+  /** Tags describing what a photo shows and which themes it illustrates. */
   tagImage(request: TagImageRequest): Promise<string[]>;
+  /** True when tagging a photo is quick right now (no model download pending). */
+  visionReady(): boolean;
   /** One photo id per slide, or null when no photo in the library fits that slide. */
   matchImages(request: MatchRequest): Promise<(string | null)[]>;
 }

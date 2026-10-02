@@ -34,7 +34,7 @@ export function LibraryPage() {
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [bulkProgress, setBulkProgress] = useState<string | null>(null);
-  const canSeeImages = services.ai.engine === 'claude';
+  const usesClaude = services.ai.engine === 'claude';
 
   const folderCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -60,7 +60,7 @@ export function LibraryPage() {
 
   /** The AI looks at the photo and adds tags for what it shows and which themes it illustrates. */
   const analyze = async (asset: Asset, blob: Blob): Promise<void> => {
-    if (!canSeeImages || !isPhotoLike(asset)) return;
+    if (!isPhotoLike(asset)) return;
     replaceAsset(await tagAsset(services, asset, await toAiImage(blob)));
   };
 
@@ -119,7 +119,10 @@ export function LibraryPage() {
       try {
         const asset = await services.assets.upload({ file, folder: uploadFolder.trim() || UNSORTED_FOLDER, kind: uploadKind, tags });
         assets.setData((current) => [asset, ...current]);
-        await analyze(asset, file).catch((cause: unknown) => setError(`${asset.name} subiu, mas a análise da IA falhou: ${errorMessage(cause)}`));
+        // Uploads are analyzed right away once the vision model is loaded; the first load happens on "Analisar fotos".
+        if (services.ai.visionReady()) {
+          await analyze(asset, file).catch((cause: unknown) => setError(`${asset.name} subiu, mas a análise falhou: ${errorMessage(cause)}`));
+        }
       } catch (cause) {
         setError(errorMessage(cause));
       }
@@ -182,14 +185,14 @@ export function LibraryPage() {
         </div>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-faint">
-            {canSeeImages
+            {usesClaude
               ? 'A IA olha cada foto enviada e cria as tags sozinha (o que aparece e que temas ela ilustra). As suas tags são opcionais. Dá pra arrastar as imagens pra cá.'
-              : 'Modo sem Claude: só entra foto num slide quando alguma tag dela bate com a frase. Capricha nas tags (ex.: café, manhã, rotina, foco). Dá pra arrastar as imagens pra cá.'}
+              : '"Analisar fotos" olha cada foto e cria as tags sozinha, grátis, dentro do navegador. Na primeira vez baixa o modelo (uns 90 MB); depois as fotos novas já são analisadas ao subir. Dá pra arrastar as imagens pra cá.'}
           </p>
-          {canSeeImages && assets.data.length > 0 && (
+          {assets.data.length > 0 && (
             <Button size="sm" variant="secondary" className="shrink-0" loading={analyzing !== null} onClick={() => void analyzeLibrary()}>
               {!analyzing && <Sparkles className="size-4" aria-hidden />}
-              {analyzing ? `Analisando ${analyzing.done}/${analyzing.total}` : 'Analisar fotos com IA'}
+              {analyzing ? (analyzing.done === 0 && !services.ai.visionReady() ? 'Baixando o modelo…' : `Analisando ${analyzing.done}/${analyzing.total}`) : usesClaude ? 'Analisar fotos com IA' : 'Analisar fotos (grátis)'}
             </Button>
           )}
         </div>

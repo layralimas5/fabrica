@@ -2,6 +2,7 @@ import type { AiService } from '../../application/ports';
 import type { CarouselDraft, DraftRequest, HooksRequest, MatchRequest, ProductContext, RewriteRequest, SlideDraft, SlideText, TagImageRequest } from '../../domain/aiContract';
 import { isAssetKind } from '../../domain/asset';
 import { matchImages, type MatchableAsset } from '../../domain/imageMatching';
+import { isLocalVisionReady, tagWithLocalVision } from '../vision/clipTagger';
 import type { VisualStyle } from '../../domain/brandKit';
 import { CTA_BY_OBJECTIVE, MAX_SLIDES, NARRATIVES, PRODUCT_PLACEMENT, productSlideIndex, type ContentType, type SlideRole } from '../../domain/content';
 import { limitWords, splitSentences, stripTrailingPeriod, wordCount } from '../../domain/text';
@@ -86,9 +87,13 @@ export class HeuristicAi implements AiService {
     return shuffle(candidates.filter((candidate) => candidate !== hook)).slice(0, count);
   }
 
-  /** The offline engine cannot see images; tags stay the ones the user typed. */
-  async tagImage(_request: TagImageRequest): Promise<string[]> {
-    return [];
+  /** Free tagging with a vision model that runs in the browser; the first call downloads it (~90 MB). */
+  async tagImage({ image, mediaType }: TagImageRequest): Promise<string[]> {
+    return tagWithLocalVision(`data:${mediaType};base64,${image}`);
+  }
+
+  visionReady(): boolean {
+    return isLocalVisionReady();
   }
 
   /** Keyword overlap between each slide and the photo tags, name and folder. Unrelated photos are never used. */

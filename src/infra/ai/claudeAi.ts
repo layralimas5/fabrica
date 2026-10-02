@@ -36,6 +36,10 @@ export class ClaudeAi implements AiService {
     return (await this.call('hooks', request, hooksResponseSchema)).hooks;
   }
 
+  visionReady(): boolean {
+    return true;
+  }
+
   async tagImage(request: TagImageRequest): Promise<string[]> {
     return (await this.call('tag', request, tagImageResponseSchema)).tags;
   }
