@@ -8,7 +8,7 @@ import { useDismissedSimilarity, useSimilaritySettings } from '../app/planningSe
 import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
 import type { Carousel } from '../domain/carousel';
-import { emptyExperiment, TEST_VARIABLE_LABELS } from '../domain/experiments/experiment';
+import { emptyExperiment, variablesLabel } from '../domain/experiments/experiment';
 import { todayIso } from '../domain/schedule';
 import { comparableFromCarousel } from '../domain/similarity/fromContent';
 import { ageLabel, findSimilar, MATCH_KIND_LABELS, SIMILARITY_BAND_LABELS, similarityBand } from '../domain/similarity/similarity';
@@ -98,7 +98,7 @@ export function TestPanel({ carousel, onChange }: { carousel: Carousel; onChange
       </label>
       {ref && (
         <div className="mt-3 grid gap-3 pl-6 sm:grid-cols-[minmax(0,1fr)_200px]">
-          <Field label="Experimento" htmlFor="test-experiment" hint={current ? `Testando: ${TEST_VARIABLE_LABELS[current.variable]}` : 'Teste de formato antigo'}>
+          <Field label="Experimento" htmlFor="test-experiment" hint={current ? `Testando: ${variablesLabel(current)}` : 'Teste de formato antigo'}>
             <div className="flex gap-2">
               <Select id="test-experiment" value={ref.id} onChange={(e) => join(e.target.value)}>
                 {!current && <option value={ref.id}>{ref.name}</option>}

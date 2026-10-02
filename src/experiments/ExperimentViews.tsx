@@ -14,7 +14,7 @@ import {
 } from '../domain/experiments/experiment';
 import type { AnalyticsItem } from '../domain/analytics/items';
 import { isScheduled } from '../domain/carousel';
-import { TEST_METRIC_LABELS } from '../domain/experiments/experiment';
+import { TEST_METRIC_LABELS, variablesOf } from '../domain/experiments/experiment';
 import { Badge } from '../ui/primitives';
 
 export const EXPERIMENT_STATUS_TONES: Record<ExperimentStatus, 'neutral' | 'accent' | 'success' | 'warning'> = {
@@ -41,7 +41,9 @@ export function ExperimentCard({ experiment, result, accountName }: { experiment
     <Link to={`/testes/${experiment.id}`} className="flex h-full flex-col gap-2 rounded-2xl border border-line bg-surface p-5 transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
       <div className="flex flex-wrap items-center gap-1.5">
         <Badge tone={EXPERIMENT_STATUS_TONES[result.status]}>{EXPERIMENT_STATUS_LABELS[result.status]}</Badge>
-        <Badge>{TEST_VARIABLE_LABELS[experiment.variable]}</Badge>
+        {variablesOf(experiment).map((variable) => (
+          <Badge key={variable}>{TEST_VARIABLE_LABELS[variable]}</Badge>
+        ))}
       </div>
       <p className="text-sm font-semibold text-ink">{experiment.name}</p>
       {experiment.hypothesis && <p className="line-clamp-2 text-sm text-muted">{experiment.hypothesis}</p>}

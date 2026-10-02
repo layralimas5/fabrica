@@ -37,7 +37,7 @@ import {
 } from '../domain/calendar/calendar';
 import { PLATFORM_LABELS, PLATFORMS, STATUS_LABELS, toCarouselInput, type Carousel, type CarouselStatus } from '../domain/carousel';
 import { CONTENT_CATEGORIES, CONTENT_CATEGORY_LABELS } from '../domain/content';
-import { allExperiments, TEST_VARIABLE_LABELS } from '../domain/experiments/experiment';
+import { allExperiments, TEST_VARIABLE_LABELS, variablesLabel, variablesOf, type Experiment } from '../domain/experiments/experiment';
 import { todayIso } from '../domain/schedule';
 import { comparableFromCarousel } from '../domain/similarity/fromContent';
 import { ageLabel, findSimilar, MATCH_KIND_LABELS, type SimilarityMatch } from '../domain/similarity/similarity';
@@ -182,7 +182,10 @@ export function CalendarPage() {
   const weekTests = (() => {
     const ids = new Set(inWeek.map((item) => item.experimentId).filter(Boolean));
     const byVariable = new Map<string, number>();
-    for (const experiment of experiments) if (ids.has(experiment.id)) byVariable.set(TEST_VARIABLE_LABELS[experiment.variable], (byVariable.get(TEST_VARIABLE_LABELS[experiment.variable]) ?? 0) + 1);
+    for (const experiment of experiments) {
+      if (!ids.has(experiment.id)) continue;
+      for (const variable of variablesOf(experiment)) byVariable.set(TEST_VARIABLE_LABELS[variable], (byVariable.get(TEST_VARIABLE_LABELS[variable]) ?? 0) + 1);
+    }
     return [...byVariable.entries()].map(([testLabel, count]) => ({ label: testLabel, count }));
   })();
   const alerts = repetitionAlerts(inRange);
@@ -529,7 +532,7 @@ function topMatch(carousel: Carousel, carousels: Carousel[], records: { carousel
 interface ItemDrawerProps {
   item: CalendarItem;
   accountName: string;
-  experimentName: { id: string; name: string; variable: keyof typeof TEST_VARIABLE_LABELS } | undefined;
+  experimentName: Pick<Experiment, 'id' | 'name' | 'variable' | 'variables'> | undefined;
   similar: SimilarityMatch | null;
   record: { metrics: Record<PerformanceKey, number | null> } | null;
   onClose: () => void;
@@ -646,7 +649,7 @@ function ItemDrawer({ item, accountName, experimentName, similar, record, onClos
           <div className="flex items-center gap-2 rounded-xl bg-subtle px-3 py-2.5 text-sm">
             <FlaskConical className="size-4 text-accent" aria-hidden />
             <span className="min-w-0 flex-1 truncate">
-              {experimentName.name} · {TEST_VARIABLE_LABELS[experimentName.variable]}
+              {experimentName.name} · {variablesLabel(experimentName)}
               {carousel?.experiment?.variant ? ` · ${carousel.experiment.variant}` : item.entry?.variant ? ` · ${item.entry.variant}` : ''}
             </span>
             <Link to={`/testes/${experimentName.id}`} className="text-xs font-medium text-ink underline underline-offset-2">

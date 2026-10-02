@@ -16,7 +16,7 @@ import {
 } from '../domain/calendar/calendar';
 import { PLATFORM_LABELS, PLATFORMS } from '../domain/carousel';
 import { CONTENT_CATEGORIES, CONTENT_CATEGORY_LABELS, OBJECTIVE_LABELS, OBJECTIVES } from '../domain/content';
-import { TEST_VARIABLE_LABELS, type Experiment } from '../domain/experiments/experiment';
+import { variablesLabel, type Experiment } from '../domain/experiments/experiment';
 import { Button, Dialog, Field, Input, Select } from '../ui/primitives';
 
 export const STATUS_STYLES: Record<CalendarStatus, { bar: string; dot: string; chip: string }> = {
@@ -316,7 +316,7 @@ export function EntryDialog({ initial, isNew, accounts, experiments, onClose, on
             <option value="">Não é teste</option>
             {accountExperiments.map((experiment) => (
               <option key={experiment.id} value={experiment.id}>
-                {experiment.name} · {TEST_VARIABLE_LABELS[experiment.variable]}
+                {experiment.name} · {variablesLabel(experiment)}
               </option>
             ))}
           </Select>

@@ -59,7 +59,7 @@ describe('experiments', () => {
   it('keeps old format tests as Design experiments and maps what was tested', () => {
     const legacy = allExperiments([], [{ experiment: { id: 'old', name: 'Formato', variant: 'Bold' }, source: {}, createdAt: '2026-09-01', updatedAt: '' } as unknown as Carousel]);
     expect(legacy[0]).toMatchObject({ id: 'old', variable: 'design' });
-    const map = testMap([experiment, { ...experiment, id: '2' }, { ...experiment, id: '3' }, { ...experiment, id: '4', variable: 'cta' }]);
+    const map = testMap([experiment, { ...experiment, id: '2' }, { ...experiment, id: '3' }, { ...experiment, id: '4', variable: 'cta', variables: ['cta'] }]);
     expect(map.find((row) => row.variable === 'gancho')?.level).toBe('bastante');
     expect(map.find((row) => row.variable === 'cta')?.level).toBe('pouco');
     expect(map.find((row) => row.variable === 'horario')?.level).toBe('nunca');
