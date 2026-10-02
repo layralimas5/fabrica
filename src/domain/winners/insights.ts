@@ -1,3 +1,4 @@
+import { CONTENT_TYPE_LABELS, OBJECTIVE_LABELS } from '../content';
 import { PRODUCT_PLACEMENT_LABELS } from './dna';
 import {
   accountKey,
@@ -87,6 +88,8 @@ export const GROUP_KEYS = {
   format: (record: ContentRecord): Grouping => ({ key: record.format, label: CONTENT_FORMAT_LABELS[record.format] }),
   hookType: (record: ContentRecord): Grouping | null => (record.hookType ? { key: record.hookType, label: HOOK_TYPE_LABELS[record.hookType] } : null),
   pillar: (record: ContentRecord): Grouping | null => (record.pillar ? { key: record.pillar, label: PILLAR_LABELS[record.pillar] } : null),
+  objective: (record: ContentRecord): Grouping | null => (record.objective ? { key: record.objective, label: OBJECTIVE_LABELS[record.objective] } : null),
+  contentType: (record: ContentRecord): Grouping | null => (record.contentType ? { key: record.contentType, label: CONTENT_TYPE_LABELS[record.contentType] } : null),
   theme: (record: ContentRecord): Grouping | null => (record.theme ? { key: record.theme.toLowerCase(), label: record.theme } : null),
   slides: (record: ContentRecord): Grouping | null => {
     const count = record.slideCount ?? record.dna?.slideCount ?? null;
@@ -103,6 +106,8 @@ const DIMENSION_PHRASES: Record<Dimension, { group: (label: string) => string; o
   hookType: { group: (label) => `Ganchos de ${label.toLowerCase()}`, others: 'os outros ganchos' },
   format: { group: (label) => `Conteúdos em ${label}`, others: 'os outros formatos' },
   pillar: { group: (label) => `Conteúdos do pilar ${label}`, others: 'os outros pilares' },
+  objective: { group: (label) => `Conteúdos com objetivo de ${label.toLowerCase()}`, others: 'os de outros objetivos' },
+  contentType: { group: (label) => `Carrosséis do tipo ${label.toLowerCase()}`, others: 'os de outros tipos' },
   theme: { group: (label) => `Conteúdos sobre ${label.toLowerCase()}`, others: 'os outros temas' },
   slides: { group: (label) => `Carrosséis de ${label}`, others: 'os de outro tamanho' },
   productPlacement: { group: (label) => `Conteúdos em que o produto ${label}`, others: 'os demais' },

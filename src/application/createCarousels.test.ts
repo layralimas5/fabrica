@@ -98,6 +98,32 @@ describe('createCarousels', () => {
     expect(carousels[0].caption).toBe('salva pra lembrar #rotina');
   });
 
+  it('each copy keeps its own objective and type; a line in the script wins over the box', async () => {
+    const services = fakeServices();
+    const scripted = 'Objetivo: Conversão\nTipo: dor\nSlide 1, Você trava na quarta.\nSlide 2, Comece pelo motivo.';
+    const { carousels } = await createCarousels(
+      services,
+      request({
+        texts: ['Slide 1, Um gancho.\nSlide 2, Fim.', '', 'Slide 1, Outro.\nSlide 2, Fim.', scripted],
+        copySettings: [
+          { objective: 'compartilhamento', contentType: 'contrarian' },
+          { objective: null, contentType: null },
+          { objective: null, contentType: null },
+          { objective: 'educacao', contentType: 'lista' },
+        ],
+        addCta: true,
+      }),
+    );
+    expect(carousels.map((carousel) => [carousel.source.objective, carousel.source.contentType])).toEqual([
+      ['compartilhamento', 'contrarian'],
+      ['salvamento', 'auto'],
+      ['conversao', 'dor'],
+    ]);
+    // The CTA follows each carousel's own objective.
+    expect(carousels[0].slides.at(-1)?.title).toBe('Manda pra alguém que precisa ler isso hoje.');
+    expect(carousels[2].slides.map((slide) => slide.title)).not.toContain('Conversão');
+  });
+
   it('only adds a CTA when asked', async () => {
     const services = fakeServices();
     const { carousels } = await createCarousels(services, request({ addCta: true }));

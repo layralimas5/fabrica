@@ -1,4 +1,4 @@
-import type { SlideRole } from '../content';
+import { CONTENT_TYPES, OBJECTIVES, type ContentType, type Objective, type SlideRole } from '../content';
 import type { ContentDna } from './dna';
 
 /**
@@ -183,6 +183,9 @@ export interface ContentRecord {
   format: ContentFormat;
   theme: string;
   pillar: Pillar | null;
+  /** What the content was made for and its narrative type, as chosen when it was created. */
+  objective: Objective | null;
+  contentType: Exclude<ContentType, 'auto'> | null;
   hookType: HookType | null;
   productPresence: ProductPresence | null;
   slideCount: number | null;
@@ -223,6 +226,8 @@ export function emptyRecordInput(): ContentRecordInput {
     format: 'carrossel',
     theme: '',
     pillar: null,
+    objective: null,
+    contentType: null,
     hookType: null,
     productPresence: null,
     slideCount: null,
@@ -271,6 +276,8 @@ export function sanitizeRecordInput(raw: Partial<ContentRecordInput>): ContentRe
     format: oneOf(CONTENT_FORMATS, raw.format) ?? base.format,
     theme: text(raw.theme, LIMITS.theme),
     pillar: oneOf(PILLARS, raw.pillar),
+    objective: oneOf(OBJECTIVES, raw.objective),
+    contentType: oneOf(CONTENT_TYPES.filter((type) => type !== 'auto'), raw.contentType) as ContentRecordInput['contentType'],
     hookType: oneOf(HOOK_TYPES, raw.hookType),
     productPresence: oneOf(PRODUCT_PRESENCES, raw.productPresence),
     slideCount,

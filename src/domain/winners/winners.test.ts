@@ -142,6 +142,13 @@ describe('filters and sorting', () => {
     expect(result.map((item) => item.id)).toEqual([library[0].id]);
   });
 
+  it('filters by objective and carousel type', () => {
+    const conversion = record({ objective: 'conversao', contentType: 'dor' });
+    const sharing = record({ objective: 'compartilhamento', contentType: 'dor' });
+    expect(applyFilters([conversion, sharing], { ...EMPTY_FILTERS, objectives: ['conversao'] }, '2026-10-02')).toEqual([conversion]);
+    expect(applyFilters([conversion, sharing], { ...EMPTY_FILTERS, contentTypes: ['dor'], query: 'compartilhamento' }, '2026-10-02')).toEqual([sharing]);
+  });
+
   it('"produto aparece" includes demonstrations', () => {
     expect(applyFilters(library, { ...EMPTY_FILTERS, products: ['aparece'] }, '2026-10-02')).toEqual([library[2]]);
   });

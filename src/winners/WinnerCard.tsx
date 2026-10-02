@@ -19,6 +19,7 @@ import {
   type ContentRecord,
   type PerformanceKey,
 } from '../domain/winners/record';
+import { CONTENT_TYPE_LABELS, OBJECTIVE_LABELS } from '../domain/content';
 import { scoreBand, SCORE_BAND_INFO, type ContentScore } from '../domain/winners/score';
 import { CarouselCover } from '../ui/CarouselCover';
 import { Tag } from './chips';
@@ -109,6 +110,8 @@ export function WinnerCard({ record, carousel, brand, assets, accounts, accountL
             ))}
             <Tag>{accountLabel ?? CONTENT_PLATFORM_LABELS[record.platform]}</Tag>
             <Tag>{CONTENT_FORMAT_LABELS[record.format]}</Tag>
+            {record.objective && <Tag tone="accent">{OBJECTIVE_LABELS[record.objective]}</Tag>}
+            {record.contentType && <Tag>{CONTENT_TYPE_LABELS[record.contentType]}</Tag>}
             {record.theme && <Tag>{record.theme}</Tag>}
             {record.hookType && <Tag>{HOOK_TYPE_LABELS[record.hookType]}</Tag>}
           </div>

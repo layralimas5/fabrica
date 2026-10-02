@@ -31,6 +31,8 @@ export function WinnersAnalysisPage() {
   };
   const sections: { title: string; keyOf: GroupKeyOf }[] = [
     { title: 'Melhores formatos', keyOf: GROUP_KEYS.format },
+    { title: 'Melhores objetivos', keyOf: GROUP_KEYS.objective },
+    { title: 'Melhores tipos de carrossel', keyOf: GROUP_KEYS.contentType },
     { title: 'Melhores temas', keyOf: GROUP_KEYS.theme },
     { title: 'Melhores ganchos', keyOf: GROUP_KEYS.hookType },
     { title: 'Melhores contas', keyOf: accountGroup },

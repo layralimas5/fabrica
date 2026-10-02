@@ -9,7 +9,8 @@
  *   Blank lines inside a slide are kept as paragraph breaks. `---` lines are ignored; a new carousel starts
  *   when the numbering restarts at Slide 1.
  *   Tema do carrossel: / Título: name of the carousel · Legenda: post caption
- *   Objetivo:, Ideia visual geral:, Instrução visual: and other [bracketed notes] are ignored
+ *   Objetivo: and Tipo: (or Tipo de carrossel:) set that carousel's objective and type, overriding the screen
+ *   Ideia visual geral:, Instrução visual: and other [bracketed notes] are ignored
  *
  * Plain lines:
  *   one line = one slide, `legenda:` lines become the caption, `---` starts a new carousel
@@ -19,6 +20,8 @@
  * Many carousels at once: a line like "CARROSSEL 2" or "Carrossel 2: título" starts a new carousel
  * (the text after it becomes its name). Without those headers, restarting at Slide 1 or `---` also works.
  */
+import { parseContentType, parseObjective, type ContentType, type Objective } from './content';
+
 export interface ScriptCarousel {
   /** Carousel name from "Tema do carrossel:" or "Título:", empty when not given. */
   title: string;
@@ -26,6 +29,10 @@ export interface ScriptCarousel {
   caption: string;
   /** Slide marked as the product slide, if any. */
   productIndex: number | null;
+  /** From an "Objetivo:" line; null keeps what was chosen on the screen. */
+  objective: Objective | null;
+  /** From a "Tipo:" line; null keeps what was chosen on the screen. */
+  contentType: Exclude<ContentType, 'auto'> | null;
 }
 
 const CAROUSEL_SEPARATOR = /^\s*---+\s*$/;
@@ -50,18 +57,20 @@ function slideHeader(line: string): SlideHeader | null {
 }
 
 const isSlideHeader = (line: string) => slideHeader(line) !== null;
-const LABEL = /^(tema do carrossel|tema|t[íi]tulo do carrossel|t[íi]tulo|legenda curta sugerida|legenda sugerida|legenda|objetivo|ideia visual geral|ideia visual|instru[çc][ãa]o visual|formato da resposta)\s*:\s*(.*)$/i;
+const LABEL = /^(tema do carrossel|tema|t[íi]tulo do carrossel|t[íi]tulo|legenda curta sugerida|legenda sugerida|legenda|objetivo|tipo de carrossel|tipo|ideia visual geral|ideia visual|instru[çc][ãa]o visual|formato da resposta)\s*:\s*(.*)$/i;
 const BRACKET_NOTE = /^\[[^\]]*\]$/;
 const CAROUSEL_HEADER = /^carrossel\s*\d+\s*(?:[:.,\-–—]\s*(.*))?$/i;
 const PRODUCT_NOTE = /print|produto|tela do|screenshot|mockup/i;
 const MAX_LABEL_WORDS = 3;
 
-type Target = 'slide' | 'title' | 'caption' | 'ignored';
+type Target = 'slide' | 'title' | 'caption' | 'objective' | 'contentType' | 'ignored';
 
 const LABEL_TARGETS: Record<string, Target> = {
   tema: 'title',
   titulo: 'title',
   legenda: 'caption',
+  objetivo: 'objective',
+  tipo: 'contentType',
 };
 
 /** True when the copy uses "Slide 1, Slide 2…" markers: the user already decided where each slide starts. */
@@ -145,6 +154,8 @@ function parseNumbered(lines: string[]): ScriptCarousel {
   const title: string[] = [];
   const caption: string[] = [];
   let productIndex: number | null = null;
+  let objective: Objective | null = null;
+  let contentType: Exclude<ContentType, 'auto'> | null = null;
   let target: Target = 'ignored';
 
   const push = (text: string) => {
@@ -174,7 +185,11 @@ function parseNumbered(lines: string[]): ScriptCarousel {
     const label = LABEL.exec(line);
     if (label) {
       target = labelTarget(label[1]);
-      if (label[2]) push(label[2].trim());
+      // Objective and type are one-line values: the lines after them go back to being ignored.
+      if (target === 'objective') objective = parseObjective(label[2]) ?? objective;
+      else if (target === 'contentType') contentType = parseContentType(label[2]) ?? contentType;
+      else if (label[2]) push(label[2].trim());
+      if (target === 'objective' || target === 'contentType') target = 'ignored';
       continue;
     }
     push(line);
@@ -188,6 +203,8 @@ function parseNumbered(lines: string[]): ScriptCarousel {
     slides: kept.map(({ text }) => text),
     caption: caption.join('\n'),
     productIndex: productPosition >= 0 ? productPosition : null,
+    objective,
+    contentType,
   };
 }
 
@@ -206,13 +223,18 @@ function parsePlain(lines: string[]): ScriptCarousel {
   const slides: string[] = [];
   const caption: string[] = [];
   let title = '';
+  let objective: Objective | null = null;
+  let contentType: Exclude<ContentType, 'auto'> | null = null;
   for (const line of lines) {
     const label = LABEL.exec(line);
+    const target = label ? labelTarget(label[1]) : 'slide';
     if (!label) slides.push(line.replace(LINE_BREAK, '\n'));
-    else if (labelTarget(label[1]) === 'caption') caption.push(label[2]);
-    else if (labelTarget(label[1]) === 'title') title = label[2].trim();
+    else if (target === 'caption') caption.push(label[2]);
+    else if (target === 'title') title = label[2].trim();
+    else if (target === 'objective') objective = parseObjective(label[2]) ?? objective;
+    else if (target === 'contentType') contentType = parseContentType(label[2]) ?? contentType;
   }
-  return { title, slides, caption: caption.join('\n'), productIndex: null };
+  return { title, slides, caption: caption.join('\n'), productIndex: null, objective, contentType };
 }
 
 export function scriptStats(carousels: ScriptCarousel[]): { carousels: number; slides: number } {

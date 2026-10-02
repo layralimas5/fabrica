@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Search, SlidersHorizontal } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
+import { CONTENT_TYPE_LABELS, CONTENT_TYPES, OBJECTIVE_LABELS, OBJECTIVES } from '../domain/content';
 import {
   activeFilterCount,
   EMPTY_FILTERS,
@@ -97,6 +98,14 @@ export function FiltersPanel({ filters, onChange, accountOptions, themeOptions, 
               )}
               <ChipGroup label="Formato" options={CONTENT_FORMATS} labelOf={(item) => CONTENT_FORMAT_LABELS[item]} selected={filters.formats} onChange={(formats) => set({ formats })} />
               <ChipGroup label="Tipo de gancho" options={HOOK_TYPES} labelOf={(item) => HOOK_TYPE_LABELS[item]} selected={filters.hookTypes} onChange={(hookTypes) => set({ hookTypes })} />
+              <ChipGroup label="Objetivo" options={OBJECTIVES} labelOf={(item) => OBJECTIVE_LABELS[item]} selected={filters.objectives} onChange={(objectives) => set({ objectives })} />
+              <ChipGroup
+                label="Tipo de carrossel"
+                options={CONTENT_TYPES.filter((type) => type !== 'auto') as Exclude<(typeof CONTENT_TYPES)[number], 'auto'>[]}
+                labelOf={(item) => CONTENT_TYPE_LABELS[item]}
+                selected={filters.contentTypes}
+                onChange={(contentTypes) => set({ contentTypes })}
+              />
               <ChipGroup label="Pilar" options={PILLARS} labelOf={(item) => PILLAR_LABELS[item]} selected={filters.pillars} onChange={(pillars) => set({ pillars })} />
               {themeOptions.length > 0 && <ChipGroup label="Tema" options={themeOptions} labelOf={(item) => item} selected={filters.themes} onChange={(themes) => set({ themes })} />}
               <ChipGroup label="Produto" options={PRODUCT_FILTERS} labelOf={(item) => PRODUCT_FILTER_LABELS[item]} selected={filters.products} onChange={(products) => set({ products })} />
@@ -153,6 +162,12 @@ export function FiltersPanel({ filters, onChange, accountOptions, themeOptions, 
           ))}
           {filters.hookTypes.map((item) => (
             <Active key={item} onRemove={() => set({ hookTypes: filters.hookTypes.filter((value) => value !== item) })}>{HOOK_TYPE_LABELS[item]}</Active>
+          ))}
+          {filters.objectives.map((item) => (
+            <Active key={item} onRemove={() => set({ objectives: filters.objectives.filter((value) => value !== item) })}>{OBJECTIVE_LABELS[item]}</Active>
+          ))}
+          {filters.contentTypes.map((item) => (
+            <Active key={item} onRemove={() => set({ contentTypes: filters.contentTypes.filter((value) => value !== item) })}>{CONTENT_TYPE_LABELS[item]}</Active>
           ))}
           {filters.pillars.map((item) => (
             <Active key={item} onRemove={() => set({ pillars: filters.pillars.filter((value) => value !== item) })}>{PILLAR_LABELS[item]}</Active>

@@ -1,3 +1,4 @@
+import { CONTENT_TYPE_LABELS, OBJECTIVE_LABELS, type ContentType, type Objective } from '../content';
 import { narrativeLabel } from './dna';
 import {
   accountKey,
@@ -46,6 +47,8 @@ export interface WinnerFilters {
   accounts: string[];
   formats: ContentFormat[];
   pillars: Pillar[];
+  objectives: Objective[];
+  contentTypes: Exclude<ContentType, 'auto'>[];
   hookTypes: HookType[];
   themes: string[];
   products: ProductFilter[];
@@ -64,6 +67,8 @@ export const EMPTY_FILTERS: WinnerFilters = {
   accounts: [],
   formats: [],
   pillars: [],
+  objectives: [],
+  contentTypes: [],
   hookTypes: [],
   themes: [],
   products: [],
@@ -76,7 +81,7 @@ export const EMPTY_FILTERS: WinnerFilters = {
 };
 
 export function activeFilterCount(filters: WinnerFilters): number {
-  const lists = [filters.platforms, filters.accounts, filters.formats, filters.pillars, filters.hookTypes, filters.themes, filters.products, filters.winnerTypes];
+  const lists = [filters.platforms, filters.accounts, filters.formats, filters.pillars, filters.objectives, filters.contentTypes, filters.hookTypes, filters.themes, filters.products, filters.winnerTypes];
   return lists.reduce((sum, list) => sum + list.length, 0) + (filters.period !== 'all' ? 1 : 0) + Number(filters.onlyFavorites) + Number(filters.onlyMainModels);
 }
 
@@ -94,6 +99,8 @@ export function searchableText(record: ContentRecord): string {
       ...record.script.map((beat) => beat.text),
       CONTENT_FORMAT_LABELS[record.format],
       record.pillar ? PILLAR_LABELS[record.pillar] : '',
+      record.objective ? OBJECTIVE_LABELS[record.objective] : '',
+      record.contentType ? CONTENT_TYPE_LABELS[record.contentType] : '',
       record.hookType ? HOOK_TYPE_LABELS[record.hookType] : '',
       record.dna ? `${narrativeLabel(record.dna)} ${record.dna.tone} ${record.dna.emotion} ${record.dna.copyStyle}` : '',
     ].join(' '),
@@ -141,6 +148,8 @@ export function applyFilters(records: ContentRecord[], filters: WinnerFilters, t
     if (!inList(filters.accounts, accountKey(record))) return false;
     if (!inList(filters.formats, record.format)) return false;
     if (!inList(filters.pillars, record.pillar)) return false;
+    if (!inList(filters.objectives, record.objective)) return false;
+    if (!inList(filters.contentTypes, record.contentType)) return false;
     if (!inList(filters.hookTypes, record.hookType)) return false;
     if (!inList(themes, record.theme ? fold(record.theme) : null)) return false;
     if (!matchesProduct(record.productPresence, filters.products)) return false;

@@ -156,3 +156,22 @@ export function resolveSlideCount(option: SlideCountOption, available: number): 
   const target = option === 'auto' ? available : option;
   return Math.min(MAX_SLIDES, Math.max(MIN_SLIDES, target));
 }
+
+const fold = (value: string) => value.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+
+function matchOption<T extends string>(raw: string, options: readonly T[], labels: Record<T, string>): T | null {
+  const text = fold(raw);
+  if (!text) return null;
+  return options.find((option) => fold(option) === text || fold(labels[option]) === text || fold(labels[option]).split(/\s*\/\s*/).includes(text)) ?? null;
+}
+
+/** "Conversão", "conversao", "CONVERSÃO" → 'conversao'. Null when it is not a known objective. */
+export function parseObjective(raw: string): Objective | null {
+  return matchOption(raw, OBJECTIVES, OBJECTIVE_LABELS);
+}
+
+/** "Dor / Identificação", "dor", "identificação", "Contrarian" → the content type. 'auto' never comes from text. */
+export function parseContentType(raw: string): Exclude<ContentType, 'auto'> | null {
+  const type = matchOption(raw, CONTENT_TYPES, CONTENT_TYPE_LABELS);
+  return type === 'auto' ? null : type;
+}

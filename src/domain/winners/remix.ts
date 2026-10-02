@@ -1,4 +1,5 @@
 import { CTA_STYLE_LABELS, narrativeLabel, PRODUCT_PLACEMENT_LABELS, RHYTHM_LABELS, TEXT_DENSITY_LABELS, type ContentDna } from './dna';
+import { CONTENT_TYPE_LABELS, OBJECTIVE_LABELS } from '../content';
 import { CONTENT_FORMAT_LABELS, HOOK_TYPE_LABELS, type ContentRecord } from './record';
 
 /**
@@ -104,6 +105,8 @@ function dnaLines(record: ContentRecord, dna: ContentDna): string[] {
   return [
     `Tema original: ${record.theme || 'não informado'}`,
     `Formato: ${CONTENT_FORMAT_LABELS[record.format]} · ${dna.slideCount} ${record.format === 'carrossel' ? 'slides' : 'momentos'}`,
+    ...(record.objective ? [`Objetivo do conteúdo: ${OBJECTIVE_LABELS[record.objective].toLowerCase()}`] : []),
+    ...(record.contentType ? [`Tipo de carrossel: ${CONTENT_TYPE_LABELS[record.contentType].toLowerCase()}`] : []),
     `Gancho: ${HOOK_TYPE_LABELS[dna.hookType].toLowerCase()}`,
     `Emoção principal: ${dna.emotion}`,
     `Estrutura: ${narrativeLabel(dna)}`,

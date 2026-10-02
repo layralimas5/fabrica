@@ -5,6 +5,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { winnerContext } from '../application/winnerHandoff';
 import { productOf } from '../domain/brandKit';
 import { STATUS_LABELS } from '../domain/carousel';
+import { CONTENT_TYPE_LABELS, OBJECTIVE_LABELS } from '../domain/content';
 import { analyzeDna, type ContentDna } from '../domain/winners/dna';
 import { familyMembers, familyNames, type FamilyMember } from '../domain/winners/family';
 import { carouselScript, recordFromCarousel } from '../domain/winners/fromCarousel';
@@ -101,6 +102,8 @@ export function WinnerDetailPage() {
           <div className="flex flex-wrap gap-1.5">
             <Tag>{accountLabel ?? CONTENT_PLATFORM_LABELS[record.platform]}</Tag>
             <Tag>{CONTENT_FORMAT_LABELS[record.format]}</Tag>
+            {record.objective && <Tag tone="accent">Objetivo: {OBJECTIVE_LABELS[record.objective]}</Tag>}
+            {record.contentType && <Tag>Tipo: {CONTENT_TYPE_LABELS[record.contentType]}</Tag>}
             {record.theme && <Tag>Tema: {record.theme}</Tag>}
             {record.pillar && <Tag>{PILLAR_LABELS[record.pillar]}</Tag>}
             {record.hookType && <Tag>Gancho: {HOOK_TYPE_LABELS[record.hookType]}</Tag>}

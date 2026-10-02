@@ -27,8 +27,11 @@ export interface CreateRequest {
   mode: CopyMode;
   /** One entry per copy box. Each written script may hold several carousels; each loose copy becomes one. */
   texts: string[];
+  /** Batch defaults: used by every copy that has no choice of its own. */
   contentType: ContentType;
   objective: Objective;
+  /** Per copy box, same order as texts. Null fields fall back to the batch defaults. */
+  copySettings?: CopySetting[];
   slideCount: SlideCountOption;
   folders: string[];
   /** One style = regular creation. Two or more = a format test with one variant per style. */
@@ -54,6 +57,12 @@ export interface CreateRequest {
   origin?: ContentOrigin | null;
 }
 
+/** Objective and type picked for one copy box. */
+export interface CopySetting {
+  objective: Objective | null;
+  contentType: ContentType | null;
+}
+
 export interface CreateResult {
   carousels: Carousel[];
   experimentIds: string[];
@@ -65,6 +74,8 @@ interface PreparedCopy {
   copy: string;
   /** 'manual' keeps every word as written; 'ai' was structured by the engine. */
   mode: CopyMode;
+  objective: Objective;
+  contentType: ContentType;
 }
 
 /** Creates every carousel the request implies: one per script block (batch) times one per style (format test). */
@@ -76,10 +87,14 @@ export async function createCarousels(services: Services, request: CreateRequest
   const brandOnly = new Set([request.brand.logoAssetId, request.brand.avatarAssetId, product?.imageAssetId].filter(Boolean));
   const assets = request.library.filter((asset) => !brandOnly.has(asset.id) && inFolders(asset, request.folders));
   const copies: PreparedCopy[] = [];
-  for (const text of request.texts.map((item) => item.trim()).filter(Boolean)) {
+  for (const [index, raw] of request.texts.entries()) {
+    const text = raw.trim();
+    if (!text) continue;
+    const setting = request.copySettings?.[index];
+    const defaults = { objective: setting?.objective ?? request.objective, contentType: setting?.contentType ?? request.contentType };
     // Numbered slides mean the user already split the copy: keep their slides even in AI mode.
-    if (request.mode === 'manual' || hasNumberedSlides(text)) copies.push(...manualCopies(text));
-    else copies.push(await aiCopy(services, request, text, styles[0], assets, product));
+    if (request.mode === 'manual' || hasNumberedSlides(text)) copies.push(...manualCopies(text, defaults));
+    else copies.push(await aiCopy(services, request, text, styles[0], assets, product, defaults));
   }
   if (copies.length === 0) throw new Error('Escreva pelo menos uma linha de texto.');
 
@@ -106,7 +121,7 @@ export async function createCarousels(services: Services, request: CreateRequest
         ? { ...draft, slides: draft.slides.map((slide, index) => ({ ...slide, assetId: previous?.[index]?.assetId ?? slide.assetId })) }
         : draft;
       const slides = composeSlides(shared, {
-        objective: request.objective,
+        objective: prepared.objective,
         assets,
         visualStyle: style,
         preserveText: prepared.mode === 'manual',
@@ -127,8 +142,8 @@ export async function createCarousels(services: Services, request: CreateRequest
           format: request.format,
           source: {
             copy,
-            contentType: request.contentType,
-            objective: request.objective,
+            contentType: prepared.contentType,
+            objective: prepared.objective,
             visualStyle: style,
             slideCount: request.slideCount,
             folders: request.folders,
@@ -227,9 +242,12 @@ function productForRequest(request: CreateRequest): BrandProduct | null {
   return { ...product, imageAssetId: request.productImageAssetId };
 }
 
-function manualCopies(text: string): PreparedCopy[] {
+/** Written scripts: an "Objetivo:" or "Tipo:" line inside a carousel wins over the screen choice. */
+function manualCopies(text: string, defaults: Pick<PreparedCopy, 'objective' | 'contentType'>): PreparedCopy[] {
   return parseScript(text).map((block) => ({
     mode: 'manual' as const,
+    objective: block.objective ?? defaults.objective,
+    contentType: block.contentType ?? defaults.contentType,
     caption: block.caption,
     copy: block.slides.join('\n'),
     draft: {
@@ -256,16 +274,17 @@ async function aiCopy(
   style: VisualStyle,
   assets: Asset[],
   product: BrandProduct | null,
+  { objective, contentType }: Pick<PreparedCopy, 'objective' | 'contentType'>,
 ): Promise<PreparedCopy> {
   const draft = await services.ai.draftCarousel({
     copy: text,
-    contentType: request.contentType,
-    objective: request.objective,
+    contentType,
+    objective,
     visualStyle: style,
     slideCount: request.slideCount === 'auto' ? null : request.slideCount,
     brand: brandContext(request.brand),
     product: product ? { name: product.name.trim(), pitch: product.pitch.trim(), hasImage: product.imageAssetId !== null } : null,
     assets: assets.slice(0, ASSET_CONTEXT_LIMIT).map(({ id, name, folder, kind, tags }) => ({ id, name, folder, kind, tags })),
   });
-  return { mode: 'ai', draft: { ...draft, title: draft.title || draft.slides[0].title }, caption: draft.caption, copy: text };
+  return { mode: 'ai', objective, contentType, draft: { ...draft, title: draft.title || draft.slides[0].title }, caption: draft.caption, copy: text };
 }

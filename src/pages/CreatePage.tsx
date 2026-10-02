@@ -9,7 +9,7 @@ import { TextStylePanel } from '../create/TextStylePanel';
 import type { CreateSettings, Preset } from '../domain/preset';
 import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
-import { createCarousels, MAX_TEST_VARIANTS } from '../application/createCarousels';
+import { createCarousels, MAX_TEST_VARIANTS, type CopySetting } from '../application/createCarousels';
 import { readHandoff } from '../application/winnerHandoff';
 import type { ContentOrigin } from '../domain/winners/record';
 import { ShadePicker } from '../brand/ShadePicker';
@@ -131,6 +131,8 @@ export function CreatePage() {
   const [mode, setMode] = useState<CopyMode>(() => (handoff ? 'manual' : readStored(MODE_STORAGE_KEY, ['manual', 'ai'] as const, 'manual')));
   /** One entry per copy box; each copy becomes a carousel. */
   const [copies, setCopies] = useState<string[]>(() => (handoff?.copies.length ? handoff.copies.slice(0, MAX_COPIES) : ['']));
+  /** Objective and type of each copy box; null fields follow the batch defaults of step 3. */
+  const [copySettings, setCopySettings] = useState<CopySetting[]>([]);
   const [brandId, setBrandId] = useState('');
   const [accountId, setAccountId] = useState<string | null>(() => readStoredText(ACCOUNT_STORAGE_KEY));
   const [contentType, setContentType] = useState<ContentType>('auto');
@@ -168,7 +170,16 @@ export function CreatePage() {
   const product = brand ? productOf(brand) : null;
   const folderCounts = useMemo(() => countByFolder(assets.data), [assets.data]);
   const availableImages = assets.data.filter((asset) => inFolders(asset, folders)).length;
-  const copyInfo = useMemo(() => copies.map((copy) => ({ copy, numbered: hasNumberedSlides(copy), stats: scriptStats(parseScript(copy)) })), [copies]);
+  const copyInfo = useMemo(
+    () =>
+      copies.map((copy) => {
+        const parsed = parseScript(copy);
+        // An "Objetivo:" or "Tipo:" line written in the copy wins over the box selection.
+        const fromScript = { objective: parsed.find((block) => block.objective)?.objective ?? null, contentType: parsed.find((block) => block.contentType)?.contentType ?? null };
+        return { copy, numbered: hasNumberedSlides(copy), stats: scriptStats(parsed), fromScript };
+      }),
+    [copies],
+  );
   const stats = useMemo(
     () => copyInfo.reduce((sum, info) => ({ carousels: sum.carousels + info.stats.carousels, slides: sum.slides + info.stats.slides }), { carousels: 0, slides: 0 }),
     [copyInfo],
@@ -407,6 +418,7 @@ export function CreatePage() {
       const parts = splitCopies(content);
       // A file with several carousels fills one box per carousel.
       setCopies(parts.length > 1 ? parts.slice(0, MAX_COPIES) : [content]);
+      setCopySettings([]);
       setError(parts.length > MAX_COPIES ? `O arquivo tem ${parts.length} carrosséis; entraram os primeiros ${MAX_COPIES}.` : null);
     } catch (cause) {
       setError(`Não consegui ler o arquivo: ${errorMessage(cause)}`);
@@ -426,6 +438,7 @@ export function CreatePage() {
         library: assets.data,
         mode,
         texts: copies,
+        copySettings,
         contentType,
         objective,
         slideCount,
@@ -462,8 +475,17 @@ export function CreatePage() {
   if (brands.loading) return <Spinner />;
 
   const ready = copyInfo.some((info) => (mode === 'manual' || info.numbered ? info.stats.slides > 0 : info.copy.trim().length >= MIN_AI_COPY_LENGTH));
-  const changeCopyCount = (count: number) =>
+  const changeCopyCount = (count: number) => {
     setCopies((current) => (count <= current.length ? current.slice(0, count) : [...current, ...Array.from({ length: count - current.length }, () => '')]));
+    setCopySettings((current) => current.slice(0, count));
+  };
+  const settingAt = (index: number): CopySetting => copySettings[index] ?? { objective: null, contentType: null };
+  const updateSetting = (index: number, patch: Partial<CopySetting>) =>
+    setCopySettings((current) => {
+      const next = Array.from({ length: Math.max(current.length, index + 1) }, (_, position) => current[position] ?? { objective: null, contentType: null });
+      next[index] = { ...next[index], ...patch };
+      return next;
+    });
   const updateCopy = (index: number, value: string) => setCopies((current) => current.map((copy, position) => (position === index ? value : copy)));
   const photo = assets.data.find((asset) => isPhotoLike(asset) && asset.id !== productImageId);
   const productImage = assets.data.find((asset) => asset.id === productImageId);
@@ -574,13 +596,24 @@ export function CreatePage() {
                 <ol className="divide-y divide-line">
                   {copyInfo.map((info, index) => (
                     <li key={index} className="px-4 py-3">
-                      <div className="mb-1.5 flex items-center justify-between gap-3">
-                        <label htmlFor={`copy-${index}`} className="text-xs font-semibold text-ink">
-                          Copy {index + 1}
-                        </label>
-                        <span className="text-[11px] text-faint">
-                          {info.copy.trim() ? (mode === 'manual' || info.numbered ? `${info.stats.slides} slides` : 'a ferramenta divide') : 'vazia'}
-                        </span>
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-baseline gap-2">
+                          <label htmlFor={`copy-${index}`} className="text-xs font-semibold text-ink">
+                            Copy {index + 1}
+                          </label>
+                          <span className="text-[11px] text-faint">
+                            {info.copy.trim() ? (mode === 'manual' || info.numbered ? `${info.stats.slides} slides` : 'a ferramenta divide') : 'vazia'}
+                          </span>
+                        </div>
+                        <CopyTags
+                          index={index}
+                          setting={settingAt(index)}
+                          fromScript={info.fromScript}
+                          defaults={{ objective, contentType }}
+                          manual={mode === 'manual'}
+                          disabled={generating}
+                          onChange={(patch) => updateSetting(index, patch)}
+                        />
                       </div>
                       <Textarea
                         id={`copy-${index}`}
@@ -602,7 +635,7 @@ export function CreatePage() {
                     {mode === 'ai' ? (
                       <span className="font-medium text-ink">Você já numerou os slides, então a ferramenta respeita a sua divisão e não muda o texto. </span>
                     ) : null}
-                    <code className="text-muted">Slide 1</code> começa o slide 1 (só o texto aparece) · <code className="text-muted">SLIDE 6 — PRODUTO</code> ou <code className="text-muted">SLIDE - APP</code> recebe o print · linha em branco vira espaço entre parágrafos · sem "Slide N", cada linha é um slide · <code className="text-muted">Legenda:</code> e <code className="text-muted">Tema do carrossel:</code> são lidos à parte
+                    <code className="text-muted">Slide 1</code> começa o slide 1 (só o texto aparece) · <code className="text-muted">SLIDE 6 — PRODUTO</code> ou <code className="text-muted">SLIDE - APP</code> recebe o print · linha em branco vira espaço entre parágrafos · sem "Slide N", cada linha é um slide · <code className="text-muted">Legenda:</code> e <code className="text-muted">Tema do carrossel:</code> são lidos à parte · <code className="text-muted">Objetivo: conversão</code> e <code className="text-muted">Tipo: dor</code> valem só pra aquele carrossel
                   </p>
                   <p className="shrink-0 font-medium text-muted" aria-live="polite">
                     {blocks} {blocks === 1 ? 'carrossel' : 'carrosséis'} · {stats.slides} slides
@@ -641,7 +674,7 @@ export function CreatePage() {
                     ))}
                   </Select>
                 </Field>
-                <Field label="Objetivo" htmlFor="objective">
+                <Field label={copies.length > 1 ? 'Objetivo padrão' : 'Objetivo'} htmlFor="objective" hint={copies.length > 1 ? 'Vale pras copys sem objetivo próprio.' : undefined}>
                   <Select id="objective" value={objective} onChange={(e) => setObjective(e.target.value as Objective)} disabled={generating}>
                     {OBJECTIVES.map((item) => (
                       <option key={item} value={item}>
@@ -650,17 +683,21 @@ export function CreatePage() {
                     ))}
                   </Select>
                 </Field>
+                <Field
+                  label={copies.length > 1 ? 'Tipo padrão' : 'Tipo de carrossel'}
+                  htmlFor="type"
+                  hint={mode === 'manual' ? 'No "Já separei" o texto não muda: o tipo fica registrado pra análise.' : copies.length > 1 ? 'Vale pras copys sem tipo próprio.' : undefined}
+                >
+                  <Select id="type" value={contentType} onChange={(e) => setContentType(e.target.value as ContentType)} disabled={generating}>
+                    {CONTENT_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {typeLabel(type, mode === 'manual')}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
                 {mode === 'ai' ? (
                   <>
-                    <Field label="Tipo de carrossel" htmlFor="type">
-                      <Select id="type" value={contentType} onChange={(e) => setContentType(e.target.value as ContentType)} disabled={generating}>
-                        {CONTENT_TYPES.map((type) => (
-                          <option key={type} value={type}>
-                            {CONTENT_TYPE_LABELS[type]}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
                     <Field label="Slides" htmlFor="count">
                       <Select id="count" value={String(slideCount)} onChange={(e) => setSlideCount(e.target.value === 'auto' ? 'auto' : (Number(e.target.value) as SlideCountOption))} disabled={generating}>
                         {SLIDE_COUNT_OPTIONS.map((count) => (
@@ -672,7 +709,7 @@ export function CreatePage() {
                     </Field>
                   </>
                 ) : (
-                  <label className="flex items-center gap-2 self-end pb-2.5 text-sm text-ink sm:col-span-2">
+                  <label className="flex items-center gap-2 self-end pb-2.5 text-sm text-ink">
                     <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={addCta} onChange={(e) => setAddCta(e.target.checked)} disabled={generating} />
                     Adicionar no fim o CTA do objetivo
                   </label>
@@ -1008,4 +1045,69 @@ function countByFolder(assets: { folder: string }[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const asset of assets) counts.set(asset.folder, (counts.get(asset.folder) ?? 0) + 1);
   return new Map([...counts.entries()].sort((a, b) => a[0].localeCompare(b[0])));
+}
+
+/** In "Já separei" nothing is detected from the text, so "auto" means the type was not set. */
+function typeLabel(type: ContentType, manual: boolean): string {
+  return type === 'auto' && manual ? 'Não definido' : CONTENT_TYPE_LABELS[type];
+}
+
+interface CopyTagsProps {
+  index: number;
+  setting: CopySetting;
+  /** Values written in the copy itself ("Objetivo:", "Tipo:"), which win over the selects. */
+  fromScript: { objective: Objective | null; contentType: ContentType | null };
+  defaults: { objective: Objective; contentType: ContentType };
+  manual: boolean;
+  disabled: boolean;
+  onChange: (patch: Partial<CopySetting>) => void;
+}
+
+/** Objective and type of one copy box, so each carousel of a batch records why it was made. */
+function CopyTags({ index, setting, fromScript, defaults, manual, disabled, onChange }: CopyTagsProps) {
+  const selectClass = '!h-8 !w-auto max-w-full !rounded-lg !py-0 !pl-2 text-xs';
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {fromScript.objective ? (
+        <span className="rounded-lg bg-subtle px-2 py-1 text-xs text-muted" title='Definido pela linha "Objetivo:" da copy'>
+          {OBJECTIVE_LABELS[fromScript.objective]} · no texto
+        </span>
+      ) : (
+        <Select
+          aria-label={`Objetivo da copy ${index + 1}`}
+          value={setting.objective ?? ''}
+          onChange={(e) => onChange({ objective: (e.target.value || null) as Objective | null })}
+          disabled={disabled}
+          className={clsx(selectClass, setting.objective ? 'text-ink' : 'text-faint')}
+        >
+          <option value="">Objetivo: padrão ({OBJECTIVE_LABELS[defaults.objective]})</option>
+          {OBJECTIVES.map((item) => (
+            <option key={item} value={item}>
+              {OBJECTIVE_LABELS[item]}
+            </option>
+          ))}
+        </Select>
+      )}
+      {fromScript.contentType ? (
+        <span className="rounded-lg bg-subtle px-2 py-1 text-xs text-muted" title='Definido pela linha "Tipo:" da copy'>
+          {CONTENT_TYPE_LABELS[fromScript.contentType]} · no texto
+        </span>
+      ) : (
+        <Select
+          aria-label={`Tipo da copy ${index + 1}`}
+          value={setting.contentType ?? ''}
+          onChange={(e) => onChange({ contentType: (e.target.value || null) as ContentType | null })}
+          disabled={disabled}
+          className={clsx(selectClass, setting.contentType ? 'text-ink' : 'text-faint')}
+        >
+          <option value="">Tipo: padrão ({typeLabel(defaults.contentType, manual)})</option>
+          {CONTENT_TYPES.filter((type) => type !== 'auto').map((type) => (
+            <option key={type} value={type}>
+              {CONTENT_TYPE_LABELS[type]}
+            </option>
+          ))}
+        </Select>
+      )}
+    </div>
+  );
 }

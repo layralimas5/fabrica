@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
 import type { Account } from '../domain/account';
+import { CONTENT_TYPE_LABELS, CONTENT_TYPES, OBJECTIVE_LABELS, OBJECTIVES } from '../domain/content';
 import { analyzeDna, classifyHook } from '../domain/winners/dna';
 import { scriptFromText, scriptToText } from '../domain/winners/fromCarousel';
 import {
@@ -217,6 +218,26 @@ export function WinnerFormDialog({ open, onClose, initial, recordId, accounts, l
                 {PILLARS.map((item) => (
                   <option key={item} value={item}>
                     {PILLAR_LABELS[item]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Objetivo" htmlFor="wf-objective">
+              <Select id="wf-objective" value={form.objective ?? ''} onChange={(e) => update({ objective: (e.target.value || null) as ContentRecordInput['objective'] })}>
+                <option value="">Não definido</option>
+                {OBJECTIVES.map((item) => (
+                  <option key={item} value={item}>
+                    {OBJECTIVE_LABELS[item]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Tipo de carrossel" htmlFor="wf-content-type">
+              <Select id="wf-content-type" value={form.contentType ?? ''} onChange={(e) => update({ contentType: (e.target.value || null) as ContentRecordInput['contentType'] })}>
+                <option value="">Não definido</option>
+                {CONTENT_TYPES.filter((type) => type !== 'auto').map((item) => (
+                  <option key={item} value={item}>
+                    {CONTENT_TYPE_LABELS[item]}
                   </option>
                 ))}
               </Select>
