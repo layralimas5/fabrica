@@ -64,6 +64,7 @@ const request = (overrides: Partial<CreateRequest> = {}): CreateRequest => ({
   styles: ['minimalista'],
   addCta: false,
   includeProduct: false,
+  shade: { style: 'bottom', intensity: 0.5 },
   ...overrides,
 });
 
@@ -168,5 +169,14 @@ describe('createCarousels platform', () => {
     const services = fakeServices();
     await createCarousels(services, request({ platform: 'tiktok', styles: ['minimalista'] }));
     expect(services.saved.every((carousel) => carousel.format === '9:16')).toBe(true);
+  });
+});
+
+describe('createCarousels shade', () => {
+  it('saves the chosen shade on every carousel, format test variants included', async () => {
+    const services = fakeServices();
+    await createCarousels(services, request({ styles: ['minimalista', 'tiktok'], shade: { style: 'vignette', intensity: 0.6 } }));
+    expect(services.saved.length).toBeGreaterThan(1);
+    expect(services.saved.every((carousel) => carousel.source.shade?.style === 'vignette' && carousel.source.shade.intensity === 0.6)).toBe(true);
   });
 });

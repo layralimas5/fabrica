@@ -1,9 +1,12 @@
 import clsx from 'clsx';
 import { ArrowLeft, ArrowRight, Copy, ImageOff, Images, RotateCcw, Scissors, Shuffle, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import type { Asset } from '../domain/asset';
+import { isPhotoLike, type Asset } from '../domain/asset';
 import { FONT_CHOICES } from '../domain/brandKit';
+import type { RenderContext } from '../app/slideRendering';
+import { ShadePicker } from '../brand/ShadePicker';
 import { FONT_SCALE_RANGE, type Slide } from '../domain/carousel';
+import type { ImageShade } from '../domain/shade';
 import { ROLE_LABELS } from '../domain/content';
 import { compatibleLayouts, LAYOUTS, type LayoutId } from '../domain/layouts';
 import { AssetThumb } from '../ui/AssetThumb';
@@ -19,6 +22,8 @@ interface InspectorProps {
   aiError: string | null;
   onChange: (patch: Partial<Slide>) => void;
   onFontScaleForAll: (fontScale: number) => void;
+  shadeContext: RenderContext;
+  onShadeChange: (shade: ImageShade) => void;
   onPickImage: () => void;
   onRewrite: (mode: 'shorten' | 'variation') => void;
   onDuplicate: () => void;
@@ -128,6 +133,14 @@ export function Inspector(props: InspectorProps) {
           </div>
         </div>
         {image && !LAYOUTS[slide.layout].needsImage && <p className="text-[11px] text-faint">Esse layout não mostra imagem. Troca pra um layout com imagem.</p>}
+      </section>
+
+      <section aria-labelledby="inspector-shade" className="flex flex-col gap-3">
+        <h2 id="inspector-shade" className="text-xs font-semibold uppercase tracking-wider text-faint">
+          Sombreamento das fotos
+        </h2>
+        <p className="-mt-1 text-xs text-faint">Vale pra todas as fotos do carrossel.</p>
+        <ShadePicker context={props.shadeContext} photo={image ?? assets.find(isPhotoLike)} value={props.shadeContext.shade} onChange={props.onShadeChange} compact />
       </section>
 
       <section aria-labelledby="inspector-type" className="flex flex-col gap-3">

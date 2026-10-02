@@ -2,6 +2,7 @@ import type { AssetRepository } from '../application/ports';
 import type { Asset } from '../domain/asset';
 import type { BrandKit, VisualStyle } from '../domain/brandKit';
 import type { CarouselFormat, Slide } from '../domain/carousel';
+import type { ImageShade } from '../domain/shade';
 import { resolveTheme } from '../domain/theme';
 import { renderSlideToCanvas } from '../render/renderSlide';
 import { bitmapOf } from './imageCache';
@@ -14,6 +15,7 @@ export interface RenderContext {
   format: CarouselFormat;
   visualStyle: VisualStyle;
   total: number;
+  shade: ImageShade;
 }
 
 async function optionalBitmap(context: RenderContext, assetId: string | null): Promise<ImageBitmap | null> {
@@ -34,7 +36,7 @@ export async function renderCarouselSlide(context: RenderContext, slide: Slide, 
     optionalBitmap(context, context.brand.avatarAssetId ?? null),
   ]);
   return renderSlideToCanvas(
-    { slide, theme: resolveTheme(context.brand, context.visualStyle), format: context.format, index, total: context.total, image, logo, avatar },
+    { slide, theme: resolveTheme(context.brand, context.visualStyle), format: context.format, index, total: context.total, image, logo, avatar, shade: context.shade },
     scale,
   );
 }

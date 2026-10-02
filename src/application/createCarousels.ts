@@ -5,6 +5,7 @@ import { PLATFORM_FORMATS, type Carousel, type CopyMode, type ExperimentRef, typ
 import { composeSlides } from '../domain/composeCarousel';
 import type { ContentType, Objective, SlideCountOption } from '../domain/content';
 import { parseScript } from '../domain/script';
+import type { ImageShade } from '../domain/shade';
 import { limitWords, stripTrailingPeriod } from '../domain/text';
 import { brandContext } from './brandContext';
 import type { Services } from './ports';
@@ -26,6 +27,8 @@ export interface CreateRequest {
   styles: VisualStyle[];
   /** Manual mode only: append the objective CTA as a last slide. */
   addCta: boolean;
+  /** Darkening applied to every photo of every carousel created. */
+  shade: ImageShade;
   /** AI mode only: show the brand's product in one slide. */
   includeProduct: boolean;
   /** Image for the product slide picked at creation time. Undefined keeps the one saved in the brand kit. */
@@ -93,6 +96,7 @@ export async function createCarousels(services: Services, request: CreateRequest
             slideCount: request.slideCount,
             folders: request.folders,
             copyMode: request.mode,
+            shade: request.shade,
           },
           slides,
           caption,

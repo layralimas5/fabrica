@@ -1,7 +1,9 @@
 import { FORMAT_SIZES, type CarouselFormat, type Slide } from '../domain/carousel';
+import type { ImageShade } from '../domain/shade';
 import { splitSentences } from '../domain/text';
 import { withAlpha, type SlideTheme } from '../domain/theme';
 import { ensureFont } from './fonts';
+import { paintShade } from './shade';
 import { drawStack, wrap, type Box, type StackItem, type StackStyle } from './textStack';
 
 export interface SlideRenderInput {
@@ -13,6 +15,8 @@ export interface SlideRenderInput {
   image: ImageBitmap | null;
   logo: ImageBitmap | null;
   avatar: ImageBitmap | null;
+  /** Darkening applied to every photo. */
+  shade: ImageShade;
 }
 
 interface Frame {
@@ -327,6 +331,8 @@ function drawCover(frame: Frame, image: ImageBitmap, box: Box, radius: number): 
   ctx.clip();
   if (theme.grayscale) ctx.filter = 'grayscale(1)';
   ctx.drawImage(image, box.x + (box.width - width) / 2, box.y + (box.height - height) / 2, width, height);
+  ctx.filter = 'none';
+  paintShade(ctx, box, frame.input.shade);
   ctx.restore();
 }
 

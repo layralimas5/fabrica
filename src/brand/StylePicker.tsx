@@ -5,6 +5,7 @@ import { useServices } from '../app/services';
 import type { Asset } from '../domain/asset';
 import { VISUAL_STYLE_LABELS, VISUAL_STYLES, type BrandKitInput, type VisualStyle } from '../domain/brandKit';
 import { DEFAULT_SLIDE_STYLE, type Slide } from '../domain/carousel';
+import { DEFAULT_SHADE, type ImageShade } from '../domain/shade';
 import type { LayoutId } from '../domain/layouts';
 import { SlideCanvas } from '../ui/SlideCanvas';
 
@@ -43,10 +44,11 @@ interface StylePickerProps {
   /** Checkbox semantics (format tests) instead of a single choice. */
   multiple?: boolean;
   disabled?: boolean;
+  shade?: ImageShade;
 }
 
 /** Every option is a live thumbnail of the brand in that style. */
-export function StylePicker({ label, draft, photo, assets, selected, onToggle, multiple = false, disabled = false }: StylePickerProps) {
+export function StylePicker({ label, draft, photo, assets, selected, onToggle, multiple = false, disabled = false, shade = DEFAULT_SHADE }: StylePickerProps) {
   return (
     <div role={multiple ? 'group' : 'radiogroup'} aria-label={label} className="grid grid-cols-3 gap-2 sm:grid-cols-4">
       {VISUAL_STYLES.map((style) => (
@@ -59,6 +61,7 @@ export function StylePicker({ label, draft, photo, assets, selected, onToggle, m
           selected={selected.includes(style)}
           multiple={multiple}
           disabled={disabled}
+          shade={shade}
           onSelect={() => onToggle(style)}
         />
       ))}
@@ -74,14 +77,15 @@ interface StyleOptionProps {
   selected: boolean;
   multiple: boolean;
   disabled: boolean;
+  shade: ImageShade;
   onSelect: () => void;
 }
 
-function StyleOption({ style, draft, photo, assets, selected, multiple, disabled, onSelect }: StyleOptionProps) {
+function StyleOption({ style, draft, photo, assets, selected, multiple, disabled, shade, onSelect }: StyleOptionProps) {
   const { assets: repo } = useServices();
   const context: RenderContext = useMemo(
-    () => ({ brand: { ...draft, id: 'style-preview', createdAt: '', updatedAt: '' }, assets, repo, format: '4:5', visualStyle: style, total: 1 }),
-    [draft, assets, repo, style],
+    () => ({ brand: { ...draft, id: 'style-preview', createdAt: '', updatedAt: '' }, assets, repo, format: '4:5', visualStyle: style, total: 1, shade }),
+    [draft, assets, repo, style, shade],
   );
   const slide = useMemo(() => sampleSlide(style, photo?.id ?? null), [style, photo]);
 

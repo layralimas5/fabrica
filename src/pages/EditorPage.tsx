@@ -1,3 +1,4 @@
+import { shadeOf } from '../domain/shade';
 import { ArrowLeft, Check, CloudOff, Eye, Loader2, Wand2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
@@ -60,8 +61,8 @@ function Editor({ initial, brand, assets }: { initial: Carousel; brand: BrandKit
   const slide = carousel.slides[index];
 
   const context: RenderContext = useMemo(
-    () => ({ brand, assets, repo: services.assets, format: carousel.format, visualStyle: carousel.source.visualStyle, total: carousel.slides.length }),
-    [brand, assets, services.assets, carousel.format, carousel.source.visualStyle, carousel.slides.length],
+    () => ({ brand, assets, repo: services.assets, format: carousel.format, visualStyle: carousel.source.visualStyle, total: carousel.slides.length, shade: shadeOf(carousel.source) }),
+    [brand, assets, services.assets, carousel.format, carousel.source.visualStyle, carousel.slides.length, carousel.source.shade],
   );
 
   const rewrite = useCallback(
@@ -153,6 +154,8 @@ function Editor({ initial, brand, assets }: { initial: Carousel; brand: BrandKit
             aiError={aiError}
             onChange={(patch) => editor.updateSlide(slide.id, patch)}
             onFontScaleForAll={editor.setFontScaleForAll}
+            shadeContext={context}
+            onShadeChange={editor.setShade}
             onPickImage={() => setPickerOpen(true)}
             onRewrite={(mode) => void rewrite(mode)}
             onDuplicate={() => editor.duplicate(slide.id)}

@@ -2,6 +2,7 @@ import type { VisualStyle } from './brandKit';
 import type { ContentType, Objective, SlideCountOption, SlideRole } from './content';
 import type { LayoutId } from './layouts';
 import type { Metrics } from './metrics';
+import { shadeOf, type ImageShade } from './shade';
 
 export interface SlideStyle {
   fontScale: number;
@@ -54,6 +55,8 @@ export interface CarouselSource {
   /** Library folders the images come from. Empty means every folder. */
   folders: string[];
   copyMode?: CopyMode;
+  /** Darkening over every photo. Older carousels have none. */
+  shade?: ImageShade;
 }
 
 export type CopyMode = 'manual' | 'ai';
@@ -124,6 +127,6 @@ export function normalizeCarousel(carousel: Carousel): Carousel {
     caption: carousel.caption ?? '',
     experiment: carousel.experiment ?? null,
     metrics: carousel.metrics ?? null,
-    source: { ...carousel.source, folders: carousel.source.folders ?? [] },
+    source: { ...carousel.source, folders: carousel.source.folders ?? [], shade: shadeOf(carousel.source) },
   };
 }

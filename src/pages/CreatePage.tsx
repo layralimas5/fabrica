@@ -7,12 +7,15 @@ import { useAssets, useBrandKits } from '../app/data';
 import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
 import { createCarousels, MAX_TEST_VARIANTS } from '../application/createCarousels';
+import { ShadePicker } from '../brand/ShadePicker';
 import { StylePicker } from '../brand/StylePicker';
+import type { RenderContext } from '../app/slideRendering';
+import { DEFAULT_SHADE, type ImageShade } from '../domain/shade';
 import { ImagePickerDialog } from '../editor/ImagePickerDialog';
 import { AssetThumb } from '../ui/AssetThumb';
 import { ACCEPTED_IMAGE_TYPES, inFolders, isAcceptedImage, isPhotoLike, PRODUCT_FOLDER, UPLOAD_RULES_MESSAGE } from '../domain/asset';
 import { MOMENTUMM_STARTER, productOf, type VisualStyle } from '../domain/brandKit';
-import { PLATFORM_LABELS, PLATFORMS, type CopyMode, type Platform } from '../domain/carousel';
+import { PLATFORM_FORMATS, PLATFORM_LABELS, PLATFORMS, type CopyMode, type Platform } from '../domain/carousel';
 import {
   CONTENT_TYPE_LABELS,
   CONTENT_TYPES,
@@ -83,6 +86,7 @@ export function CreatePage() {
   const [uploadingProductImage, setUploadingProductImage] = useState(false);
   const productFileInput = useRef<HTMLInputElement>(null);
   const [folders, setFolders] = useState<string[]>([]);
+  const [shade, setShade] = useState<ImageShade>(DEFAULT_SHADE);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creatingStarter, setCreatingStarter] = useState(false);
@@ -176,6 +180,7 @@ export function CreatePage() {
         slideCount,
         folders,
         styles,
+        shade,
         addCta,
         includeProduct: product !== null && includeProduct,
         productImageAssetId: productImageId,
@@ -189,6 +194,12 @@ export function CreatePage() {
       setGenerating(false);
     }
   };
+
+  const previewStyle = styles[0] ?? brand?.visualStyle ?? 'minimalista';
+  const shadeContext: Omit<RenderContext, 'shade'> | null = useMemo(
+    () => (brand ? { brand, assets: assets.data, repo: services.assets, format: PLATFORM_FORMATS[platform], visualStyle: previewStyle, total: 1 } : null),
+    [brand, assets.data, services.assets, platform, previewStyle],
+  );
 
   if (brands.loading) return <Spinner />;
 
@@ -330,7 +341,12 @@ export function CreatePage() {
                   onToggle={toggleStyle}
                   multiple={testing}
                   disabled={generating}
+                  shade={shade}
                 />
+              </div>
+              <div>
+                <p className="mb-3 text-xs font-medium text-muted">Sombreamento das fotos (vale pra todas)</p>
+                {shadeContext && <ShadePicker context={shadeContext} photo={photo} value={shade} onChange={setShade} disabled={generating} />}
               </div>
 
               {mode === 'ai' && product && (

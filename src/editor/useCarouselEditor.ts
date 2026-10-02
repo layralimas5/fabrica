@@ -1,3 +1,4 @@
+import type { ImageShade } from '../domain/shade';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CarouselRepository } from '../application/ports';
 import { blankSlide, duplicateSlide, moveItem, type Carousel, type CarouselFormat, type CarouselStatus, type Slide } from '../domain/carousel';
@@ -103,6 +104,10 @@ export function useCarouselEditor(repo: CarouselRepository, initial: Carousel) {
       mutate((current) => ({ ...current, slides: current.slides.map((slide) => ({ ...slide, style: { ...slide.style, fontScale } })) })),
     [mutate],
   );
+  const setShade = useCallback(
+    (shade: ImageShade) => mutate((current) => ({ ...current, source: { ...current.source, shade } })),
+    [mutate],
+  );
   const setTitle = useCallback((title: string) => mutate((current) => ({ ...current, title })), [mutate]);
   const setCaption = useCallback((caption: string) => mutate((current) => ({ ...current, caption })), [mutate]);
   const setFormat = useCallback((format: CarouselFormat) => mutate((current) => ({ ...current, format })), [mutate]);
@@ -111,7 +116,7 @@ export function useCarouselEditor(repo: CarouselRepository, initial: Carousel) {
     setCarousel((current) => ({ ...current, status }));
   }, []);
 
-  return { carousel, selectedId, setSelectedId, saveState, saveError, updateSlide, setFontScaleForAll, addSlide, duplicate, removeSlide, reorder, move, setTitle, setCaption, setFormat, setStatus };
+  return { carousel, selectedId, setSelectedId, saveState, saveError, updateSlide, setFontScaleForAll, setShade, addSlide, duplicate, removeSlide, reorder, move, setTitle, setCaption, setFormat, setStatus };
 }
 
 export type CarouselEditor = ReturnType<typeof useCarouselEditor>;

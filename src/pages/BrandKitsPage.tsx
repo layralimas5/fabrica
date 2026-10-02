@@ -25,6 +25,7 @@ import {
   type Spacing,
 } from '../domain/brandKit';
 import { DEFAULT_SLIDE_STYLE, type Slide } from '../domain/carousel';
+import { DEFAULT_SHADE } from '../domain/shade';
 import { Alert, Button, Dialog, EmptyState, Field, Input, PageHeader, Select, Spinner, Textarea } from '../ui/primitives';
 import { SlideCanvas } from '../ui/SlideCanvas';
 import { StylePicker } from '../brand/StylePicker';
@@ -355,7 +356,7 @@ function BrandPreview({ draft, assets }: { draft: BrandKitInput; assets: Asset[]
   const photo = assets.find(isPhotoLike);
   const tall = visualStyle === 'tiktok';
   const context: RenderContext = useMemo(
-    () => ({ brand: { ...draft, id: 'preview', createdAt: '', updatedAt: '' }, assets, repo, format: visualStyle === 'tiktok' ? '9:16' : '4:5', visualStyle, total: SAMPLE_SLIDES.length }),
+    () => ({ brand: { ...draft, id: 'preview', createdAt: '', updatedAt: '' }, assets, repo, format: visualStyle === 'tiktok' ? '9:16' : '4:5', visualStyle, total: SAMPLE_SLIDES.length, shade: DEFAULT_SHADE }),
     [draft, assets, repo, visualStyle],
   );
   const slides = useMemo(() => {
