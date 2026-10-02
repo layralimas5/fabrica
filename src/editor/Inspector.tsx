@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, Copy, ImageOff, Images, RotateCcw, Scissors, Shu
 import { useState } from 'react';
 import type { Asset } from '../domain/asset';
 import { FONT_CHOICES } from '../domain/brandKit';
-import type { Slide } from '../domain/carousel';
+import { FONT_SCALE_RANGE, type Slide } from '../domain/carousel';
 import { ROLE_LABELS } from '../domain/content';
 import { compatibleLayouts, LAYOUTS, type LayoutId } from '../domain/layouts';
 import { AssetThumb } from '../ui/AssetThumb';
@@ -18,6 +18,7 @@ interface InspectorProps {
   aiBusy: 'shorten' | 'variation' | null;
   aiError: string | null;
   onChange: (patch: Partial<Slide>) => void;
+  onFontScaleForAll: (fontScale: number) => void;
   onPickImage: () => void;
   onRewrite: (mode: 'shorten' | 'variation') => void;
   onDuplicate: () => void;
@@ -137,14 +138,17 @@ export function Inspector(props: InspectorProps) {
           <input
             id="slide-scale"
             type="range"
-            min={0.6}
-            max={1.6}
-            step={0.05}
+            min={FONT_SCALE_RANGE.min}
+            max={FONT_SCALE_RANGE.max}
+            step={FONT_SCALE_RANGE.step}
             value={slide.style.fontScale}
             onChange={(e) => onChange({ style: { ...slide.style, fontScale: Number(e.target.value) } })}
             className="accent-[var(--accent)]"
           />
         </Field>
+        <Button size="sm" variant="secondary" className="self-start" onClick={() => props.onFontScaleForAll(slide.style.fontScale)}>
+          Usar {Math.round(slide.style.fontScale * 100)}% em todos os slides
+        </Button>
         <Field label="Fonte do título" htmlFor="slide-font">
           <Select id="slide-font" value={slide.style.headingFont ?? ''} onChange={(e) => onChange({ style: { ...slide.style, headingFont: e.target.value || null } })}>
             <option value="">Da marca ({props.defaultHeadingFont})</option>

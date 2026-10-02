@@ -331,7 +331,7 @@ function BrandKitEditor({ id, initial, assets, inUse, onClose, onSave, onDelete 
               </Select>
             </Field>
             <Field label={`Tamanho da letra: ${draft.photoText.size}px`} htmlFor="bk-photo-size" hint="Medido no slide de 1080 de largura. Compare com um post seu e ajuste olhando a prévia.">
-              <input id="bk-photo-size" type="range" min={32} max={120} step={1} value={draft.photoText.size} onChange={(e) => patchPhotoText({ size: Number(e.target.value) })} className="accent-[var(--accent)]" />
+              <input id="bk-photo-size" type="range" min={18} max={120} step={1} value={draft.photoText.size} onChange={(e) => patchPhotoText({ size: Number(e.target.value) })} className="accent-[var(--accent)]" />
             </Field>
             <Field label="Cor da letra" htmlFor="bk-photo-color">
               <input id="bk-photo-color" type="color" value={draft.photoText.color} onChange={(e) => patchPhotoText({ color: e.target.value })} className="h-10 w-12 cursor-pointer rounded-lg border border-line bg-surface p-1" />

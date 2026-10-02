@@ -76,6 +76,9 @@ export interface Carousel {
 
 export type CarouselInput = Omit<Carousel, 'id' | 'createdAt' | 'updatedAt'>;
 
+/** Title size range in the editor, relative to the brand kit size. */
+export const FONT_SCALE_RANGE = { min: 0.3, max: 1.6, step: 0.05 } as const;
+
 export const DEFAULT_SLIDE_STYLE: SlideStyle = { fontScale: 1, offsetX: 0, offsetY: 0, headingFont: null };
 
 export function newSlideId(): string {

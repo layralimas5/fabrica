@@ -152,6 +152,7 @@ function Editor({ initial, brand, assets }: { initial: Carousel; brand: BrandKit
             aiBusy={aiBusy}
             aiError={aiError}
             onChange={(patch) => editor.updateSlide(slide.id, patch)}
+            onFontScaleForAll={editor.setFontScaleForAll}
             onPickImage={() => setPickerOpen(true)}
             onRewrite={(mode) => void rewrite(mode)}
             onDuplicate={() => editor.duplicate(slide.id)}
