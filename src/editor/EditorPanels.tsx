@@ -1,10 +1,10 @@
 import clsx from 'clsx';
-import { AlertTriangle, FlaskConical, Repeat2 } from 'lucide-react';
+import { AlertTriangle, FlaskConical, Repeat2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAccountScope } from '../app/accountScope';
 import { useExperiments } from '../app/data';
-import { useSimilaritySettings } from '../app/planningSettings';
+import { useDismissedSimilarity, useSimilaritySettings } from '../app/planningSettings';
 import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
 import type { Carousel } from '../domain/carousel';
@@ -16,14 +16,16 @@ import type { ContentRecord } from '../domain/winners/record';
 import { ExperimentForm } from '../experiments/ExperimentForm';
 import { Alert, Button, Field, Input, Select } from '../ui/primitives';
 
-/** Detector de Similaridade on an open carousel: warns, links, never blocks. */
+/** Detector de Similaridade on an open carousel: warns, links, never blocks. Each warning can be closed for good. */
 export function SimilarityNotice({ carousel, carousels, records }: { carousel: Carousel; carousels: Carousel[]; records: ContentRecord[] }) {
   const { settings } = useSimilaritySettings();
-  const matches = useMemo(() => {
+  const { isDismissed, dismiss } = useDismissedSimilarity();
+  const found = useMemo(() => {
     const winners = new Set(records.filter((record) => record.winner).map((record) => record.carouselId));
     const pool = carousels.filter((item) => item.id !== carousel.id && item.status !== 'archived' && item.source.accountId === carousel.source.accountId);
     return findSimilar(comparableFromCarousel(carousel, null, false), pool.map((item) => comparableFromCarousel(item, null, winners.has(item.id))), todayIso(), settings).slice(0, 2);
   }, [carousel, carousels, records, settings]);
+  const matches = found.filter((match) => !isDismissed(carousel.id, match.other.id));
   if (matches.length === 0) return null;
 
   return (
@@ -31,7 +33,7 @@ export function SimilarityNotice({ carousel, carousels, records }: { carousel: C
       {matches.map((match) => {
         const variation = match.kind === 'variacao';
         return (
-          <div key={match.other.id} role="status" className={clsx('rounded-2xl p-4 text-sm', variation ? 'bg-accent/10 text-ink' : 'bg-amber-50 text-amber-950 dark:bg-amber-950/30 dark:text-amber-100')}>
+          <div key={match.other.id} role="status" className={clsx('relative rounded-2xl p-4 pr-12 text-sm', variation ? 'bg-accent/10 text-ink' : 'bg-amber-50 text-amber-950 dark:bg-amber-950/30 dark:text-amber-100')}>
             <p className="flex items-start gap-2 font-medium">
               {variation ? <Repeat2 className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden /> : <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />}
               {variation ? MATCH_KIND_LABELS.variacao : `Este conteúdo possui ${match.score}% de similaridade com outro conteúdo ${match.ageDays !== null && match.ageDays >= 0 ? `publicado ${ageLabel(match.ageDays)}` : `planejado ${ageLabel(match.ageDays)}`}.`}
@@ -42,6 +44,15 @@ export function SimilarityNotice({ carousel, carousels, records }: { carousel: C
                 Ver conteúdo
               </Link>
             </p>
+            <button
+              type="button"
+              onClick={() => dismiss(carousel.id, match.other.id)}
+              aria-label="Fechar aviso"
+              title="Fechar aviso"
+              className="absolute right-2 top-2 grid size-8 place-items-center rounded-lg opacity-70 transition hover:bg-black/5 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent dark:hover:bg-white/10"
+            >
+              <X className="size-4" aria-hidden />
+            </button>
           </div>
         );
       })}

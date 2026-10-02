@@ -105,9 +105,8 @@ export async function createCarousels(services: Services, request: CreateRequest
   const product = request.includeProduct ? productForRequest(request) : null;
   const copyImages = (request.copySettings ?? []).map((setting) => setting?.productImageAssetId ?? null);
   const brandOnly = new Set([request.brand.logoAssetId, request.brand.avatarAssetId, product?.imageAssetId, ...copyImages].filter(Boolean));
-  // App prints only go in the marked slide, unless their folder was picked on purpose.
-  const pickedFolders = new Set(request.folders);
-  const assets = request.library.filter((asset) => !brandOnly.has(asset.id) && inFolders(asset, request.folders) && (!isAppImage(asset) || pickedFolders.has(asset.folder)));
+  // App prints and mockups only go in the slide the copy marks as APP or PRODUTO.
+  const assets = request.library.filter((asset) => !brandOnly.has(asset.id) && inFolders(asset, request.folders) && !isAppImage(asset));
   const copies: PreparedCopy[] = [];
   for (const [index, raw] of request.texts.entries()) {
     const text = raw.trim();

@@ -375,12 +375,47 @@ describe('createCarousels folder as photo context', () => {
     const prints: Asset[] = [
       { ...photos[0], id: 'print', name: 'tela.png', folder: 'Produto', kind: 'screenshot' },
       { ...photos[1], id: 'mock', name: 'mock.png', folder: 'Outros', kind: 'mockup' },
+      { ...photos[2], id: 'named', name: 'slide-06.png', folder: 'Mockups Momentumm', kind: 'foto' },
+      { ...photos[3], id: 'tagged', name: 'IMG_2201.jpg', folder: 'Pinterest', kind: 'foto', tags: ['app', 'tela'] },
     ];
     const slides = Array.from({ length: 8 }, (_, i) => `Slide ${i + 1}, rotina ${i + 1}`).join('\n');
     await createCarousels(services, request({ library: [...photos, ...prints], texts: [slides], folders: [], styles: ['tiktok'] }));
     const used = services.saved[0].slides.map((slide) => slide.assetId);
     expect(used).not.toContain('print');
     expect(used).not.toContain('mock');
+    expect(used).not.toContain('named');
+    expect(used).not.toContain('tagged');
+  });
+
+  it('keeps app images out even when their folder is the one picked for the photos', async () => {
+    const services = fakeServices();
+    const library: Asset[] = [...photos, { ...photos[0], id: 'print', name: 'tela.png', folder: 'Pinterest', kind: 'screenshot' }];
+    const slides = Array.from({ length: 4 }, (_, i) => `Slide ${i + 1}, rotina ${i + 1}`).join('\n');
+    await createCarousels(services, request({ library, texts: [slides], folders: ['Pinterest'], styles: ['tiktok'] }));
+    expect(services.saved[0].slides.map((slide) => slide.assetId)).not.toContain('print');
+  });
+
+  it('with the copy sent by Lay, only the SLIDE — APP block gets the app print', async () => {
+    const services = fakeServices();
+    const copy = [
+      'Slide 1', 'Em vez de criar 10 metas para 2027, faça isso.', '',
+      'Slide 2', 'Escolha 3 coisas que realmente mudariam sua vida.', '',
+      'Slide 3', 'Agora transforme cada uma em um resultado claro.', '',
+      'Slide 4', 'Depois divida cada objetivo em marcos menores.', '',
+      'SLIDE — APP', '', 'Agora coloque esse objetivo em um sistema que mostre:', '',
+      '[Inserir tela do Momentumm mostrando objetivo + marcos + percentual de progresso.]', '',
+      'Slide 6', 'Agora vem a parte mais importante:', '',
+      'Slide 7', 'Porque uma meta só começa a existir de verdade quando vira execução.', '',
+      'Slide 8', 'Não planeje apenas o seu 2027.', '',
+      'Slide 9', 'Já tem uma meta?',
+    ].join('\n');
+    const library: Asset[] = [...photos, { ...photos[0], id: 'mockup', name: 'slide-03.png', folder: 'Produto', kind: 'foto' }];
+    await createCarousels(services, request({ library, texts: [copy], styles: ['tiktok'], copySettings: [{ objective: null, contentType: null, productImageAssetId: 'app-print' }] }));
+    const slides = services.saved[0].slides;
+    expect(slides).toHaveLength(9);
+    expect(slides.map((slide) => slide.role === 'product')).toEqual([false, false, false, false, true, false, false, false, false]);
+    expect(slides[4].assetId).toBe('app-print');
+    expect(slides.filter((slide) => slide.assetId === 'app-print' || slide.assetId === 'mockup')).toHaveLength(1);
   });
 });
 

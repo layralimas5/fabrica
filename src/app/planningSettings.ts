@@ -4,6 +4,9 @@ import { DEFAULT_SIMILARITY_SETTINGS, sanitizeSimilaritySettings, type Similarit
 
 const SIMILARITY_KEY = 'fabrica:similarity-settings';
 const WEEKLY_GOAL_KEY = 'fabrica:weekly-goal';
+const DISMISSED_SIMILARITY_KEY = 'fabrica:similarity-dismissed';
+/** Oldest dismissals are dropped past this, so the list never grows forever. */
+const MAX_DISMISSED = 500;
 
 function read<T>(key: string, parse: (raw: string) => T, fallback: T): T {
   try {
@@ -43,3 +46,19 @@ export function useWeeklyGoal() {
   }, []);
   return { goal, setGoal };
 }
+
+/** Similarity warnings the user closed, one per pair of contents, remembered in this browser. */
+export function useDismissedSimilarity() {
+  const [dismissed, setDismissed] = useState<string[]>(() => read(DISMISSED_SIMILARITY_KEY, (raw) => (JSON.parse(raw) as unknown[]).filter((item): item is string => typeof item === 'string'), []));
+  const isDismissed = useCallback((contentId: string, otherId: string) => dismissed.includes(pairKey(contentId, otherId)), [dismissed]);
+  const dismiss = useCallback((contentId: string, otherId: string) => {
+    setDismissed((current) => {
+      const next = [...current.filter((key) => key !== pairKey(contentId, otherId)), pairKey(contentId, otherId)].slice(-MAX_DISMISSED);
+      write(DISMISSED_SIMILARITY_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+  return { isDismissed, dismiss };
+}
+
+const pairKey = (contentId: string, otherId: string) => `${contentId}:${otherId}`;
