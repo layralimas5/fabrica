@@ -71,9 +71,13 @@ export function inFolders(asset: Asset, folders: readonly string[]): boolean {
   return folders.length === 0 || folders.includes(asset.folder);
 }
 
-/** App prints and phone mockups: they belong in the slide marked APP or PRODUTO, not in the regular photos. */
-export function isAppImage(asset: Pick<Asset, 'kind' | 'folder'>): boolean {
-  return asset.kind === 'screenshot' || asset.kind === 'mockup' || asset.folder === PRODUCT_FOLDER;
+/** Words in a name, folder or tag that mark an app print or phone mockup ("Mockups Momentumm", "tela-app.png", tag "print"). */
+const APP_IMAGE_WORDS = /(^|[^a-z])(mockups?|prints?|screenshots?|app|aplicativo|iphone|telas? do app)([^a-z]|$)/i;
+
+/** App prints and phone mockups: they belong only in the slide marked APP or PRODUTO, never in the regular photos. */
+export function isAppImage(asset: Pick<Asset, 'kind' | 'folder' | 'name' | 'tags'>): boolean {
+  if (asset.kind === 'screenshot' || asset.kind === 'mockup' || asset.folder === PRODUCT_FOLDER) return true;
+  return [asset.folder, asset.name, ...asset.tags].some((text) => APP_IMAGE_WORDS.test(text));
 }
 
 export function isPhotoLike(asset: Pick<Asset, 'kind'>): boolean {
