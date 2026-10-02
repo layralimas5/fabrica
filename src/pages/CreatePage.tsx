@@ -3,7 +3,9 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight, FileText, FlaskConical, ImageIcon, Sparkles, Upload } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAccounts, useAssets, useBrandKits, useCarousels } from '../app/data';
+import { useAccounts, useAssets, useBrandKits, useCarousels, usePresets } from '../app/data';
+import { PresetBar } from '../create/PresetBar';
+import type { CreateSettings, Preset } from '../domain/preset';
 import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
 import { createCarousels, MAX_TEST_VARIANTS } from '../application/createCarousels';
@@ -55,6 +57,7 @@ const MODE_STORAGE_KEY = 'fabrica:copy-mode';
 const PLATFORM_STORAGE_KEY = 'fabrica:platform';
 const FORMAT_STORAGE_KEY = 'fabrica:format';
 const ACCOUNT_STORAGE_KEY = 'fabrica:account';
+const PRESET_STORAGE_KEY = 'fabrica:preset';
 const PLATFORM_DETAILS: Record<Platform, string> = { instagram: 'Feed, perfil, stories', tiktok: 'Carrossel de fotos' };
 
 const MANUAL_PLACEHOLDER = `Tema do carrossel: Rotina que sobrevive ao dia ruim
@@ -109,6 +112,7 @@ export function CreatePage() {
   const assets = useAssets();
   const accounts = useAccounts();
   const savedCarousels = useCarousels();
+  const presets = usePresets();
 
   const [platform, setPlatform] = useState<Platform>(() => readStored(PLATFORM_STORAGE_KEY, PLATFORMS, 'instagram'));
   const [format, setFormat] = useState<CarouselFormat>(() => {
@@ -143,6 +147,9 @@ export function CreatePage() {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creatingStarter, setCreatingStarter] = useState(false);
+  const [presetId, setPresetId] = useState<string | null>(() => readStoredText(PRESET_STORAGE_KEY));
+  /** Settings waiting for the brand to settle: changing the brand resets styles and folders, so those apply after. */
+  const [pendingPreset, setPendingPreset] = useState<CreateSettings | null>(null);
 
   const brand = brands.data.find((kit) => kit.id === brandId) ?? brands.data[0];
   const platformAccounts = accountsFor(accounts.data, platform);
@@ -192,6 +199,95 @@ export function CreatePage() {
   useEffect(() => {
     if (account?.brandKitId && brands.data.some((kit) => kit.id === account.brandKitId)) setBrandId(account.brandKitId);
   }, [account?.id, brands.data.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Declared after the brand and account effects so it runs last and wins over their resets.
+  useEffect(() => {
+    if (!pendingPreset || !brand) return;
+    const wanted = pendingPreset.brandKitId && brands.data.some((kit) => kit.id === pendingPreset.brandKitId) ? pendingPreset.brandKitId : null;
+    if (wanted && brand.id !== wanted) {
+      setBrandId(wanted);
+      return;
+    }
+    setObjective(pendingPreset.objective);
+    setContentType(pendingPreset.contentType);
+    setSlideCount(pendingPreset.slideCount);
+    setStyles(pendingPreset.styles);
+    setTesting(pendingPreset.styles.length > 1);
+    setPostWithImages(pendingPreset.postWithImages);
+    setShade(pendingPreset.shade);
+    setFolders(pendingPreset.folders);
+    setIncludeProduct(pendingPreset.includeProduct);
+    setAddCta(pendingPreset.addCta);
+    setProject(pendingPreset.project);
+    setFolder(pendingPreset.folder);
+    setScheduling(pendingPreset.scheduling);
+    setPerDay(pendingPreset.perDay);
+    setPendingPreset(null);
+  }, [pendingPreset, brand?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const currentSettings = (): CreateSettings => ({
+    platform,
+    format,
+    accountId: account?.id ?? null,
+    mode,
+    brandKitId: brand?.id ?? null,
+    objective,
+    contentType,
+    slideCount,
+    styles,
+    postWithImages,
+    shade,
+    folders,
+    includeProduct,
+    addCta,
+    project: project.trim(),
+    folder: folder.trim(),
+    scheduling,
+    perDay,
+  });
+
+  const choosePreset = (preset: Preset | null) => {
+    setPresetId(preset?.id ?? null);
+    rememberText(PRESET_STORAGE_KEY, preset?.id ?? null);
+    if (!preset) return;
+    const settings = preset.settings;
+    setPlatform(settings.platform);
+    remember(PLATFORM_STORAGE_KEY, settings.platform);
+    changeFormat(formatFitsPlatform(settings.format, settings.platform) ? settings.format : defaultFormatFor(settings.platform));
+    setAccountId(settings.accountId);
+    rememberText(ACCOUNT_STORAGE_KEY, settings.accountId);
+    changeMode(settings.mode);
+    if (settings.brandKitId && brands.data.some((kit) => kit.id === settings.brandKitId)) setBrandId(settings.brandKitId);
+    setPendingPreset(settings);
+  };
+
+  // Opening the screen again brings back the last preset used, already applied.
+  const restoredPreset = useRef(false);
+  useEffect(() => {
+    if (restoredPreset.current || presets.loading || brands.loading || accounts.loading) return;
+    restoredPreset.current = true;
+    const last = presets.data.find((preset) => preset.id === presetId);
+    if (last) choosePreset(last);
+  }, [presets.loading, brands.loading, accounts.loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const savePreset = async (name: string, overwriteId: string | null) => {
+    const input = { name, settings: currentSettings() };
+    const saved = overwriteId ? await services.presets.update(overwriteId, input) : await services.presets.create(input);
+    presets.setData((current) => (overwriteId ? current.map((item) => (item.id === saved.id ? saved : item)) : [...current, saved].sort((a, b) => a.name.localeCompare(b.name))));
+    setPresetId(saved.id);
+    rememberText(PRESET_STORAGE_KEY, saved.id);
+  };
+
+  const deletePreset = async (id: string) => {
+    try {
+      await services.presets.remove(id);
+      presets.setData((current) => current.filter((item) => item.id !== id));
+      setPresetId(null);
+      rememberText(PRESET_STORAGE_KEY, null);
+    } catch (cause) {
+      setError(errorMessage(cause));
+    }
+  };
 
   const changeMode = (next: CopyMode) => {
     setMode(next);
@@ -347,7 +443,8 @@ export function CreatePage() {
           </div>
         </div>
       ) : (
-        <div className="rounded-3xl border border-line bg-surface shadow-sm">
+        <div className="overflow-hidden rounded-3xl border border-line bg-surface shadow-sm">
+          <PresetBar presets={presets.data} selectedId={presetId} onSelect={choosePreset} onSave={savePreset} onDelete={deletePreset} disabled={generating} />
           <Step number={1} title="Onde vai postar">
             <div role="radiogroup" aria-label="Rede social" className="grid grid-cols-2 gap-1 rounded-2xl bg-subtle p-1">
               {PLATFORMS.map((item) => (

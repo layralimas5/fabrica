@@ -75,7 +75,7 @@ function BackupSection({ backup }: { backup: BackupService }) {
       const summary = await backup.importAll(file);
       setMessage({
         tone: 'success',
-        text: `Restaurado: ${summary.accounts} contas, ${summary.brandKits} marcas, ${summary.assets} fotos e ${summary.carousels} carrosséis. Recarregando…`,
+        text: `Restaurado: ${summary.presets} predefinições, ${summary.accounts} contas, ${summary.brandKits} marcas, ${summary.assets} fotos e ${summary.carousels} carrosséis. Recarregando…`,
       });
       setTimeout(() => window.location.reload(), 1200);
     } catch (cause) {
@@ -88,7 +88,7 @@ function BackupSection({ backup }: { backup: BackupService }) {
     <section aria-labelledby="backup-title" className="mt-6 rounded-2xl border border-line bg-surface p-5">
       <h2 id="backup-title" className="text-sm font-semibold text-ink">Backup</h2>
       <p className="mt-1 text-sm text-muted">
-        Tudo fica salvo neste navegador, sem login. Baixe um backup de vez em quando: com ele você recupera contas, marcas, fotos e carrosséis em outro navegador, outro computador
+        Tudo fica salvo neste navegador, sem login. Baixe um backup de vez em quando: com ele você recupera predefinições, contas, marcas, fotos e carrosséis em outro navegador, outro computador
         ou outro endereço da Fábrica. Limpar os dados do navegador apaga o que não estiver no backup.
       </p>
       <div className="mt-4 flex flex-wrap gap-2">

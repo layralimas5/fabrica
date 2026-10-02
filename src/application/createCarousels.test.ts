@@ -17,6 +17,7 @@ function fakeServices(): Services & { saved: Carousel[] } {
     brandKits: {} as Services['brandKits'],
     assets: { list: unused, upload: unused, update: unused, renameFolder: unused, remove: unused, fetchBlob: unused },
     accounts: {} as Services['accounts'],
+    presets: {} as Services['presets'],
     backup: null,
     ai: new HeuristicAi(),
     carousels: {

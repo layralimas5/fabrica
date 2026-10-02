@@ -1,5 +1,6 @@
 import type { SupabaseClient, User as SupabaseUser } from '@supabase/supabase-js';
-import type { AccountRepository, AssetRepository, AuthService, BrandKitRepository, CarouselRepository, User } from '../../application/ports';
+import type { AccountRepository, AssetRepository, AuthService, BrandKitRepository, CarouselRepository, PresetRepository, User } from '../../application/ports';
+import { normalizeSettings, type CreateSettings, type Preset, type PresetInput } from '../../domain/preset';
 import type { Account, AccountInput } from '../../domain/account';
 import type { Asset, AssetUpload } from '../../domain/asset';
 import type { BrandKit, BrandKitInput } from '../../domain/brandKit';
@@ -305,5 +306,42 @@ export class SupabaseAccounts implements AccountRepository {
   async remove(id: string): Promise<void> {
     const { error } = await this.client.from('accounts').delete().eq('id', id);
     if (error) fail('Não consegui excluir a conta', error);
+  }
+}
+
+interface PresetRow {
+  id: string;
+  name: string;
+  data: Partial<CreateSettings>;
+  created_at: string;
+  updated_at: string;
+}
+
+const rowToPreset = (row: PresetRow): Preset => ({ id: row.id, name: row.name, settings: normalizeSettings(row.data), createdAt: row.created_at, updatedAt: row.updated_at });
+
+export class SupabasePresets implements PresetRepository {
+  constructor(private readonly client: SupabaseClient) {}
+
+  async list(): Promise<Preset[]> {
+    const { data, error } = await this.client.from('presets').select('*').order('name');
+    if (error) fail('Não consegui carregar as predefinições', error);
+    return (data as PresetRow[]).map(rowToPreset);
+  }
+
+  async create(input: PresetInput): Promise<Preset> {
+    const { data, error } = await this.client.from('presets').insert({ name: input.name, data: input.settings }).select().single();
+    if (error) fail('Não consegui salvar a predefinição', error);
+    return rowToPreset(data as PresetRow);
+  }
+
+  async update(id: string, input: PresetInput): Promise<Preset> {
+    const { data, error } = await this.client.from('presets').update({ name: input.name, data: input.settings }).eq('id', id).select().single();
+    if (error) fail('Não consegui atualizar a predefinição', error);
+    return rowToPreset(data as PresetRow);
+  }
+
+  async remove(id: string): Promise<void> {
+    const { error } = await this.client.from('presets').delete().eq('id', id);
+    if (error) fail('Não consegui excluir a predefinição', error);
   }
 }

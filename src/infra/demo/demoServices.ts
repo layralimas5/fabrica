@@ -7,8 +7,10 @@ import type {
   BackupSummary,
   BrandKitRepository,
   CarouselRepository,
+  PresetRepository,
   User,
 } from '../../application/ports';
+import { normalizeSettings, type Preset, type PresetInput } from '../../domain/preset';
 import type { Account, AccountInput } from '../../domain/account';
 import type { Asset, AssetUpload } from '../../domain/asset';
 import type { BrandKit, BrandKitInput } from '../../domain/brandKit';
@@ -205,6 +207,8 @@ interface BackupFile {
   version: number;
   exportedAt: string;
   accounts: Account[];
+  /** Missing in backups made before presets existed. */
+  presets?: Preset[];
   brandKits: BrandKit[];
   assets: Asset[];
   carousels: Carousel[];
@@ -250,6 +254,7 @@ export class LocalBackup implements BackupService {
       version: BACKUP_VERSION,
       exportedAt: now(),
       accounts: await readCollection<Account>('accounts'),
+      presets: await readCollection<Preset>('presets'),
       brandKits: await readCollection<BrandKit>('brandKits'),
       assets,
       carousels: await readCollection<Carousel>('carousels'),
@@ -275,6 +280,31 @@ export class LocalBackup implements BackupService {
     await writeCollection('accounts', upsertById(await readCollection<Account>('accounts'), parsed.accounts));
     await writeCollection('brandKits', upsertById(await readCollection<BrandKit>('brandKits'), parsed.brandKits));
     await writeCollection('carousels', upsertById(await readCollection<Carousel>('carousels'), parsed.carousels));
-    return { accounts: parsed.accounts.length, brandKits: parsed.brandKits.length, assets: restoredAssets.length, carousels: parsed.carousels.length };
+    const presets = parsed.presets ?? [];
+    await writeCollection('presets', upsertById(await readCollection<Preset>('presets'), presets));
+    return { presets: presets.length, accounts: parsed.accounts.length, brandKits: parsed.brandKits.length, assets: restoredAssets.length, carousels: parsed.carousels.length };
+  }
+}
+
+export class DemoPresets implements PresetRepository {
+  async list(): Promise<Preset[]> {
+    return (await readCollection<Preset>('presets')).map((preset) => ({ ...preset, settings: normalizeSettings(preset.settings) }));
+  }
+
+  async create(input: PresetInput): Promise<Preset> {
+    const preset: Preset = { ...input, id: crypto.randomUUID(), createdAt: now(), updatedAt: now() };
+    await writeCollection('presets', [...(await readCollection<Preset>('presets')), preset]);
+    return preset;
+  }
+
+  async update(id: string, input: PresetInput): Promise<Preset> {
+    const presets = await readCollection<Preset>('presets');
+    const updated: Preset = { ...requireItem(presets, id, 'Predefinição'), ...input, updatedAt: now() };
+    await writeCollection('presets', presets.map((preset) => (preset.id === id ? updated : preset)));
+    return updated;
+  }
+
+  async remove(id: string): Promise<void> {
+    await writeCollection('presets', (await readCollection<Preset>('presets')).filter((preset) => preset.id !== id));
   }
 }

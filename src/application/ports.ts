@@ -1,6 +1,7 @@
 import type { CarouselDraft, DraftRequest, HooksRequest, MatchRequest, RewriteRequest, SlideText, TagImageRequest } from '../domain/aiContract';
 import type { Account, AccountInput } from '../domain/account';
 import type { Asset, AssetUpload } from '../domain/asset';
+import type { Preset, PresetInput } from '../domain/preset';
 import type { BrandKit, BrandKitInput } from '../domain/brandKit';
 import type { Carousel, CarouselInput } from '../domain/carousel';
 
@@ -43,7 +44,15 @@ export interface AccountRepository {
   remove(id: string): Promise<void>;
 }
 
+export interface PresetRepository {
+  list(): Promise<Preset[]>;
+  create(input: PresetInput): Promise<Preset>;
+  update(id: string, input: PresetInput): Promise<Preset>;
+  remove(id: string): Promise<void>;
+}
+
 export interface BackupSummary {
+  presets: number;
   accounts: number;
   brandKits: number;
   assets: number;
@@ -82,6 +91,7 @@ export interface Services {
   assets: AssetRepository;
   carousels: CarouselRepository;
   accounts: AccountRepository;
+  presets: PresetRepository;
   ai: AiService;
   backup: BackupService | null;
 }
