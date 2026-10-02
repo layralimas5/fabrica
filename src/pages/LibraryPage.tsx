@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { Search, Sparkles, Upload } from 'lucide-react';
+import { CheckSquare, Search, Sparkles, Upload } from 'lucide-react';
 import { useMemo, useRef, useState, type DragEvent } from 'react';
 import { toAiImage } from '../app/aiImage';
 import { forgetAsset } from '../app/imageCache';
@@ -10,6 +10,8 @@ import { errorMessage } from '../app/useResource';
 import { ACCEPTED_IMAGE_TYPES, ASSET_KINDS, isAcceptedImage, isPhotoLike, parseTags, UNSORTED_FOLDER, UPLOAD_RULES_MESSAGE, type Asset, type AssetKind } from '../domain/asset';
 import { renameFolder } from '../application/renameFolder';
 import { FolderList } from '../library/FolderList';
+import { BulkBar } from '../library/BulkBar';
+import { bulkEditAssets, type BulkEdit } from '../application/bulkEditAssets';
 import { NamePicker } from '../ui/NamePicker';
 import { AssetThumb } from '../ui/AssetThumb';
 import { Alert, Button, Dialog, EmptyState, Field, Input, PageHeader, Select, Spinner } from '../ui/primitives';
@@ -29,6 +31,9 @@ export function LibraryPage() {
   const [editing, setEditing] = useState<Asset | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState<{ done: number; total: number } | null>(null);
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [bulkProgress, setBulkProgress] = useState<string | null>(null);
   const canSeeImages = services.ai.engine === 'claude';
 
   const folderCounts = useMemo(() => {
@@ -72,6 +77,34 @@ export function LibraryPage() {
       setAnalyzing({ done: index + 1, total: targets.length });
     }
     setAnalyzing(null);
+  };
+
+  const toggleSelected = (id: string) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const leaveSelection = () => {
+    setSelecting(false);
+    setSelected(new Set());
+  };
+
+  const applyBulk = async (edit: BulkEdit) => {
+    const targets = assets.data.filter((asset) => selected.has(asset.id));
+    setError(null);
+    setBulkProgress(`Salvando 0/${targets.length}`);
+    try {
+      const saved = await bulkEditAssets(services, targets, edit, (done) => setBulkProgress(`Salvando ${done}/${targets.length}`));
+      const byId = new Map(saved.map((asset) => [asset.id, asset]));
+      assets.setData((current) => current.map((asset) => byId.get(asset.id) ?? asset));
+    } catch (cause) {
+      setError(errorMessage(cause));
+    } finally {
+      setBulkProgress(null);
+    }
   };
 
   const upload = async (files: File[]) => {
@@ -189,10 +222,29 @@ export function LibraryPage() {
         />
 
         <div className="min-w-0">
-          <div className="relative mb-4">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint" aria-hidden />
-            <Input aria-label="Buscar por nome ou tag" placeholder="Buscar por nome ou tag…" value={query} onChange={(e) => setQuery(e.target.value)} className="pl-9" />
+          <div className="mb-4 flex gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint" aria-hidden />
+              <Input aria-label="Buscar por nome ou tag" placeholder="Buscar por nome ou tag…" value={query} onChange={(e) => setQuery(e.target.value)} className="pl-9" />
+            </div>
+            {!selecting && assets.data.length > 0 && (
+              <Button variant="secondary" onClick={() => setSelecting(true)}>
+                <CheckSquare className="size-4" aria-hidden /> Selecionar
+              </Button>
+            )}
           </div>
+          {selecting && (
+            <BulkBar
+              selectedCount={selected.size}
+              visibleCount={visible.length}
+              folders={folders}
+              progress={bulkProgress}
+              onSelectAll={() => setSelected(new Set(visible.map((asset) => asset.id)))}
+              onClear={() => setSelected(new Set())}
+              onDone={leaveSelection}
+              onApply={applyBulk}
+            />
+          )}
           {visible.length === 0 ? (
             <EmptyState title="Nenhuma imagem aqui" description="Envie fotos e marque com tags. Ex.: uma foto de notebook com produtividade, foco, home office." />
           ) : (
@@ -201,9 +253,24 @@ export function LibraryPage() {
                 <li key={asset.id}>
                   <button
                     type="button"
-                    onClick={() => setEditing(asset)}
-                    className="group block w-full overflow-hidden rounded-xl border border-line bg-surface text-left transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    onClick={() => (selecting ? toggleSelected(asset.id) : setEditing(asset))}
+                    aria-pressed={selecting ? selected.has(asset.id) : undefined}
+                    className={clsx(
+                      'group relative block w-full overflow-hidden rounded-xl border bg-surface text-left transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                      selecting && selected.has(asset.id) ? 'border-accent ring-2 ring-accent' : 'border-line',
+                    )}
                   >
+                    {selecting && (
+                      <span
+                        className={clsx(
+                          'absolute left-2 top-2 z-10 grid size-6 place-items-center rounded-md border-2 text-xs font-bold',
+                          selected.has(asset.id) ? 'border-accent bg-accent text-white' : 'border-white bg-black/30 text-transparent',
+                        )}
+                        aria-hidden
+                      >
+                        ✓
+                      </span>
+                    )}
                     <AssetThumb asset={asset} className="aspect-square" />
                     <span className="block p-2.5">
                       <span className="block truncate text-xs font-medium text-ink">{asset.name}</span>
