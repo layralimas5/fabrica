@@ -38,7 +38,7 @@ import {
   type Objective,
   type SlideCountOption,
 } from '../domain/content';
-import { parseScript, scriptStats } from '../domain/script';
+import { hasNumberedSlides, parseScript, scriptStats } from '../domain/script';
 import { FolderPicker } from '../ui/FolderPicker';
 import { Alert, Button, Field, Select, Spinner, Textarea } from '../ui/primitives';
 
@@ -113,7 +113,8 @@ export function CreatePage() {
   const folderCounts = useMemo(() => countByFolder(assets.data), [assets.data]);
   const availableImages = assets.data.filter((asset) => inFolders(asset, folders)).length;
   const stats = useMemo(() => scriptStats(parseScript(text)), [text]);
-  const blocks = mode === 'manual' ? stats.carousels : text.trim() ? 1 : 0;
+  const numbered = useMemo(() => hasNumberedSlides(text), [text]);
+  const blocks = mode === 'manual' || numbered ? stats.carousels : text.trim() ? 1 : 0;
   const total = blocks * styles.length;
 
   useEffect(() => {
@@ -289,10 +290,13 @@ export function CreatePage() {
                 disabled={generating}
               />
 
-              {mode === 'manual' && (
+              {(mode === 'manual' || numbered) && (
                 <div className="flex flex-col gap-1 px-4 pb-3 text-xs text-faint sm:flex-row sm:items-center sm:justify-between">
                   <p>
-                    <code className="text-muted">Slide 1, texto</code> vira o slide 1 (só o texto aparece) · sem "Slide N", cada linha é um slide · <code className="text-muted">//</code> quebra a linha · <code className="text-muted">---</code> separa carrosséis · <code className="text-muted">Legenda:</code> e <code className="text-muted">Tema do carrossel:</code> são lidos à parte
+                    {mode === 'ai' ? (
+                      <span className="font-medium text-ink">Você já numerou os slides, então a ferramenta respeita a sua divisão e não muda o texto. </span>
+                    ) : null}
+                    <code className="text-muted">Slide 1</code> começa o slide 1 (só o texto aparece) · <code className="text-muted">SLIDE 6 — PRODUTO</code> recebe o print · linha em branco vira espaço entre parágrafos · sem "Slide N", cada linha é um slide · <code className="text-muted">Legenda:</code> e <code className="text-muted">Tema do carrossel:</code> são lidos à parte
                   </p>
                   <p className="shrink-0 font-medium text-muted" aria-live="polite">
                     {stats.carousels} {stats.carousels === 1 ? 'carrossel' : 'carrosséis'} · {stats.slides} slides
@@ -380,14 +384,18 @@ export function CreatePage() {
                 {shadeContext && <ShadePicker context={shadeContext} photo={photo} value={shade} onChange={setShade} disabled={generating} />}
               </div>
 
-              {mode === 'ai' && product && (
+              {product && (
                 <div className="rounded-2xl border border-line p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <label className="flex items-start gap-2 text-sm text-ink">
                       <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]" checked={includeProduct} onChange={(e) => setIncludeProduct(e.target.checked)} disabled={generating} />
                       <span>
                         Mostrar o {product.name} num slide, como parte da solução
-                        <span className="block text-xs text-faint">Um slide só, com a imagem do produto. As outras fotos nunca repetem ela.</span>
+                        <span className="block text-xs text-faint">
+                        {mode === 'ai' && !numbered
+                          ? 'A IA coloca um slide com a imagem do produto. As outras fotos nunca repetem ela.'
+                          : 'A imagem entra no slide marcado como PRODUTO (ex: SLIDE 6 — PRODUTO) ou com [INSERIR PRINT].'}
+                      </span>
                       </span>
                     </label>
                     {includeProduct && (

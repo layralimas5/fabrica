@@ -165,27 +165,58 @@ const LAYOUT_RENDERERS: Record<Slide['layout'], (frame: Frame) => void> = {
 };
 
 const PHOTO_TEXT_LINE_HEIGHT = 1.28;
+/** A blank line between paragraphs takes this share of a text line. */
+const PARAGRAPH_GAP = 0.6;
+/** Share of the slide height the caption may fill before it shrinks. */
+const PHOTO_TEXT_MAX_HEIGHT = 0.8;
+const PHOTO_TEXT_MIN_SCALE = 0.4;
+
+interface PhotoTextLayout {
+  size: number;
+  lines: string[];
+  lineHeight: number;
+  blockHeight: number;
+}
+
+/** Wraps the caption at the chosen size and shrinks it until it fits the slide. */
+function layoutPhotoText(frame: Frame, text: string): PhotoTextLayout {
+  const { ctx, width, height } = frame;
+  const { theme, slide } = frame.input;
+  const maxWidth = width * 0.84 * slide.style.textWidth;
+  const requested = theme.photoText.size * slide.style.fontScale;
+  let scale = 1;
+  for (;;) {
+    const size = Math.round(requested * scale);
+    ctx.font = `${theme.headingWeight} ${size}px "${theme.headingFont}", system-ui, sans-serif`;
+    const lines = wrap(ctx, text, maxWidth);
+    const lineHeight = size * PHOTO_TEXT_LINE_HEIGHT * slide.style.lineHeight;
+    const blockHeight = lines.reduce((sum, line) => sum + (line ? lineHeight : lineHeight * PARAGRAPH_GAP), 0);
+    if (blockHeight <= height * PHOTO_TEXT_MAX_HEIGHT || scale <= PHOTO_TEXT_MIN_SCALE) return { size, lines, lineHeight, blockHeight };
+    scale -= 0.05;
+  }
+}
 
 /** TikTok-native caption: wrapped lines with outline, shadow or highlight boxes, no footer. */
 function drawPhotoText(frame: Frame, text: string): void {
   const { ctx, width, height } = frame;
   const { theme, slide } = frame.input;
   const { style, position, color } = theme.photoText;
-  const size = Math.round(theme.photoText.size * slide.style.fontScale);
-  const maxWidth = width * 0.84;
 
   ctx.save();
-  ctx.font = `${theme.headingWeight} ${size}px "${theme.headingFont}", system-ui, sans-serif`;
+  const { size, lines, lineHeight, blockHeight } = layoutPhotoText(frame, text);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  const lines = wrap(ctx, text, maxWidth);
-  const lineHeight = size * PHOTO_TEXT_LINE_HEIGHT;
-  const blockHeight = lines.length * lineHeight;
-  const top = position === 'top' ? height * 0.16 : position === 'bottom' ? height * 0.74 - blockHeight : (height - blockHeight) / 2;
+  const top = position === 'top' ? height * 0.12 : position === 'bottom' ? height * 0.86 - blockHeight : (height - blockHeight) / 2;
   const x = width / 2 + slide.style.offsetX;
+  let cursor = top + slide.style.offsetY;
 
-  lines.forEach((line, index) => {
-    const y = top + slide.style.offsetY + lineHeight * index + lineHeight / 2;
+  lines.forEach((line) => {
+    if (!line) {
+      cursor += lineHeight * PARAGRAPH_GAP;
+      return;
+    }
+    const y = cursor + lineHeight / 2;
+    cursor += lineHeight;
     if (style === 'box-light' || style === 'box-dark') {
       const padX = size * 0.32;
       const boxHeight = size * 1.3;
@@ -288,6 +319,8 @@ function stackStyle(frame: Frame, options: { size: number; align: StackStyle['al
     uppercase: theme.uppercase,
     tracking: theme.tracking,
     titleSize: options.size * slide.style.fontScale,
+    widthScale: slide.style.textWidth,
+    lineHeightScale: slide.style.lineHeight,
     align: options.align,
     vAlign: options.vAlign,
     markerColor: theme.accent,

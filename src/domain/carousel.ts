@@ -6,6 +6,10 @@ import { shadeOf, type ImageShade } from './shade';
 
 export interface SlideStyle {
   fontScale: number;
+  /** Share of the default text width, 1 = full width. Narrower text breaks into more, shorter lines. */
+  textWidth: number;
+  /** Multiplies the default space between lines. */
+  lineHeight: number;
   offsetX: number;
   offsetY: number;
   headingFont: string | null;
@@ -122,8 +126,10 @@ export type CarouselInput = Omit<Carousel, 'id' | 'createdAt' | 'updatedAt'>;
 
 /** Title size range in the editor, relative to the brand kit size. */
 export const FONT_SCALE_RANGE = { min: 0.3, max: 1.6, step: 0.05 } as const;
+export const TEXT_WIDTH_RANGE = { min: 0.4, max: 1, step: 0.05 } as const;
+export const LINE_HEIGHT_RANGE = { min: 0.8, max: 2, step: 0.05 } as const;
 
-export const DEFAULT_SLIDE_STYLE: SlideStyle = { fontScale: 1, offsetX: 0, offsetY: 0, headingFont: null };
+export const DEFAULT_SLIDE_STYLE: SlideStyle = { fontScale: 1, textWidth: 1, lineHeight: 1, offsetX: 0, offsetY: 0, headingFont: null };
 
 export function newSlideId(): string {
   return crypto.randomUUID();
@@ -163,5 +169,6 @@ export function normalizeCarousel(carousel: Carousel): Carousel {
     experiment: carousel.experiment ?? null,
     metrics: carousel.metrics ?? null,
     source: { ...carousel.source, folders: carousel.source.folders ?? [], shade: shadeOf(carousel.source) },
+    slides: carousel.slides.map((slide) => ({ ...slide, style: { ...DEFAULT_SLIDE_STYLE, ...slide.style } })),
   };
 }

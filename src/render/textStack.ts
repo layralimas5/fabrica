@@ -27,6 +27,10 @@ export interface StackStyle {
   markerColor: string;
   markerText: string;
   titleLineHeight?: number;
+  /** Share of the box width the text may use, centered or left-aligned like the text. */
+  widthScale?: number;
+  /** Multiplies every line height. */
+  lineHeightScale?: number;
 }
 
 interface MeasuredItem {
@@ -44,7 +48,9 @@ const LINE_HEIGHTS: Record<StackKind, number> = { label: 1.3, title: 1.06, subti
 const MIN_SCALE = 0.45;
 
 /** Draws a vertical text stack, shrinking it uniformly until it fits the box. Returns the occupied rectangle. */
-export function drawStack(ctx: CanvasRenderingContext2D, items: StackItem[], box: Box, style: StackStyle): Box {
+export function drawStack(ctx: CanvasRenderingContext2D, items: StackItem[], fullBox: Box, style: StackStyle): Box {
+  const narrowed = fullBox.width * Math.min(1, style.widthScale ?? 1);
+  const box = { ...fullBox, width: narrowed, x: style.align === 'center' ? fullBox.x + (fullBox.width - narrowed) / 2 : fullBox.x };
   let scale = 1;
   let measured = measure(ctx, items, box.width, style, scale);
   while (totalHeight(measured) > box.height && scale > MIN_SCALE) {
@@ -95,7 +101,8 @@ function measure(ctx: CanvasRenderingContext2D, items: StackItem[], width: numbe
     const lines = wrap(ctx, text, width - indent);
     const previous = items[index - 1];
     const gapBefore = previous ? gapBetween(previous.kind, item.kind) * scale : 0;
-    return { item, font, size, lineHeight: isTitle && style.titleLineHeight ? style.titleLineHeight : LINE_HEIGHTS[item.kind], lines, gapBefore, indent };
+    const baseLineHeight = isTitle && style.titleLineHeight ? style.titleLineHeight : LINE_HEIGHTS[item.kind];
+    return { item, font, size, lineHeight: baseLineHeight * (style.lineHeightScale ?? 1), lines, gapBefore, indent };
   });
 }
 
@@ -110,8 +117,10 @@ function totalHeight(items: MeasuredItem[]): number {
   return items.reduce((sum, entry) => sum + entry.gapBefore + entry.lines.length * entry.size * entry.lineHeight, 0);
 }
 
+/** Breaks text into lines that fit maxWidth. Blank lines are kept as empty strings (paragraph breaks). */
 export function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   return text.split('\n').flatMap((paragraph) => {
+    if (!paragraph.trim()) return [''];
     const words = paragraph.split(/\s+/).filter(Boolean);
     const lines: string[] = [];
     let current = '';

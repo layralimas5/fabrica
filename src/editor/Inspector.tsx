@@ -5,7 +5,7 @@ import { isPhotoLike, type Asset } from '../domain/asset';
 import { FONT_CHOICES } from '../domain/brandKit';
 import type { RenderContext } from '../app/slideRendering';
 import { ShadePicker } from '../brand/ShadePicker';
-import { FONT_SCALE_RANGE, type Slide } from '../domain/carousel';
+import { FONT_SCALE_RANGE, LINE_HEIGHT_RANGE, TEXT_WIDTH_RANGE, type Slide, type SlideStyle } from '../domain/carousel';
 import type { ImageShade } from '../domain/shade';
 import { ROLE_LABELS } from '../domain/content';
 import { compatibleLayouts, LAYOUTS, type LayoutId } from '../domain/layouts';
@@ -21,7 +21,7 @@ interface InspectorProps {
   aiBusy: 'shorten' | 'variation' | null;
   aiError: string | null;
   onChange: (patch: Partial<Slide>) => void;
-  onFontScaleForAll: (fontScale: number) => void;
+  onTextStyleForAll: (patch: Partial<Pick<SlideStyle, 'fontScale' | 'textWidth' | 'lineHeight'>>) => void;
   shadeContext: RenderContext;
   onShadeChange: (shade: ImageShade) => void;
   onPickImage: () => void;
@@ -147,7 +147,8 @@ export function Inspector(props: InspectorProps) {
         <h2 id="inspector-type" className="text-xs font-semibold uppercase tracking-wider text-faint">
           Tipografia
         </h2>
-        <Field label={`Tamanho do texto: ${Math.round(slide.style.fontScale * 100)}%`} hint="Muda em todos os slides." htmlFor="slide-scale">
+        <p className="-mt-1 text-xs text-faint">Tamanho, largura e espaço entre linhas mudam em todos os slides.</p>
+        <Field label={`Tamanho do texto: ${Math.round(slide.style.fontScale * 100)}%`} htmlFor="slide-scale">
           <input
             id="slide-scale"
             type="range"
@@ -155,7 +156,31 @@ export function Inspector(props: InspectorProps) {
             max={FONT_SCALE_RANGE.max}
             step={FONT_SCALE_RANGE.step}
             value={slide.style.fontScale}
-            onChange={(e) => props.onFontScaleForAll(Number(e.target.value))}
+            onChange={(e) => props.onTextStyleForAll({ fontScale: Number(e.target.value) })}
+            className="accent-[var(--accent)]"
+          />
+        </Field>
+        <Field label={`Largura do texto: ${Math.round(slide.style.textWidth * 100)}%`} hint="Mais estreito quebra a frase em mais linhas curtas." htmlFor="slide-width">
+          <input
+            id="slide-width"
+            type="range"
+            min={TEXT_WIDTH_RANGE.min}
+            max={TEXT_WIDTH_RANGE.max}
+            step={TEXT_WIDTH_RANGE.step}
+            value={slide.style.textWidth}
+            onChange={(e) => props.onTextStyleForAll({ textWidth: Number(e.target.value) })}
+            className="accent-[var(--accent)]"
+          />
+        </Field>
+        <Field label={`Espaço entre linhas: ${Math.round(slide.style.lineHeight * 100)}%`} htmlFor="slide-line-height">
+          <input
+            id="slide-line-height"
+            type="range"
+            min={LINE_HEIGHT_RANGE.min}
+            max={LINE_HEIGHT_RANGE.max}
+            step={LINE_HEIGHT_RANGE.step}
+            value={slide.style.lineHeight}
+            onChange={(e) => props.onTextStyleForAll({ lineHeight: Number(e.target.value) })}
             className="accent-[var(--accent)]"
           />
         </Field>

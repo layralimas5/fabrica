@@ -1,3 +1,4 @@
+import type { SlideStyle } from '../domain/carousel';
 import type { ImageShade } from '../domain/shade';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CarouselRepository } from '../application/ports';
@@ -99,9 +100,10 @@ export function useCarouselEditor(repo: CarouselRepository, initial: Carousel) {
     [mutate],
   );
 
-  const setFontScaleForAll = useCallback(
-    (fontScale: number) =>
-      mutate((current) => ({ ...current, slides: current.slides.map((slide) => ({ ...slide, style: { ...slide.style, fontScale } })) })),
+  /** Text size, width and line spacing are carousel-wide: changing one slide changes all. */
+  const setTextStyleForAll = useCallback(
+    (patch: Partial<Pick<SlideStyle, 'fontScale' | 'textWidth' | 'lineHeight'>>) =>
+      mutate((current) => ({ ...current, slides: current.slides.map((slide) => ({ ...slide, style: { ...slide.style, ...patch } })) })),
     [mutate],
   );
   const setShade = useCallback(
@@ -116,7 +118,7 @@ export function useCarouselEditor(repo: CarouselRepository, initial: Carousel) {
     setCarousel((current) => ({ ...current, status }));
   }, []);
 
-  return { carousel, selectedId, setSelectedId, saveState, saveError, updateSlide, setFontScaleForAll, setShade, addSlide, duplicate, removeSlide, reorder, move, setTitle, setCaption, setFormat, setStatus };
+  return { carousel, selectedId, setSelectedId, saveState, saveError, updateSlide, setTextStyleForAll, setShade, addSlide, duplicate, removeSlide, reorder, move, setTitle, setCaption, setFormat, setStatus };
 }
 
 export type CarouselEditor = ReturnType<typeof useCarouselEditor>;

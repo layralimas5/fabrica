@@ -5,7 +5,7 @@ import type { Carousel, CarouselFormat, CopyMode, ExperimentRef, Platform, Slide
 import { composeSlides, slidesWantingImages, slideText } from '../domain/composeCarousel';
 import { isPhotoLike } from '../domain/asset';
 import type { ContentType, Objective, SlideCountOption } from '../domain/content';
-import { parseScript } from '../domain/script';
+import { hasNumberedSlides, parseScript } from '../domain/script';
 import type { ImageShade } from '../domain/shade';
 import { limitWords, stripTrailingPeriod } from '../domain/text';
 import { brandContext } from './brandContext';
@@ -31,7 +31,7 @@ export interface CreateRequest {
   addCta: boolean;
   /** Darkening applied to every photo of every carousel created. */
   shade: ImageShade;
-  /** AI mode only: show the brand's product in one slide. */
+  /** Show the brand's product in one slide: placed by the AI, or the slide marked PRODUTO in a written script. */
   includeProduct: boolean;
   /** Image for the product slide picked at creation time. Undefined keeps the one saved in the brand kit. */
   productImageAssetId?: string | null;
@@ -53,10 +53,12 @@ export async function createCarousels(services: Services, request: CreateRequest
   const styles = [...new Set(request.styles)].slice(0, MAX_TEST_VARIANTS);
   if (styles.length === 0) throw new Error('Escolha pelo menos um estilo visual.');
 
-  const product = request.mode === 'ai' && request.includeProduct ? productForRequest(request) : null;
+  // Numbered slides mean the user already split the copy: keep their slides even in AI mode.
+  const mode: CopyMode = request.mode === 'manual' || hasNumberedSlides(request.text) ? 'manual' : 'ai';
+  const product = request.includeProduct ? productForRequest(request) : null;
   const brandOnly = new Set([request.brand.logoAssetId, request.brand.avatarAssetId, product?.imageAssetId].filter(Boolean));
   const assets = request.library.filter((asset) => !brandOnly.has(asset.id) && inFolders(asset, request.folders));
-  const copies = request.mode === 'manual' ? manualCopies(request.text) : [await aiCopy(services, request, styles[0], assets, product)];
+  const copies = mode === 'manual' ? manualCopies(request.text) : [await aiCopy(services, request, styles[0], assets, product)];
   if (copies.length === 0) throw new Error('Escreva pelo menos uma linha de texto.');
 
   const isTest = styles.length > 1;
@@ -65,7 +67,7 @@ export async function createCarousels(services: Services, request: CreateRequest
 
   for (const prepared of copies) {
     const { caption, copy } = prepared;
-    const draft = await withMatchedPhotos(services, prepared.draft, assets, styles, request.folders.length > 0);
+    const draft = await withMatchedPhotos(services, prepared.draft, assets, styles, request.folders.length > 0, product?.imageAssetId ?? null);
     const experimentId = isTest ? crypto.randomUUID() : null;
     if (experimentId) experimentIds.push(experimentId);
     let previous: Slide[] | null = null;
@@ -79,8 +81,8 @@ export async function createCarousels(services: Services, request: CreateRequest
         objective: request.objective,
         assets,
         visualStyle: style,
-        preserveText: request.mode === 'manual',
-        addCta: request.mode === 'ai' || request.addCta,
+        preserveText: mode === 'manual',
+        addCta: mode === 'ai' || request.addCta,
         productAssetId: product?.imageAssetId ?? null,
         autoMatch: false,
       });
@@ -100,7 +102,7 @@ export async function createCarousels(services: Services, request: CreateRequest
             visualStyle: style,
             slideCount: request.slideCount,
             folders: request.folders,
-            copyMode: request.mode,
+            copyMode: mode,
             shade: request.shade,
           },
           slides,
@@ -127,13 +129,15 @@ async function withMatchedPhotos(
   assets: Asset[],
   styles: VisualStyle[],
   folderIsContext: boolean,
+  productAssetId: string | null,
 ): Promise<CarouselDraft> {
   const photos = assets.filter(isPhotoLike);
   const known = new Set(photos.map((asset) => asset.id));
   const wants = styles.map((style) => slidesWantingImages(draft, style));
   const pending = draft.slides
     .map((slide, index) => ({ slide, index }))
-    .filter(({ slide, index }) => slide.role !== 'product' && wants.some((list) => list[index]) && !(slide.assetId && known.has(slide.assetId)));
+    // The product slide shows the product image; without one it is a regular slide.
+    .filter(({ slide, index }) => !(slide.role === 'product' && productAssetId) && wants.some((list) => list[index]) && !(slide.assetId && known.has(slide.assetId)));
   if (pending.length === 0 || photos.length === 0) return draft;
 
   const alreadyUsed = new Set(draft.slides.map((slide) => slide.assetId).filter(Boolean));
@@ -180,14 +184,14 @@ function manualCopies(text: string): PreparedCopy[] {
       title: block.title || limitWords(stripTrailingPeriod(block.slides[0].replace(/\n/g, ' ')), 8),
       caption: block.caption,
       slides: block.slides.map((line, index) => ({
-        role: index === 0 ? 'hook' : 'point',
+        role: index === block.productIndex ? 'product' : index === 0 ? 'hook' : 'point',
         title: line,
         subtitle: null,
         body: null,
         bullets: [],
         assetId: null,
         layout: null,
-        wantsImage: index % 2 === 0,
+        wantsImage: index === block.productIndex || index % 2 === 0,
       })),
     },
   }));

@@ -157,7 +157,7 @@ function Editor({ initial, brand, assets }: { initial: Carousel; brand: BrandKit
             aiBusy={aiBusy}
             aiError={aiError}
             onChange={(patch) => editor.updateSlide(slide.id, patch)}
-            onFontScaleForAll={editor.setFontScaleForAll}
+            onTextStyleForAll={editor.setTextStyleForAll}
             shadeContext={context}
             onShadeChange={editor.setShade}
             onPickImage={() => setPickerOpen(true)}
