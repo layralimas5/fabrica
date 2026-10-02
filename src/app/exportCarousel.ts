@@ -41,16 +41,23 @@ export async function exportSlide(context: RenderContext, carousel: Carousel, in
   download(await toBlob(canvas, format), `${slugify(carousel.title)}-${fileName(index, format)}`);
 }
 
+/** Every slide as an image file (01.jpg, 02.jpg…) plus legenda.txt when there is a caption. */
+export async function carouselFiles(context: RenderContext, carousel: Carousel, format: ImageFormat, onProgress: (done: number) => void): Promise<{ name: string; blob: Blob }[]> {
+  const files: { name: string; blob: Blob }[] = [];
+  for (const [index, slide] of carousel.slides.entries()) {
+    const canvas = await renderCarouselSlide(context, slide, index, 1);
+    files.push({ name: fileName(index, format), blob: await toBlob(canvas, format) });
+    onProgress(index + 1);
+  }
+  if (carousel.caption.trim()) files.push({ name: 'legenda.txt', blob: new Blob([carousel.caption], { type: 'text/plain;charset=utf-8' }) });
+  return files;
+}
+
 export async function exportZip(context: RenderContext, carousel: Carousel, format: ImageFormat, onProgress: (done: number) => void): Promise<void> {
   const zip = new JSZip();
   const folder = zip.folder(slugify(carousel.title));
   if (!folder) throw new Error('Não consegui montar o ZIP.');
-  for (const [index, slide] of carousel.slides.entries()) {
-    const canvas = await renderCarouselSlide(context, slide, index, 1);
-    folder.file(fileName(index, format), await toBlob(canvas, format));
-    onProgress(index + 1);
-  }
-  if (carousel.caption.trim()) folder.file('legenda.txt', carousel.caption);
+  for (const file of await carouselFiles(context, carousel, format, onProgress)) folder.file(file.name, file.blob);
   download(await zip.generateAsync({ type: 'blob' }), `${slugify(carousel.title)}.zip`);
 }
 

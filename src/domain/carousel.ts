@@ -47,6 +47,19 @@ export function postedStatus(posted: boolean): CarouselStatus {
   return posted ? 'published' : 'ready';
 }
 
+/**
+ * Next carousel to review in the same batch (same project and folder, creation order) that was not saved
+ * or posted yet. Null when the batch is done.
+ */
+export function nextToReview(current: Carousel, carousels: Carousel[]): Carousel | null {
+  const batch = carousels
+    .filter((item) => item.project === current.project && item.folder === current.folder)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+  const position = batch.findIndex((item) => item.id === current.id);
+  const pending = (item: Carousel) => item.id !== current.id && (item.status === 'draft' || item.status === 'editing');
+  return batch.slice(position + 1).find(pending) ?? batch.slice(0, Math.max(0, position)).find(pending) ?? null;
+}
+
 export const CAROUSEL_FORMATS = ['4:5', '3:4', '1:1', '9:16'] as const;
 export type CarouselFormat = (typeof CAROUSEL_FORMATS)[number];
 

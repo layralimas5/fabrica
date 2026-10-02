@@ -2,17 +2,18 @@ import { isIsoDate } from '../domain/schedule';
 import { identityOf, type Account } from '../domain/account';
 import { CAROUSEL_FORMATS, formatSizeLabel, PLATFORM_LABELS } from '../domain/carousel';
 import { shadeOf } from '../domain/shade';
-import { ArrowLeft, Check, CloudOff, Eye, Loader2, Star, Wand2 } from 'lucide-react';
+import { ArrowLeft, Check, CloudOff, Eye, FolderDown, Loader2, Star, Wand2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { useAccounts, useAssets, useBrandKits } from '../app/data';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useAccounts, useAssets, useBrandKits, useCarousels } from '../app/data';
+import { SaveToFolderDialog } from '../editor/SaveToFolderDialog';
 import { useServices } from '../app/services';
 import type { RenderContext } from '../app/slideRendering';
 import { errorMessage } from '../app/useResource';
 import { brandContext } from '../application/brandContext';
 import type { Asset } from '../domain/asset';
 import type { BrandKit } from '../domain/brandKit';
-import { CAROUSEL_STATUSES, STATUS_LABELS, type Carousel, type CarouselFormat, type CarouselStatus } from '../domain/carousel';
+import { CAROUSEL_STATUSES, nextToReview, STATUS_LABELS, type Carousel, type CarouselFormat, type CarouselStatus } from '../domain/carousel';
 import { layoutWithImage } from '../domain/layouts';
 import { ExportMenu } from '../editor/ExportMenu';
 import { Filmstrip } from '../editor/Filmstrip';
@@ -60,6 +61,10 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
   const [pickerOpen, setPickerOpen] = useState(false);
   const [hooksOpen, setHooksOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [folderOpen, setFolderOpen] = useState(false);
+  const allCarousels = useCarousels();
+  const navigate = useNavigate();
+  const next = useMemo(() => nextToReview(carousel, allCarousels.data), [carousel, allCarousels.data]);
   const [aiBusy, setAiBusy] = useState<'shorten' | 'variation' | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const winner = useMarkWinner();
@@ -159,6 +164,9 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
             <Star className={winner.isWinner(carousel) ? 'size-4 fill-amber-400 text-amber-500' : 'size-4'} aria-hidden />
             {winner.isWinner(carousel) ? 'Vencedor' : 'Marcar como vencedor'}
           </Button>
+          <Button variant="primary" onClick={() => setFolderOpen(true)}>
+            <FolderDown className="size-4" aria-hidden /> OK, salvar na pasta
+          </Button>
           <ExportMenu context={context} carousel={carousel} selectedIndex={index} onExported={() => carousel.status !== 'published' && editor.setStatus('ready')} />
         </div>
       </header>
@@ -225,6 +233,15 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
         }}
       />
       {winner.dialog}
+      <SaveToFolderDialog
+        open={folderOpen}
+        onClose={() => setFolderOpen(false)}
+        context={context}
+        carousel={carousel}
+        next={next}
+        onSaved={() => carousel.status !== 'published' && editor.setStatus('ready')}
+        onNext={(item) => navigate(`/carrossel/${item.id}`)}
+      />
       <CarouselViewer open={previewOpen} onClose={() => setPreviewOpen(false)} context={context} carousel={carousel} />
       <HooksDialog
         open={hooksOpen}

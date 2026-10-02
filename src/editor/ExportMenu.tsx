@@ -48,7 +48,7 @@ export function ExportMenu({ context, carousel, selectedIndex, onExported }: Exp
 
   return (
     <>
-      <Button variant="primary" onClick={() => setOpen(true)}>
+      <Button variant="secondary" onClick={() => setOpen(true)}>
         <Download className="size-4" aria-hidden /> Exportar
       </Button>
       <Dialog title="Exportar" open={open} onClose={() => setOpen(false)}>
