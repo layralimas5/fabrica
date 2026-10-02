@@ -52,6 +52,7 @@ legenda: salva pra lembrar #rotina
 acordar sem celular`;
 
 const request = (overrides: Partial<CreateRequest> = {}): CreateRequest => ({
+  platform: 'instagram',
   brand,
   library: photos,
   mode: 'manual',
@@ -97,7 +98,7 @@ describe('createCarousels', () => {
     expect(experimentIds).toHaveLength(2);
     expect(carousels).toHaveLength(6);
     const firstTest = carousels.filter((carousel) => carousel.experiment?.id === experimentIds[0]);
-    expect(firstTest.map((carousel) => carousel.format)).toEqual(['9:16', '4:5', '4:5']);
+    expect(firstTest.map((carousel) => carousel.format)).toEqual(['4:5', '4:5', '4:5']);
     expect(firstTest[1].slides[0].assetId).toBe(firstTest[0].slides[0].assetId);
     expect(carousels.flatMap((carousel) => carousel.slides).every((slide) => !slide.assetId || ['a0', 'a1', 'a2'].includes(slide.assetId))).toBe(true);
   });
@@ -159,5 +160,13 @@ describe('createCarousels product image picked at creation', () => {
     const slides = services.saved[0].slides;
     expect(slides.find((slide) => slide.role === 'product')?.assetId).toBe('a5');
     expect(slides.filter((slide) => slide.assetId === 'a5')).toHaveLength(1);
+  });
+});
+
+describe('createCarousels platform', () => {
+  it('tiktok makes 9:16 carousels whatever the visual style', async () => {
+    const services = fakeServices();
+    await createCarousels(services, request({ platform: 'tiktok', styles: ['minimalista'] }));
+    expect(services.saved.every((carousel) => carousel.format === '9:16')).toBe(true);
   });
 });

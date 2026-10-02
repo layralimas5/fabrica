@@ -1,7 +1,7 @@
 import { inFolders, type Asset } from '../domain/asset';
 import type { CarouselDraft } from '../domain/aiContract';
 import { productOf, VISUAL_STYLE_LABELS, type BrandKit, type BrandProduct, type VisualStyle } from '../domain/brandKit';
-import type { Carousel, CarouselFormat, CopyMode, ExperimentRef, Slide } from '../domain/carousel';
+import { PLATFORM_FORMATS, type Carousel, type CopyMode, type ExperimentRef, type Platform, type Slide } from '../domain/carousel';
 import { composeSlides } from '../domain/composeCarousel';
 import type { ContentType, Objective, SlideCountOption } from '../domain/content';
 import { parseScript } from '../domain/script';
@@ -13,6 +13,7 @@ const ASSET_CONTEXT_LIMIT = 400;
 export const MAX_TEST_VARIANTS = 4;
 
 export interface CreateRequest {
+  platform: Platform;
   brand: BrandKit;
   library: Asset[];
   mode: CopyMode;
@@ -41,8 +42,6 @@ interface PreparedCopy {
   caption: string;
   copy: string;
 }
-
-export const formatForStyle = (style: VisualStyle): CarouselFormat => (style === 'tiktok' ? '9:16' : '4:5');
 
 /** Creates every carousel the request implies: one per script block (batch) times one per style (format test). */
 export async function createCarousels(services: Services, request: CreateRequest): Promise<CreateResult> {
@@ -85,7 +84,7 @@ export async function createCarousels(services: Services, request: CreateRequest
           brandKitId: request.brand.id,
           title: isTest ? `${draft.title} · ${VISUAL_STYLE_LABELS[style]}` : draft.title,
           status: 'draft',
-          format: formatForStyle(style),
+          format: PLATFORM_FORMATS[request.platform],
           source: {
             copy,
             contentType: request.contentType,

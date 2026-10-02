@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight, FlaskConical, ImageIcon, Sparkles, Upload } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAssets, useBrandKits } from '../app/data';
 import { useServices } from '../app/services';
@@ -12,7 +12,7 @@ import { ImagePickerDialog } from '../editor/ImagePickerDialog';
 import { AssetThumb } from '../ui/AssetThumb';
 import { ACCEPTED_IMAGE_TYPES, inFolders, isAcceptedImage, isPhotoLike, PRODUCT_FOLDER, UPLOAD_RULES_MESSAGE } from '../domain/asset';
 import { MOMENTUMM_STARTER, productOf, type VisualStyle } from '../domain/brandKit';
-import type { CopyMode } from '../domain/carousel';
+import { PLATFORM_LABELS, PLATFORMS, type CopyMode, type Platform } from '../domain/carousel';
 import {
   CONTENT_TYPE_LABELS,
   CONTENT_TYPES,
@@ -32,6 +32,8 @@ const MANUAL_STEPS = ['Lendo seus textos', 'Escolhendo imagens da biblioteca', '
 const MIN_AI_COPY_LENGTH = 20;
 const AI_PLACEHOLDER = 'Cole sua copy ou só o tema. Ex: Metas sem sistema são só desejos com prazo.';
 const MODE_STORAGE_KEY = 'fabrica:copy-mode';
+const PLATFORM_STORAGE_KEY = 'fabrica:platform';
+const PLATFORM_DETAILS: Record<Platform, string> = { instagram: 'Carrossel 4:5 (1080×1350)', tiktok: 'Slides 9:16 (1080×1920)' };
 
 const MANUAL_PLACEHOLDER = `ninguém te conta isso sobre disciplina
 você não precisa de motivação // precisa de rotina
@@ -42,11 +44,20 @@ legenda: salva pra lembrar amanhã #rotina
 acordar sem celular
 água antes do café`;
 
-function readStoredMode(): CopyMode {
+function readStored<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
   try {
-    return localStorage.getItem(MODE_STORAGE_KEY) === 'ai' ? 'ai' : 'manual';
+    const stored = localStorage.getItem(key);
+    return allowed.find((item) => item === stored) ?? fallback;
   } catch {
-    return 'manual';
+    return fallback;
+  }
+}
+
+function remember(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Remembering a choice is a convenience; the page works without storage.
   }
 }
 
@@ -56,7 +67,8 @@ export function CreatePage() {
   const brands = useBrandKits();
   const assets = useAssets();
 
-  const [mode, setMode] = useState<CopyMode>(readStoredMode);
+  const [platform, setPlatform] = useState<Platform>(() => readStored(PLATFORM_STORAGE_KEY, PLATFORMS, 'instagram'));
+  const [mode, setMode] = useState<CopyMode>(() => readStored(MODE_STORAGE_KEY, ['manual', 'ai'] as const, 'manual'));
   const [text, setText] = useState('');
   const [brandId, setBrandId] = useState('');
   const [contentType, setContentType] = useState<ContentType>('auto');
@@ -93,11 +105,12 @@ export function CreatePage() {
 
   const changeMode = (next: CopyMode) => {
     setMode(next);
-    try {
-      localStorage.setItem(MODE_STORAGE_KEY, next);
-    } catch {
-      // Remembering the mode is a convenience; the page works without storage.
-    }
+    remember(MODE_STORAGE_KEY, next);
+  };
+
+  const changePlatform = (next: Platform) => {
+    setPlatform(next);
+    remember(PLATFORM_STORAGE_KEY, next);
   };
 
   const toggleTesting = (enabled: boolean) => {
@@ -153,6 +166,7 @@ export function CreatePage() {
     setError(null);
     try {
       const result = await createCarousels(services, {
+        platform,
         brand,
         library: assets.data,
         mode,
@@ -185,8 +199,8 @@ export function CreatePage() {
   return (
     <div className="mx-auto max-w-4xl">
       <header className="mb-8 text-center sm:mb-10">
-        <h1 className="text-balance text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Cole seus textos. Receba os carrosséis prontos.</h1>
-        <p className="mt-3 text-pretty text-sm text-muted sm:text-base">Você escreve, a ferramenta monta os slides com as suas fotos e a identidade da marca.</p>
+        <h1 className="text-balance text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Cole a copy. Receba os carrosséis prontos.</h1>
+        <p className="mt-3 text-pretty text-sm text-muted sm:text-base">Você escolhe onde vai postar, o texto, a formatação e as fotos. A ferramenta coloca cada frase e cada foto no slide certo.</p>
       </header>
 
       {brands.error && <Alert>{brands.error}</Alert>}
@@ -205,173 +219,198 @@ export function CreatePage() {
           </div>
         </div>
       ) : (
-        <div className="rounded-3xl border border-line bg-surface p-2 shadow-sm">
-          <div role="radiogroup" aria-label="Como a copy entra nos slides" className="m-2 grid grid-cols-2 gap-1 rounded-2xl bg-subtle p-1">
-            <ModeOption active={mode === 'manual'} onClick={() => changeMode('manual')} title="Meu texto" detail="Você escreve, a ferramenta só monta" />
-            <ModeOption active={mode === 'ai'} onClick={() => changeMode('ai')} title="IA estrutura" detail="Cola uma copy solta e a IA divide" />
-          </div>
-
-          <label htmlFor="copy" className="sr-only">
-            {mode === 'manual' ? 'Textos dos carrosséis' : 'Copy ou ideia'}
-          </label>
-          <Textarea
-            id="copy"
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            placeholder={mode === 'manual' ? MANUAL_PLACEHOLDER : AI_PLACEHOLDER}
-            rows={11}
-            className={clsx('min-h-60 border-0 bg-transparent px-4 py-3 text-base focus-visible:ring-0', mode === 'manual' && 'font-mono text-[14px]')}
-            disabled={generating}
-          />
-
-          {mode === 'manual' && (
-            <div className="flex flex-col gap-1 px-4 pb-3 text-xs text-faint sm:flex-row sm:items-center sm:justify-between">
-              <p>
-                Uma linha = um slide · <code className="text-muted">//</code> quebra a linha · <code className="text-muted">---</code> separa carrosséis · <code className="text-muted">legenda:</code> vira a legenda
-              </p>
-              <p className="shrink-0 font-medium text-muted" aria-live="polite">
-                {stats.carousels} carrossé{stats.carousels === 1 ? 'l' : 'is'} · {stats.slides} slides
-              </p>
+        <div className="rounded-3xl border border-line bg-surface shadow-sm">
+          <Step number={1} title="Onde vai postar">
+            <div role="radiogroup" aria-label="Plataforma" className="grid grid-cols-2 gap-1 rounded-2xl bg-subtle p-1">
+              {PLATFORMS.map((item) => (
+                <ChoiceCard key={item} active={platform === item} onClick={() => changePlatform(item)} title={PLATFORM_LABELS[item]} detail={PLATFORM_DETAILS[item]} />
+              ))}
             </div>
-          )}
+          </Step>
 
-          <div className="grid gap-3 border-t border-line p-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Field label="Marca" htmlFor="brand">
-              <Select id="brand" value={brand.id} onChange={(e) => setBrandId(e.target.value)} disabled={generating}>
-                {brands.data.map((kit) => (
-                  <option key={kit.id} value={kit.id}>
-                    {kit.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Objetivo" htmlFor="objective">
-              <Select id="objective" value={objective} onChange={(e) => setObjective(e.target.value as Objective)} disabled={generating}>
-                {OBJECTIVES.map((item) => (
-                  <option key={item} value={item}>
-                    {OBJECTIVE_LABELS[item]}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            {mode === 'ai' ? (
-              <>
-                <Field label="Tipo de carrossel" htmlFor="type">
-                  <Select id="type" value={contentType} onChange={(e) => setContentType(e.target.value as ContentType)} disabled={generating}>
-                    {CONTENT_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {CONTENT_TYPE_LABELS[type]}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="Slides" htmlFor="count">
-                  <Select id="count" value={String(slideCount)} onChange={(e) => setSlideCount(e.target.value === 'auto' ? 'auto' : (Number(e.target.value) as SlideCountOption))} disabled={generating}>
-                    {SLIDE_COUNT_OPTIONS.map((count) => (
-                      <option key={count} value={String(count)}>
-                        {count === 'auto' ? 'Automático' : count}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-              </>
-            ) : (
-              <label className="flex items-center gap-2 self-end pb-2.5 text-sm text-ink sm:col-span-2">
-                <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={addCta} onChange={(e) => setAddCta(e.target.checked)} disabled={generating} />
-                Adicionar no fim o CTA do objetivo
+          <Step number={2} title="A copy">
+            <div role="radiogroup" aria-label="Como a copy entra nos slides" className="mb-3 grid grid-cols-2 gap-1 rounded-2xl bg-subtle p-1">
+              <ChoiceCard active={mode === 'ai'} onClick={() => changeMode('ai')} title="Separar pra mim" detail="Cola a copy inteira e a ferramenta divide nos slides" />
+              <ChoiceCard active={mode === 'manual'} onClick={() => changeMode('manual')} title="Já separei" detail="Uma linha = um slide, sem mudar nenhuma palavra" />
+            </div>
+            <div className="rounded-2xl border border-line">
+              <label htmlFor="copy" className="sr-only">
+                {mode === 'manual' ? 'Textos dos carrosséis' : 'Copy ou ideia'}
               </label>
-            )}
-          </div>
+              <Textarea
+                id="copy"
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                placeholder={mode === 'manual' ? MANUAL_PLACEHOLDER : AI_PLACEHOLDER}
+                rows={11}
+                className={clsx('min-h-60 border-0 bg-transparent px-4 py-3 text-base focus-visible:ring-0', mode === 'manual' && 'font-mono text-[14px]')}
+                disabled={generating}
+              />
 
-          {mode === 'ai' && product && (
-            <div className="border-t border-line p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <label className="flex items-start gap-2 text-sm text-ink">
-                  <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]" checked={includeProduct} onChange={(e) => setIncludeProduct(e.target.checked)} disabled={generating} />
-                  <span>
-                    Mostrar o {product.name} num slide, como parte da solução
-                    <span className="block text-xs text-faint">Um slide só, com a imagem do produto. As outras fotos nunca repetem ela.</span>
-                  </span>
-                </label>
-                {includeProduct && (
-                  <div className="flex items-center gap-3 pl-6 sm:pl-0">
-                    {productImage ? (
-                      <AssetThumb asset={productImage} className="size-14 shrink-0 rounded-lg ring-1 ring-line" />
-                    ) : (
-                      <span className="grid size-14 shrink-0 place-items-center rounded-lg bg-subtle text-faint ring-1 ring-line" aria-hidden>
-                        <ImageIcon className="size-5" />
-                      </span>
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                      <Button size="sm" variant="secondary" loading={uploadingProductImage} onClick={() => productFileInput.current?.click()} disabled={generating}>
-                        {!uploadingProductImage && <Upload className="size-4" aria-hidden />}
-                        Enviar print
-                      </Button>
-                      {assets.data.length > 0 && (
-                        <Button size="sm" variant="secondary" onClick={() => setPickingProductImage(true)} disabled={generating || uploadingProductImage}>
-                          {productImage ? 'Trocar' : 'Escolher da biblioteca'}
-                        </Button>
-                      )}
-                    </div>
-                    <input
-                      ref={productFileInput}
-                      type="file"
-                      accept={ACCEPTED_IMAGE_TYPES.join(',')}
-                      className="hidden"
-                      aria-label={`Enviar print do ${product.name}`}
-                      onChange={(event) => {
-                        void uploadProductImage(event.target.files?.[0]);
-                        event.target.value = '';
-                      }}
-                    />
-                  </div>
+              {mode === 'manual' && (
+                <div className="flex flex-col gap-1 px-4 pb-3 text-xs text-faint sm:flex-row sm:items-center sm:justify-between">
+                  <p>
+                    Uma linha = um slide · <code className="text-muted">//</code> quebra a linha · <code className="text-muted">---</code> separa carrosséis · <code className="text-muted">legenda:</code> vira a legenda
+                  </p>
+                  <p className="shrink-0 font-medium text-muted" aria-live="polite">
+                    {stats.carousels} carrossé{stats.carousels === 1 ? 'l' : 'is'} · {stats.slides} slides
+                  </p>
+                </div>
+              )}
+
+            </div>
+          </Step>
+
+          <Step number={3} title="A formatação">
+            <div className="flex flex-col gap-5">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <Field label="Marca" htmlFor="brand">
+                  <Select id="brand" value={brand.id} onChange={(e) => setBrandId(e.target.value)} disabled={generating}>
+                    {brands.data.map((kit) => (
+                      <option key={kit.id} value={kit.id}>
+                        {kit.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Objetivo" htmlFor="objective">
+                  <Select id="objective" value={objective} onChange={(e) => setObjective(e.target.value as Objective)} disabled={generating}>
+                    {OBJECTIVES.map((item) => (
+                      <option key={item} value={item}>
+                        {OBJECTIVE_LABELS[item]}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                {mode === 'ai' ? (
+                  <>
+                    <Field label="Tipo de carrossel" htmlFor="type">
+                      <Select id="type" value={contentType} onChange={(e) => setContentType(e.target.value as ContentType)} disabled={generating}>
+                        {CONTENT_TYPES.map((type) => (
+                          <option key={type} value={type}>
+                            {CONTENT_TYPE_LABELS[type]}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Field label="Slides" htmlFor="count">
+                      <Select id="count" value={String(slideCount)} onChange={(e) => setSlideCount(e.target.value === 'auto' ? 'auto' : (Number(e.target.value) as SlideCountOption))} disabled={generating}>
+                        {SLIDE_COUNT_OPTIONS.map((count) => (
+                          <option key={count} value={String(count)}>
+                            {count === 'auto' ? 'Automático' : count}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                  </>
+                ) : (
+                  <label className="flex items-center gap-2 self-end pb-2.5 text-sm text-ink sm:col-span-2">
+                    <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={addCta} onChange={(e) => setAddCta(e.target.checked)} disabled={generating} />
+                    Adicionar no fim o CTA do objetivo
+                  </label>
                 )}
               </div>
-              <ImagePickerDialog
-                open={pickingProductImage}
-                title={`Imagem do ${product.name}`}
-                assets={assets.data}
-                currentId={productImageId}
-                slideText={`${product.name} ${product.pitch} app tela print produto`}
-                carouselFolders={[]}
-                onPick={(id) => {
-                  setProductImageId(id);
-                  setPickingProductImage(false);
-                }}
-                onClose={() => setPickingProductImage(false)}
-              />
-            </div>
-          )}
 
-          {folderCounts.size > 0 && (
-            <div className="border-t border-line p-4">
-              <FolderPicker label="Fotos de quais pastas" counts={folderCounts} selected={folders} onChange={setFolders} disabled={generating} />
-            </div>
-          )}
+              <div>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs font-medium text-muted">{testing ? `Formatos do teste (${styles.length} de até ${MAX_TEST_VARIANTS})` : 'Modelo dos slides'}</p>
+                  <label className="flex items-center gap-2 text-sm text-ink">
+                    <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={testing} onChange={(e) => toggleTesting(e.target.checked)} disabled={generating} />
+                    <FlaskConical className="size-4 text-accent" aria-hidden />
+                    Testar formatos
+                  </label>
+                </div>
+                {testing && <p className="mb-3 text-xs text-faint">Marque de 2 a 4 estilos. Cada um vira uma versão com o mesmo texto e as mesmas fotos, pra você postar e comparar na área Testes.</p>}
+                <StylePicker
+                  label={testing ? 'Formatos do teste' : 'Modelo dos slides'}
+                  draft={brand}
+                  photo={photo}
+                  assets={assets.data}
+                  selected={styles}
+                  onToggle={toggleStyle}
+                  multiple={testing}
+                  disabled={generating}
+                />
+              </div>
 
-          <div className="border-t border-line p-4">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-xs font-medium text-muted">{testing ? `Formatos do teste (${styles.length} de até ${MAX_TEST_VARIANTS})` : 'Estilo visual'}</p>
-              <label className="flex items-center gap-2 text-sm text-ink">
-                <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={testing} onChange={(e) => toggleTesting(e.target.checked)} disabled={generating} />
-                <FlaskConical className="size-4 text-accent" aria-hidden />
-                Testar formatos
-              </label>
-            </div>
-            {testing && <p className="mb-3 text-xs text-faint">Marque de 2 a 4 estilos. Cada um vira uma versão com o mesmo texto e as mesmas fotos, pra você postar e comparar na área Testes.</p>}
-            <StylePicker
-              label={testing ? 'Formatos do teste' : 'Estilo visual'}
-              draft={brand}
-              photo={photo}
-              assets={assets.data}
-              selected={styles}
-              onToggle={toggleStyle}
-              multiple={testing}
-              disabled={generating}
-            />
-          </div>
+              {mode === 'ai' && product && (
+                <div className="rounded-2xl border border-line p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <label className="flex items-start gap-2 text-sm text-ink">
+                      <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]" checked={includeProduct} onChange={(e) => setIncludeProduct(e.target.checked)} disabled={generating} />
+                      <span>
+                        Mostrar o {product.name} num slide, como parte da solução
+                        <span className="block text-xs text-faint">Um slide só, com a imagem do produto. As outras fotos nunca repetem ela.</span>
+                      </span>
+                    </label>
+                    {includeProduct && (
+                      <div className="flex items-center gap-3 pl-6 sm:pl-0">
+                        {productImage ? (
+                          <AssetThumb asset={productImage} className="size-14 shrink-0 rounded-lg ring-1 ring-line" />
+                        ) : (
+                          <span className="grid size-14 shrink-0 place-items-center rounded-lg bg-subtle text-faint ring-1 ring-line" aria-hidden>
+                            <ImageIcon className="size-5" />
+                          </span>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="sm" variant="secondary" loading={uploadingProductImage} onClick={() => productFileInput.current?.click()} disabled={generating}>
+                            {!uploadingProductImage && <Upload className="size-4" aria-hidden />}
+                            Enviar print
+                          </Button>
+                          {assets.data.length > 0 && (
+                            <Button size="sm" variant="secondary" onClick={() => setPickingProductImage(true)} disabled={generating || uploadingProductImage}>
+                              {productImage ? 'Trocar' : 'Escolher da biblioteca'}
+                            </Button>
+                          )}
+                        </div>
+                        <input
+                          ref={productFileInput}
+                          type="file"
+                          accept={ACCEPTED_IMAGE_TYPES.join(',')}
+                          className="hidden"
+                          aria-label={`Enviar print do ${product.name}`}
+                          onChange={(event) => {
+                            void uploadProductImage(event.target.files?.[0]);
+                            event.target.value = '';
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <ImagePickerDialog
+                    open={pickingProductImage}
+                    title={`Imagem do ${product.name}`}
+                    assets={assets.data}
+                    currentId={productImageId}
+                    slideText={`${product.name} ${product.pitch} app tela print produto`}
+                    carouselFolders={[]}
+                    onPick={(id) => {
+                      setProductImageId(id);
+                      setPickingProductImage(false);
+                    }}
+                    onClose={() => setPickingProductImage(false)}
+                  />
+                </div>
+              )}
 
-          <div className="flex flex-col gap-3 border-t border-line p-4 sm:flex-row sm:items-center sm:justify-between">
+            </div>
+          </Step>
+
+          <Step number={4} title="As fotos do carrossel">
+            {folderCounts.size > 0 ? (
+              <FolderPicker label="De quais pastas da biblioteca" counts={folderCounts} selected={folders} onChange={setFolders} disabled={generating} />
+            ) : (
+              <p className="text-sm text-muted">
+                Sua biblioteca está vazia, então os slides saem só com texto.{' '}
+                <Link to="/biblioteca" className="font-medium text-ink underline underline-offset-4 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+                  Subir fotos na Biblioteca
+                </Link>
+              </p>
+            )}
+            {folderCounts.size > 0 && <p className="mt-2 text-xs text-faint">A ferramenta escolhe uma foto por slide pelas tags, sem repetir. Depois você pode trocar qualquer uma no editor.</p>}
+          </Step>
+
+          <div className="flex flex-col gap-3 p-4 sm:flex-row sm:p-5 sm:items-center sm:justify-between">
             <p className="text-xs text-faint">
               {assets.data.length > 0 ? `${availableImages} imagens disponíveis` : 'Sem imagens na biblioteca: os slides saem só com texto.'}
               {mode === 'ai' && services.ai.engine === 'heuristic' && ' · IA local (sem Claude)'}
@@ -394,7 +433,21 @@ export function CreatePage() {
   );
 }
 
-function ModeOption({ active, onClick, title, detail }: { active: boolean; onClick: () => void; title: string; detail: string }) {
+function Step({ number, title, children }: { number: number; title: string; children: ReactNode }) {
+  return (
+    <section aria-labelledby={`step-${number}`} className="border-b border-line p-4 last:border-b-0 sm:p-5">
+      <h2 id={`step-${number}`} className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink">
+        <span className="grid size-6 place-items-center rounded-full bg-ink text-xs font-semibold text-surface" aria-hidden>
+          {number}
+        </span>
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
+}
+
+function ChoiceCard({ active, onClick, title, detail }: { active: boolean; onClick: () => void; title: string; detail: string }) {
   return (
     <button
       type="button"

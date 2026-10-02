@@ -189,9 +189,6 @@ function BrandKitEditor({ id, initial, assets, inUse, onClose, onSave, onDelete 
             <Field label="Nome da marca" htmlFor="bk-name">
               <Input id="bk-name" value={draft.name} onChange={(e) => patch('name', e.target.value)} maxLength={80} />
             </Field>
-            <Field label="@ ou assinatura" htmlFor="bk-handle">
-              <Input id="bk-handle" value={draft.handle} onChange={(e) => patch('handle', e.target.value)} placeholder="@suamarca" />
-            </Field>
             <Field label="Logo" htmlFor="bk-logo" hint={logos.length === 0 ? 'Suba o logo na Biblioteca com o tipo "logo".' : undefined}>
               <Select id="bk-logo" value={draft.logoAssetId ?? ''} onChange={(e) => patch('logoAssetId', e.target.value || null)}>
                 <option value="">Sem logo</option>
@@ -202,7 +199,7 @@ function BrandKitEditor({ id, initial, assets, inUse, onClose, onSave, onDelete 
                 ))}
               </Select>
             </Field>
-            <Field label="Foto de perfil" htmlFor="bk-avatar" hint="Aparece no estilo Post (estilo tweet), com o nome e o @.">
+            <Field label="Foto de perfil" htmlFor="bk-avatar" hint="Aparece no estilo Post (estilo tweet), ao lado do nome.">
               <Select id="bk-avatar" value={draft.avatarAssetId ?? ''} onChange={(e) => patch('avatarAssetId', e.target.value || null)}>
                 <option value="">Inicial da marca</option>
                 {assets.map((asset) => (

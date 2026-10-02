@@ -134,7 +134,7 @@ export function Inspector(props: InspectorProps) {
         <h2 id="inspector-type" className="text-xs font-semibold uppercase tracking-wider text-faint">
           Tipografia
         </h2>
-        <Field label={`Tamanho do título: ${Math.round(slide.style.fontScale * 100)}%`} htmlFor="slide-scale">
+        <Field label={`Tamanho do texto: ${Math.round(slide.style.fontScale * 100)}%`} hint="Muda em todos os slides." htmlFor="slide-scale">
           <input
             id="slide-scale"
             type="range"
@@ -142,13 +142,10 @@ export function Inspector(props: InspectorProps) {
             max={FONT_SCALE_RANGE.max}
             step={FONT_SCALE_RANGE.step}
             value={slide.style.fontScale}
-            onChange={(e) => onChange({ style: { ...slide.style, fontScale: Number(e.target.value) } })}
+            onChange={(e) => props.onFontScaleForAll(Number(e.target.value))}
             className="accent-[var(--accent)]"
           />
         </Field>
-        <Button size="sm" variant="secondary" className="self-start" onClick={() => props.onFontScaleForAll(slide.style.fontScale)}>
-          Usar {Math.round(slide.style.fontScale * 100)}% em todos os slides
-        </Button>
         <Field label="Fonte do título" htmlFor="slide-font">
           <Select id="slide-font" value={slide.style.headingFont ?? ''} onChange={(e) => onChange({ style: { ...slide.style, headingFont: e.target.value || null } })}>
             <option value="">Da marca ({props.defaultHeadingFont})</option>

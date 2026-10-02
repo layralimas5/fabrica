@@ -21,7 +21,6 @@ export interface SlideTheme {
   imageOverlay: number;
   grayscale: boolean;
   ruleLines: boolean;
-  handle: string;
   displayName: string;
   photoText: PhotoText;
 }
@@ -52,7 +51,6 @@ export function resolveTheme(brand: BrandKit, style: VisualStyle): SlideTheme {
     imageOverlay: brand.imageOverlay / 100,
     grayscale: brand.imageGrayscale,
     ruleLines: false,
-    handle: brand.handle,
     displayName: brand.name,
     photoText: photoTextOf(brand),
   };

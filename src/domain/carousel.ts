@@ -34,6 +34,12 @@ export const STATUS_LABELS: Record<CarouselStatus, string> = {
 
 export type CarouselFormat = '4:5' | '9:16';
 
+export const PLATFORMS = ['instagram', 'tiktok'] as const;
+export type Platform = (typeof PLATFORMS)[number];
+
+export const PLATFORM_LABELS: Record<Platform, string> = { instagram: 'Instagram', tiktok: 'TikTok' };
+export const PLATFORM_FORMATS: Record<Platform, CarouselFormat> = { instagram: '4:5', tiktok: '9:16' };
+
 export const FORMAT_SIZES: Record<CarouselFormat, { width: number; height: number }> = {
   '4:5': { width: 1080, height: 1350 },
   '9:16': { width: 1080, height: 1920 },

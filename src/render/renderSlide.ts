@@ -22,7 +22,6 @@ interface Frame {
   input: SlideRenderInput;
 }
 
-const FOOTER = 90;
 
 export async function renderSlideToCanvas(input: SlideRenderInput, scale = 1): Promise<HTMLCanvasElement> {
   const { width, height } = FORMAT_SIZES[input.format];
@@ -84,7 +83,6 @@ const LAYOUT_RENDERERS: Record<Slide['layout'], (frame: Frame) => void> = {
     drawHeader(frame, theme.text);
     const box = contentBox(frame);
     drawStack(frame.ctx, textItems(slide, theme.text, theme.muted), offsetBox(box, slide), stackStyle(frame, { size: slide.role === 'hook' ? 112 : 92, align: 'center', vAlign: 'center' }));
-    drawFooter(frame, theme.muted);
   },
 
   big_statement: (frame) => {
@@ -93,10 +91,7 @@ const LAYOUT_RENDERERS: Record<Slide['layout'], (frame: Frame) => void> = {
     drawHeader(frame, theme.emphasisText);
     const box = contentBox(frame);
     const style = stackStyle(frame, { size: 108, align: 'left', vAlign: 'center' });
-    const area = drawStack(frame.ctx, textItems(slide, theme.emphasisText, withAlpha(theme.emphasisText, 0.75)), offsetBox(box, slide), style);
-    frame.ctx.fillStyle = theme.accent === theme.emphasisBackground ? theme.emphasisText : theme.accent;
-    frame.ctx.fillRect(area.x, area.y - 52, 96, 12);
-    drawFooter(frame, withAlpha(theme.emphasisText, 0.7));
+    drawStack(frame.ctx, textItems(slide, theme.emphasisText, withAlpha(theme.emphasisText, 0.75)), offsetBox(box, slide), style);
   },
 
   image_full_quote: (frame) => {
@@ -113,7 +108,6 @@ const LAYOUT_RENDERERS: Record<Slide['layout'], (frame: Frame) => void> = {
     const box = contentBox(frame);
     const lower = { ...box, y: box.y + box.height * 0.35, height: box.height * 0.65 };
     drawStack(frame.ctx, textItems(slide, '#ffffff', 'rgba(255,255,255,0.82)'), offsetBox(lower, slide), stackStyle(frame, { size: slide.role === 'hook' ? 100 : 84, align: 'left', vAlign: 'bottom' }));
-    drawFooter(frame, 'rgba(255,255,255,0.8)');
   },
 
   image_top_text_bottom: (frame) => {
@@ -123,9 +117,8 @@ const LAYOUT_RENDERERS: Record<Slide['layout'], (frame: Frame) => void> = {
     const imageBox = { x: pad, y: pad, width: frame.width - pad * 2, height: frame.height * 0.48 };
     if (image) drawCover(frame, image, imageBox, theme.radius);
     const textTop = imageBox.y + imageBox.height + 56;
-    const box = { x: pad, y: textTop, width: frame.width - pad * 2, height: frame.height - textTop - FOOTER - pad / 2 };
+    const box = { x: pad, y: textTop, width: frame.width - pad * 2, height: frame.height - textTop - pad / 2 };
     drawStack(frame.ctx, textItems(slide, theme.text, theme.muted), offsetBox(box, slide), stackStyle(frame, { size: 66, align: 'left', vAlign: 'top' }));
-    drawFooter(frame, theme.muted);
   },
 
   image_left_text_right: (frame) => {
@@ -134,9 +127,8 @@ const LAYOUT_RENDERERS: Record<Slide['layout'], (frame: Frame) => void> = {
     const columnWidth = Math.round(frame.width * 0.44);
     if (image) drawCover(frame, image, { x: 0, y: 0, width: columnWidth, height: frame.height }, 0);
     const pad = theme.padding * 0.7;
-    const box = { x: columnWidth + pad, y: theme.padding, width: frame.width - columnWidth - pad * 2, height: frame.height - theme.padding * 2 - FOOTER };
+    const box = { x: columnWidth + pad, y: theme.padding, width: frame.width - columnWidth - pad * 2, height: frame.height - theme.padding * 2 };
     drawStack(frame.ctx, textItems(slide, theme.text, theme.muted), offsetBox(box, slide), stackStyle(frame, { size: 62, align: 'left', vAlign: 'center' }));
-    drawFooter(frame, theme.muted, columnWidth);
   },
 
   text_side: (frame) => {
@@ -144,11 +136,7 @@ const LAYOUT_RENDERERS: Record<Slide['layout'], (frame: Frame) => void> = {
     fill(frame, theme.background);
     drawHeader(frame, theme.text);
     const box = contentBox(frame);
-    const inner = { ...box, x: box.x + 44, width: box.width - 44 };
-    const area = drawStack(frame.ctx, textItems(slide, theme.text, theme.muted), offsetBox(inner, slide), stackStyle(frame, { size: 86, align: 'left', vAlign: 'center' }));
-    frame.ctx.fillStyle = theme.accent;
-    frame.ctx.fillRect(box.x + slide.style.offsetX, area.y, 10, area.height);
-    drawFooter(frame, theme.muted);
+    drawStack(frame.ctx, textItems(slide, theme.text, theme.muted), offsetBox(box, slide), stackStyle(frame, { size: 86, align: 'left', vAlign: 'center' }));
   },
 
   list: (frame) => {
@@ -160,7 +148,6 @@ const LAYOUT_RENDERERS: Record<Slide['layout'], (frame: Frame) => void> = {
     const entries = slide.bullets.length > 0 ? slide.bullets : splitSentences(slide.body ?? '');
     entries.forEach((text, index) => items.push({ kind: 'bullet', text, color: theme.text, marker: String(index + 1) }));
     drawStack(frame.ctx, items, offsetBox(contentBox(frame), slide), stackStyle(frame, { size: 76, align: 'left', vAlign: 'center' }));
-    drawFooter(frame, theme.muted);
   },
 
   cta: (frame) => {
@@ -169,9 +156,7 @@ const LAYOUT_RENDERERS: Record<Slide['layout'], (frame: Frame) => void> = {
     const box = contentBox(frame);
     if (logo) drawLogo(frame, logo, frame.width / 2, box.y + 40, 120, 'center');
     const style = stackStyle(frame, { size: 86, align: 'center', vAlign: 'center' });
-    const area = drawStack(frame.ctx, textItems(slide, theme.text, theme.muted), offsetBox({ ...box, height: box.height - 140 }, slide), style);
-    if (theme.handle) drawPill(frame, theme.handle, frame.width / 2, area.y + area.height + 90);
-    drawFooter(frame, theme.muted);
+    drawStack(frame.ctx, textItems(slide, theme.text, theme.muted), offsetBox(box, slide), style);
   },
 };
 
@@ -228,7 +213,7 @@ function drawPhotoText(frame: Frame, text: string): void {
 
 const POST_AVATAR = 132;
 
-/** Social-post header: round avatar, bold display name and @handle. Returns its bottom edge. */
+/** Social-post header: round avatar and bold display name. Returns its bottom edge. */
 function drawPostHeader(frame: Frame, top: number): number {
   const { ctx } = frame;
   const { theme, avatar } = frame.input;
@@ -263,12 +248,7 @@ function drawPostHeader(frame: Frame, top: number): number {
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = theme.text;
   ctx.font = `700 46px "${theme.bodyFont}", system-ui, sans-serif`;
-  ctx.fillText(theme.displayName, textX, theme.handle ? centerY - 6 : centerY + 16);
-  if (theme.handle) {
-    ctx.fillStyle = theme.muted;
-    ctx.font = `400 36px "${theme.bodyFont}", system-ui, sans-serif`;
-    ctx.fillText(theme.handle, textX, centerY + 42);
-  }
+  ctx.fillText(theme.displayName, textX, centerY + 16);
   ctx.restore();
   return top + POST_AVATAR;
 }
@@ -314,7 +294,7 @@ function stackStyle(frame: Frame, options: { size: number; align: StackStyle['al
 function contentBox(frame: Frame): Box {
   const pad = frame.input.theme.padding;
   const header = frame.input.theme.ruleLines ? 70 : 0;
-  return { x: pad, y: pad + header, width: frame.width - pad * 2, height: frame.height - pad * 2 - FOOTER - header };
+  return { x: pad, y: pad + header, width: frame.width - pad * 2, height: frame.height - pad * 2 - header };
 }
 
 function offsetBox(box: Box, slide: Slide): Box {
@@ -366,23 +346,6 @@ function drawHeader(frame: Frame, color: string): void {
   if (logo && slide.role === 'hook') drawLogo(frame, logo, pad, pad - 30, 64, 'left');
 }
 
-function drawFooter(frame: Frame, color: string, startX = 0): void {
-  const { ctx, width, height } = frame;
-  const { theme, index, total } = frame.input;
-  const pad = theme.padding * 0.75;
-  const y = height - pad - 6;
-  ctx.save();
-  ctx.font = `600 26px "${theme.bodyFont}", system-ui, sans-serif`;
-  ctx.fillStyle = color;
-  ctx.textBaseline = 'alphabetic';
-  if (theme.handle) {
-    ctx.textAlign = 'left';
-    ctx.fillText(theme.handle, startX + pad, y);
-  }
-  ctx.textAlign = 'right';
-  ctx.fillText(`${String(index + 1).padStart(2, '0')}/${String(total).padStart(2, '0')}`, width - pad, y);
-  ctx.restore();
-}
 
 function drawLogo(frame: Frame, logo: ImageBitmap, x: number, y: number, maxHeight: number, align: 'left' | 'center'): void {
   const height = Math.min(maxHeight, logo.height);
@@ -390,19 +353,3 @@ function drawLogo(frame: Frame, logo: ImageBitmap, x: number, y: number, maxHeig
   frame.ctx.drawImage(logo, align === 'center' ? x - width / 2 : x, y, width, height);
 }
 
-function drawPill(frame: Frame, text: string, centerX: number, y: number): void {
-  const { ctx } = frame;
-  const { theme } = frame.input;
-  ctx.save();
-  ctx.font = `700 34px "${theme.bodyFont}", system-ui, sans-serif`;
-  const width = ctx.measureText(text).width + 88;
-  const height = 84;
-  ctx.fillStyle = theme.emphasisBackground;
-  roundRect(ctx, { x: centerX - width / 2, y, width, height }, height / 2);
-  ctx.fill();
-  ctx.fillStyle = theme.emphasisText;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, centerX, y + height / 2 + 1);
-  ctx.restore();
-}
