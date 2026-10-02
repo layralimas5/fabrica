@@ -53,6 +53,7 @@ acordar sem celular`;
 
 const request = (overrides: Partial<CreateRequest> = {}): CreateRequest => ({
   platform: 'instagram',
+  format: '4:5',
   brand,
   library: photos,
   mode: 'manual',
@@ -164,11 +165,11 @@ describe('createCarousels product image picked at creation', () => {
   });
 });
 
-describe('createCarousels platform', () => {
-  it('tiktok makes 9:16 carousels whatever the visual style', async () => {
+describe('createCarousels proportion', () => {
+  it('uses the chosen proportion whatever the visual style', async () => {
     const services = fakeServices();
-    await createCarousels(services, request({ platform: 'tiktok', styles: ['minimalista'] }));
-    expect(services.saved.every((carousel) => carousel.format === '9:16')).toBe(true);
+    await createCarousels(services, request({ platform: 'instagram', format: '1:1', styles: ['minimalista', 'tiktok'] }));
+    expect(services.saved.every((carousel) => carousel.format === '1:1')).toBe(true);
   });
 });
 

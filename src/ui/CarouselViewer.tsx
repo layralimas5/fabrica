@@ -20,7 +20,7 @@ export function CarouselViewer({ open, onClose, context, carousel }: CarouselVie
   const [index, setIndex] = useState(0);
   const swipeStart = useRef<number | null>(null);
   const total = carousel.slides.length;
-  const tall = carousel.format === '9:16';
+  const tall = carousel.format === '9:16' || carousel.format === '3:4';
 
   useEffect(() => {
     if (open) setIndex(0);

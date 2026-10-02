@@ -1,3 +1,4 @@
+import { CAROUSEL_FORMATS, formatSizeLabel } from '../domain/carousel';
 import { shadeOf } from '../domain/shade';
 import { ArrowLeft, Check, CloudOff, Eye, Loader2, Wand2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -106,8 +107,11 @@ function Editor({ initial, brand, assets }: { initial: Carousel; brand: BrandKit
         <div className="flex flex-wrap items-center gap-2">
           <label htmlFor="carousel-format" className="sr-only">Formato</label>
           <Select id="carousel-format" value={carousel.format} onChange={(e) => editor.setFormat(e.target.value as CarouselFormat)} className="!w-auto">
-            <option value="4:5">1080×1350</option>
-            <option value="9:16">1080×1920</option>
+            {CAROUSEL_FORMATS.map((format) => (
+              <option key={format} value={format}>
+                {format} · {formatSizeLabel(format)}
+              </option>
+            ))}
           </Select>
           <label htmlFor="carousel-status" className="sr-only">Status</label>
           <Select id="carousel-status" value={carousel.status} onChange={(e) => editor.setStatus(e.target.value as CarouselStatus)} className="!w-auto">

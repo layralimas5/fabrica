@@ -1,7 +1,7 @@
 import { inFolders, type Asset } from '../domain/asset';
 import type { CarouselDraft } from '../domain/aiContract';
 import { productOf, VISUAL_STYLE_LABELS, type BrandKit, type BrandProduct, type VisualStyle } from '../domain/brandKit';
-import { PLATFORM_FORMATS, type Carousel, type CopyMode, type ExperimentRef, type Platform, type Slide } from '../domain/carousel';
+import type { Carousel, CarouselFormat, CopyMode, ExperimentRef, Platform, Slide } from '../domain/carousel';
 import { composeSlides, slidesWantingImages, slideText } from '../domain/composeCarousel';
 import { isPhotoLike } from '../domain/asset';
 import type { ContentType, Objective, SlideCountOption } from '../domain/content';
@@ -16,6 +16,7 @@ export const MAX_TEST_VARIANTS = 4;
 
 export interface CreateRequest {
   platform: Platform;
+  format: CarouselFormat;
   brand: BrandKit;
   library: Asset[];
   mode: CopyMode;
@@ -91,7 +92,7 @@ export async function createCarousels(services: Services, request: CreateRequest
           brandKitId: request.brand.id,
           title: isTest ? `${draft.title} · ${VISUAL_STYLE_LABELS[style]}` : draft.title,
           status: 'draft',
-          format: PLATFORM_FORMATS[request.platform],
+          format: request.format,
           source: {
             copy,
             contentType: request.contentType,

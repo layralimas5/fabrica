@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import { useEffect, useRef, useState } from 'react';
-import type { Slide } from '../domain/carousel';
+import type { CarouselFormat, Slide } from '../domain/carousel';
 import { renderCarouselSlide, type RenderContext } from '../app/slideRendering';
 
 interface SlideCanvasProps {
@@ -11,6 +11,14 @@ interface SlideCanvasProps {
   className?: string;
   label: string;
 }
+
+/** Static class names so Tailwind keeps them in the build. */
+export const ASPECT_CLASSES: Record<CarouselFormat, string> = {
+  '4:5': 'aspect-[4/5]',
+  '3:4': 'aspect-[3/4]',
+  '1:1': 'aspect-square',
+  '9:16': 'aspect-[9/16]',
+};
 
 /** Renders a slide with the same canvas pipeline used for export, so preview equals output. */
 export function SlideCanvas({ context, slide, index, scale, className, label }: SlideCanvasProps) {
@@ -37,7 +45,7 @@ export function SlideCanvas({ context, slide, index, scale, className, label }: 
     };
   }, [context, slide, index, scale, label]);
 
-  const ratio = context.format === '4:5' ? 'aspect-[4/5]' : 'aspect-[9/16]';
+  const ratio = ASPECT_CLASSES[context.format];
   return (
     <div className={clsx('relative overflow-hidden bg-subtle', ratio, className)}>
       <div ref={hostRef} className="absolute inset-0" />

@@ -15,7 +15,19 @@ import { ImagePickerDialog } from '../editor/ImagePickerDialog';
 import { AssetThumb } from '../ui/AssetThumb';
 import { ACCEPTED_IMAGE_TYPES, inFolders, isAcceptedImage, isPhotoLike, PRODUCT_FOLDER, UPLOAD_RULES_MESSAGE } from '../domain/asset';
 import { MOMENTUMM_STARTER, photoFoldersOf, productOf, type VisualStyle } from '../domain/brandKit';
-import { PLATFORM_FORMATS, PLATFORM_LABELS, PLATFORMS, type CopyMode, type Platform } from '../domain/carousel';
+import {
+  CAROUSEL_FORMATS,
+  defaultFormatFor,
+  FORMAT_SIZES,
+  formatFitsPlatform,
+  formatSizeLabel,
+  PLATFORM_FORMAT_OPTIONS,
+  PLATFORM_LABELS,
+  PLATFORMS,
+  type CarouselFormat,
+  type CopyMode,
+  type Platform,
+} from '../domain/carousel';
 import {
   CONTENT_TYPE_LABELS,
   CONTENT_TYPES,
@@ -36,7 +48,8 @@ const MIN_AI_COPY_LENGTH = 20;
 const AI_PLACEHOLDER = 'Cole sua copy ou só o tema. Ex: Metas sem sistema são só desejos com prazo.';
 const MODE_STORAGE_KEY = 'fabrica:copy-mode';
 const PLATFORM_STORAGE_KEY = 'fabrica:platform';
-const PLATFORM_DETAILS: Record<Platform, string> = { instagram: 'Carrossel 4:5 (1080×1350)', tiktok: 'Slides 9:16 (1080×1920)' };
+const FORMAT_STORAGE_KEY = 'fabrica:format';
+const PLATFORM_DETAILS: Record<Platform, string> = { instagram: 'Feed, perfil, stories', tiktok: 'Carrossel de fotos' };
 
 const MANUAL_PLACEHOLDER = `ninguém te conta isso sobre disciplina
 você não precisa de motivação // precisa de rotina
@@ -71,6 +84,10 @@ export function CreatePage() {
   const assets = useAssets();
 
   const [platform, setPlatform] = useState<Platform>(() => readStored(PLATFORM_STORAGE_KEY, PLATFORMS, 'instagram'));
+  const [format, setFormat] = useState<CarouselFormat>(() => {
+    const stored = readStored(FORMAT_STORAGE_KEY, CAROUSEL_FORMATS, defaultFormatFor(platform));
+    return formatFitsPlatform(stored, platform) ? stored : defaultFormatFor(platform);
+  });
   const [mode, setMode] = useState<CopyMode>(() => readStored(MODE_STORAGE_KEY, ['manual', 'ai'] as const, 'manual'));
   const [text, setText] = useState('');
   const [brandId, setBrandId] = useState('');
@@ -116,6 +133,12 @@ export function CreatePage() {
   const changePlatform = (next: Platform) => {
     setPlatform(next);
     remember(PLATFORM_STORAGE_KEY, next);
+    if (!formatFitsPlatform(format, next)) changeFormat(defaultFormatFor(next));
+  };
+
+  const changeFormat = (next: CarouselFormat) => {
+    setFormat(next);
+    remember(FORMAT_STORAGE_KEY, next);
   };
 
   const toggleTesting = (enabled: boolean) => {
@@ -172,6 +195,7 @@ export function CreatePage() {
     try {
       const result = await createCarousels(services, {
         platform,
+        format,
         brand,
         library: assets.data,
         mode,
@@ -198,8 +222,8 @@ export function CreatePage() {
 
   const previewStyle = styles[0] ?? brand?.visualStyle ?? 'minimalista';
   const shadeContext: Omit<RenderContext, 'shade'> | null = useMemo(
-    () => (brand ? { brand, assets: assets.data, repo: services.assets, format: PLATFORM_FORMATS[platform], visualStyle: previewStyle, total: 1 } : null),
-    [brand, assets.data, services.assets, platform, previewStyle],
+    () => (brand ? { brand, assets: assets.data, repo: services.assets, format, visualStyle: previewStyle, total: 1 } : null),
+    [brand, assets.data, services.assets, format, previewStyle],
   );
 
   if (brands.loading) return <Spinner />;
@@ -233,9 +257,15 @@ export function CreatePage() {
       ) : (
         <div className="rounded-3xl border border-line bg-surface shadow-sm">
           <Step number={1} title="Onde vai postar">
-            <div role="radiogroup" aria-label="Plataforma" className="grid grid-cols-2 gap-1 rounded-2xl bg-subtle p-1">
+            <div role="radiogroup" aria-label="Rede social" className="grid grid-cols-2 gap-1 rounded-2xl bg-subtle p-1">
               {PLATFORMS.map((item) => (
                 <ChoiceCard key={item} active={platform === item} onClick={() => changePlatform(item)} title={PLATFORM_LABELS[item]} detail={PLATFORM_DETAILS[item]} />
+              ))}
+            </div>
+            <p className="mb-2 mt-4 text-xs font-medium text-muted">Proporção</p>
+            <div role="radiogroup" aria-label="Proporção" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {PLATFORM_FORMAT_OPTIONS[platform].map((option) => (
+                <FormatCard key={option.format} format={option.format} use={option.use} active={format === option.format} onClick={() => changeFormat(option.format)} disabled={generating} />
               ))}
             </div>
           </Step>
@@ -461,6 +491,33 @@ function Step({ number, title, children }: { number: number; title: string; chil
       </h2>
       {children}
     </section>
+  );
+}
+
+function FormatCard({ format, use, active, onClick, disabled }: { format: CarouselFormat; use: string; active: boolean; onClick: () => void; disabled: boolean }) {
+  const { width, height } = FORMAT_SIZES[format];
+  const iconHeight = 28;
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={active}
+      onClick={onClick}
+      disabled={disabled}
+      className={clsx(
+        'flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-60',
+        active ? 'bg-accent/10 ring-2 ring-accent' : 'ring-1 ring-line hover:ring-faint',
+      )}
+    >
+      <span className="grid w-7 shrink-0 place-items-center" aria-hidden>
+        <span className={clsx('block rounded-[3px] border-2', active ? 'border-accent' : 'border-faint')} style={{ height: iconHeight * Math.min(1, height / width / 1.78) + 8, aspectRatio: `${width} / ${height}` }} />
+      </span>
+      <span className="min-w-0">
+        <span className={clsx('block text-sm font-semibold', active ? 'text-ink' : 'text-muted')}>{format}</span>
+        <span className="block truncate text-xs text-faint">{use}</span>
+        <span className="block text-[11px] text-faint">{formatSizeLabel(format)}</span>
+      </span>
+    </button>
   );
 }
 

@@ -33,18 +33,53 @@ export const STATUS_LABELS: Record<CarouselStatus, string> = {
   published: 'Publicado',
 };
 
-export type CarouselFormat = '4:5' | '9:16';
+export const CAROUSEL_FORMATS = ['4:5', '3:4', '1:1', '9:16'] as const;
+export type CarouselFormat = (typeof CAROUSEL_FORMATS)[number];
+
+export const FORMAT_SIZES: Record<CarouselFormat, { width: number; height: number }> = {
+  '4:5': { width: 1080, height: 1350 },
+  '3:4': { width: 1080, height: 1440 },
+  '1:1': { width: 1080, height: 1080 },
+  '9:16': { width: 1080, height: 1920 },
+};
 
 export const PLATFORMS = ['instagram', 'tiktok'] as const;
 export type Platform = (typeof PLATFORMS)[number];
 
 export const PLATFORM_LABELS: Record<Platform, string> = { instagram: 'Instagram', tiktok: 'TikTok' };
-export const PLATFORM_FORMATS: Record<Platform, CarouselFormat> = { instagram: '4:5', tiktok: '9:16' };
 
-export const FORMAT_SIZES: Record<CarouselFormat, { width: number; height: number }> = {
-  '4:5': { width: 1080, height: 1350 },
-  '9:16': { width: 1080, height: 1920 },
+interface FormatOption {
+  format: CarouselFormat;
+  use: string;
+}
+
+/** Proportions each network accepts, the recommended one first. */
+export const PLATFORM_FORMAT_OPTIONS: Record<Platform, FormatOption[]> = {
+  instagram: [
+    { format: '4:5', use: 'Feed (recomendado)' },
+    { format: '3:4', use: 'Grade nova do perfil' },
+    { format: '1:1', use: 'Quadrado' },
+    { format: '9:16', use: 'Stories e Reels' },
+  ],
+  tiktok: [
+    { format: '9:16', use: 'Tela cheia (recomendado)' },
+    { format: '3:4', use: 'Foto vertical' },
+    { format: '1:1', use: 'Quadrado' },
+  ],
 };
+
+export function defaultFormatFor(platform: Platform): CarouselFormat {
+  return PLATFORM_FORMAT_OPTIONS[platform][0].format;
+}
+
+export function formatFitsPlatform(format: CarouselFormat, platform: Platform): boolean {
+  return PLATFORM_FORMAT_OPTIONS[platform].some((option) => option.format === format);
+}
+
+export function formatSizeLabel(format: CarouselFormat): string {
+  const { width, height } = FORMAT_SIZES[format];
+  return `${width}×${height}`;
+}
 
 export interface CarouselSource {
   copy: string;
