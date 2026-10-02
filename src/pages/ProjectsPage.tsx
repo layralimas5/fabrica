@@ -13,6 +13,7 @@ import { CarouselViewer } from '../ui/CarouselViewer';
 import { CarouselCover } from '../ui/CarouselCover';
 import { PostedToggle } from '../ui/PostedToggle';
 import { formatDay } from '../domain/schedule';
+import { brandForCarousel } from '../domain/brandKit';
 import { useMarkWinner } from '../winners/useMarkWinner';
 
 const STATUS_TONE: Record<CarouselStatus, 'neutral' | 'accent' | 'success' | 'warning'> = {
@@ -100,7 +101,7 @@ export function ProjectsPage() {
   };
 
   const contextOf = (carousel: Carousel): RenderContext | null => {
-    const brand = brands.data.find((kit) => kit.id === carousel.brandKitId);
+    const brand = brandForCarousel(carousel, brands.data, accounts.data);
     return brand ? renderContextFor(carousel, brand, assets.data, services.assets, accounts.data) : null;
   };
 
@@ -235,7 +236,7 @@ export function ProjectsPage() {
       ) : (
         <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map((carousel) => {
-            const brand = brands.data.find((kit) => kit.id === carousel.brandKitId);
+            const brand = brandForCarousel(carousel, brands.data, accounts.data);
             return (
               <li
                 key={carousel.id}

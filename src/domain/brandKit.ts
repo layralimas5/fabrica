@@ -107,6 +107,21 @@ export interface BrandKit {
 
 export type BrandKitInput = Omit<BrandKit, 'id' | 'createdAt' | 'updatedAt'>;
 
+/**
+ * Brand that draws a carousel. When the brand it was made with was deleted (or came from another backup),
+ * it falls back to the account's brand and then to the first brand, so the carousel still renders and exports.
+ */
+export function brandForCarousel(
+  carousel: { brandKitId: string; source: { accountId?: string | null } },
+  brands: BrandKit[],
+  accounts: { id: string; brandKitId: string | null }[],
+): BrandKit | null {
+  const own = brands.find((kit) => kit.id === carousel.brandKitId);
+  if (own) return own;
+  const accountBrand = accounts.find((account) => account.id === carousel.source.accountId)?.brandKitId;
+  return brands.find((kit) => kit.id === accountBrand) ?? brands[0] ?? null;
+}
+
 export const FONT_CHOICES = [
   'Inter',
   'DM Sans',

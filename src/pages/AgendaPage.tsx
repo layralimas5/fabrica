@@ -8,7 +8,7 @@ import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
 import type { Account } from '../domain/account';
 import type { Asset } from '../domain/asset';
-import type { BrandKit } from '../domain/brandKit';
+import { brandForCarousel, type BrandKit } from '../domain/brandKit';
 import { isPosted, postedStatus, STATUS_LABELS, toCarouselInput, type Carousel } from '../domain/carousel';
 import { formatDay, isIsoDate, todayIso } from '../domain/schedule';
 import { CarouselCover } from '../ui/CarouselCover';
@@ -46,6 +46,7 @@ export function AgendaPage() {
   const [busyDay, setBusyDay] = useState<string | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [downloaded, setDownloaded] = useState<string | null>(null);
   const created = (useLocation().state as { created?: number } | null)?.created;
   const today = todayIso();
 
@@ -66,15 +67,21 @@ export function AgendaPage() {
   };
 
   const downloadDay = async (day: DayGroup) => {
-    const items = day.carousels.flatMap((carousel) => {
-      const brand = brands.data.find((kit) => kit.id === carousel.brandKitId);
+    // Creation order, so the folders in the ZIP follow the order they were planned.
+    const ordered = [...day.carousels].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const items = ordered.flatMap((carousel) => {
+      const brand = brandForCarousel(carousel, brands.data, accounts.data);
       return brand ? [{ carousel, context: renderContextFor(carousel, brand, assets.data, services.assets, accounts.data) }] : [];
     });
+    const missing = ordered.filter((carousel) => !items.some((item) => item.carousel.id === carousel.id));
     setBusyDay(day.date);
     setError(null);
+    setDownloaded(null);
     try {
       const { exportMany } = await import('../app/exportCarousel');
       await exportMany(items, 'png', (done, total) => setProgress(`${done}/${total}`), `fabrica-${day.date}`);
+      setDownloaded(`${formatDay(day.date)}: ${items.length} ${items.length === 1 ? 'carrossel baixado' : 'carrosséis baixados'} no ZIP.`);
+      if (missing.length) setError(`Ficaram de fora porque não há nenhum Brand Kit cadastrado: ${missing.map((carousel) => carousel.title).join(', ')}.`);
       for (const carousel of day.carousels) if (carousel.status === 'draft' || carousel.status === 'editing') await save(carousel, { status: 'ready' });
     } catch (cause) {
       setError(errorMessage(cause));
@@ -119,7 +126,7 @@ export function AgendaPage() {
             <AgendaItem
               key={carousel.id}
               carousel={carousel}
-              brand={brands.data.find((kit) => kit.id === carousel.brandKitId)}
+              brand={brandForCarousel(carousel, brands.data, accounts.data) ?? undefined}
               account={accounts.data.find((item) => item.id === carousel.source.accountId)}
               assets={assets.data}
               accounts={accounts.data}
@@ -153,6 +160,7 @@ export function AgendaPage() {
         }
       />
       {created && <div className="mb-6"><Alert tone="success">{created} {created === 1 ? 'carrossel programado' : 'carrosséis programados'}.</Alert></div>}
+      {downloaded && <div className="mb-4"><Alert tone="success">{downloaded}</Alert></div>}
       {(error ?? carousels.error) && <div className="mb-4"><Alert>{error ?? carousels.error}</Alert></div>}
 
       {!hasScheduled ? (

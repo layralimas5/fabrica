@@ -12,7 +12,7 @@ import type { RenderContext } from '../app/slideRendering';
 import { errorMessage } from '../app/useResource';
 import { brandContext } from '../application/brandContext';
 import type { Asset } from '../domain/asset';
-import type { BrandKit } from '../domain/brandKit';
+import { brandForCarousel, type BrandKit } from '../domain/brandKit';
 import { CAROUSEL_STATUSES, nextToReview, STATUS_LABELS, type Carousel, type CarouselFormat, type CarouselStatus } from '../domain/carousel';
 import { layoutWithImage } from '../domain/layouts';
 import { ExportMenu } from '../editor/ExportMenu';
@@ -47,8 +47,8 @@ export function EditorPage() {
   if (carousel === undefined || brands.loading || assets.loading || accounts.loading) return <Spinner label="Abrindo o carrossel" />;
   if (carousel === null) return <EmptyState title="Carrossel não encontrado" description="Ele pode ter sido excluído." action={<Link to="/projetos" className="text-sm text-accent underline">Ver projetos</Link>} />;
 
-  const brand = brands.data.find((kit) => kit.id === carousel.brandKitId);
-  if (!brand) return <Alert>A marca desse carrossel foi removida. Recrie a marca pra editar.</Alert>;
+  const brand = brandForCarousel(carousel, brands.data, accounts.data);
+  if (!brand) return <Alert>Nenhum Brand Kit cadastrado. Crie uma marca pra editar esse carrossel.</Alert>;
 
   return <Editor key={carousel.id} initial={carousel} brand={brand} assets={assets.data} accounts={accounts.data} />;
 }
