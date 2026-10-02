@@ -4,22 +4,35 @@ import { defaultBrandKit, type BrandKit } from '../domain/brandKit';
 import type { Carousel, CarouselInput } from '../domain/carousel';
 import { emptyMetrics, engagementRate, performanceBy, winnerIndex } from '../domain/metrics';
 import { parseScript } from '../domain/script';
+import type { Experiment } from '../domain/experiments/experiment';
+import { defaultBrief } from '../domain/experiments/brief';
 import { HeuristicAi } from '../infra/ai/heuristicAi';
 import { createCarousels, type CreateRequest } from './createCarousels';
 import type { Services } from './ports';
 
-function fakeServices(): Services & { saved: Carousel[] } {
+function fakeServices(): Services & { saved: Carousel[]; experimentsSaved: Experiment[] } {
   const saved: Carousel[] = [];
+  const experimentsSaved: Experiment[] = [];
   const unused = () => Promise.reject(new Error('not used'));
   return {
     saved,
+    experimentsSaved,
     auth: {} as Services['auth'],
     brandKits: {} as Services['brandKits'],
     assets: { list: unused, upload: unused, update: unused, renameFolder: unused, remove: unused, fetchBlob: unused },
     accounts: {} as Services['accounts'],
     presets: {} as Services['presets'],
     contentRecords: {} as Services['contentRecords'],
-    experiments: {} as Services['experiments'],
+    experiments: {
+      list: async () => experimentsSaved,
+      create: async (input) => {
+        const experiment: Experiment = { ...input, id: `exp-${experimentsSaved.length + 1}`, createdAt: '', updatedAt: '' };
+        experimentsSaved.push(experiment);
+        return experiment;
+      },
+      update: unused,
+      remove: unused,
+    } as Services['experiments'],
     calendarEntries: {} as Services['calendarEntries'],
     backup: null,
     ai: new HeuristicAi(),
@@ -502,3 +515,51 @@ describe('createCarousels photos across weeks', () => {
   });
 });
 
+
+describe('createCarousels with a ficha do teste', () => {
+  const four = ['um', 'dois', 'três', 'quatro'].map((word) => `Slide 1, ${word}\nSlide 2, mais ${word}`);
+
+  it('a time test makes one experiment and the carousels take turns over the times', async () => {
+    const services = fakeServices();
+    const brief = { ...defaultBrief('horario'), times: ['19:00', '08:00'] };
+    const result = await createCarousels(services, request({ texts: four, test: { brief, copyVersions: [] } }));
+    expect(services.experimentsSaved).toHaveLength(1);
+    expect(services.experimentsSaved[0]).toMatchObject({ variable: 'horario', times: ['08:00', '19:00'] });
+    expect(result.experimentIds).toEqual(['exp-1']);
+    expect(services.saved.map((carousel) => carousel.source.scheduledTime)).toEqual(['08:00', '19:00', '08:00', '19:00']);
+    expect(services.saved.map((carousel) => carousel.experiment?.variant)).toEqual(['08:00', '19:00', '08:00', '19:00']);
+    expect(services.saved.every((carousel) => carousel.experiment?.id === 'exp-1')).toBe(true);
+  });
+
+  it('a format test with a ficha puts every copy in the same experiment, one version per style, all at the same time', async () => {
+    const services = fakeServices();
+    const brief = { ...defaultBrief('design'), times: ['12:30'] };
+    await createCarousels(services, request({ texts: four.slice(0, 2), styles: ['minimalista', 'tiktok'], test: { brief, copyVersions: [] } }));
+    expect(services.experimentsSaved).toHaveLength(1);
+    expect(services.saved).toHaveLength(4);
+    expect(new Set(services.saved.map((carousel) => carousel.experiment?.id))).toEqual(new Set(['exp-1']));
+    expect(new Set(services.saved.map((carousel) => carousel.experiment?.variant)).size).toBe(2);
+    expect(services.saved.every((carousel) => carousel.source.scheduledTime === '12:30')).toBe(true);
+  });
+
+  it('other variables use the version marked on each copy', async () => {
+    const services = fakeServices();
+    await createCarousels(services, request({ texts: four.slice(0, 3), test: { brief: defaultBrief('gancho'), copyVersions: ['Variação', 'Controle', null] } }));
+    expect(services.saved.map((carousel) => carousel.experiment?.variant)).toEqual(['Variação', 'Controle', 'Controle']);
+    expect(services.saved.every((carousel) => !carousel.source.scheduledTime)).toBe(true);
+  });
+
+  it('refuses a test with a single version and creates nothing', async () => {
+    const services = fakeServices();
+    const run = createCarousels(services, request({ texts: four.slice(0, 2), test: { brief: defaultBrief('gancho'), copyVersions: ['Controle', 'Controle'] } }));
+    await expect(run).rejects.toThrow('pelo menos 2 versões');
+    expect(services.experimentsSaved).toHaveLength(0);
+    expect(services.saved).toHaveLength(0);
+  });
+
+  it('refuses a time test with fewer carousels than times', async () => {
+    const services = fakeServices();
+    const run = createCarousels(services, request({ texts: four.slice(0, 1), test: { brief: { ...defaultBrief('horario'), times: ['08:00', '12:00', '19:00'] }, copyVersions: [] } }));
+    await expect(run).rejects.toThrow('crie pelo menos 3 carrosséis');
+  });
+});

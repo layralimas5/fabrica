@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { accountLabel, type Account } from '../domain/account';
 import { PLATFORM_LABELS } from '../domain/carousel';
-import { EXPERIMENT_LIMITS, sanitizeExperimentInput, TEST_VARIABLE_LABELS, TEST_VARIABLES, type ExperimentInput } from '../domain/experiments/experiment';
+import { EXPERIMENT_LIMITS, MAX_TEST_TIMES, sanitizeExperimentInput, TEST_METRIC_LABELS, TEST_METRICS, TEST_VARIABLE_LABELS, TEST_VARIABLES, type ExperimentInput, type TestMetric } from '../domain/experiments/experiment';
 import { Alert, Button, Dialog, Field, Input, Select, Textarea } from '../ui/primitives';
 import { ChipGroup } from '../winners/chips';
 
@@ -77,6 +77,32 @@ export function ExperimentForm({ initial, isNew, accounts, onClose, onSave }: Ex
           </Field>
           <Field label="Variação (versão testada)" htmlFor="exp-variation">
             <Input id="exp-variation" value={draft.variation} maxLength={EXPERIMENT_LIMITS.version} onChange={(e) => set({ variation: e.target.value })} placeholder="Você não precisa de mais disciplina." />
+          </Field>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Métrica que decide" htmlFor="exp-metric">
+            <Select id="exp-metric" value={draft.goalMetric} onChange={(e) => set({ goalMetric: e.target.value as TestMetric })}>
+              {TEST_METRICS.map((metric) => (
+                <option key={metric} value={metric}>
+                  {TEST_METRIC_LABELS[metric]}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label={draft.variable === 'horario' ? 'Horários testados' : 'Horário de postagem'} htmlFor="exp-time-0" hint={draft.variable === 'horario' ? `Até ${MAX_TEST_TIMES}; cada um é uma versão.` : 'Opcional.'}>
+            <div className="flex flex-wrap gap-2">
+              {Array.from({ length: draft.variable === 'horario' ? MAX_TEST_TIMES : 1 }, (_, index) => (
+                <Input
+                  key={index}
+                  id={`exp-time-${index}`}
+                  type="time"
+                  aria-label={`Horário ${index + 1}`}
+                  value={draft.times[index] ?? ''}
+                  onChange={(e) => set({ times: Object.assign([...draft.times], { [index]: e.target.value }).filter(Boolean) })}
+                  className="!w-32"
+                />
+              ))}
+            </div>
           </Field>
         </div>
         {error && <Alert>{error}</Alert>}
