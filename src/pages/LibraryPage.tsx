@@ -5,14 +5,12 @@ import { forgetAsset } from '../app/imageCache';
 import { useAssets } from '../app/data';
 import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
-import { ASSET_KINDS, parseTags, UNSORTED_FOLDER, type Asset, type AssetKind } from '../domain/asset';
+import { ACCEPTED_IMAGE_TYPES, ASSET_KINDS, isAcceptedImage, parseTags, UNSORTED_FOLDER, UPLOAD_RULES_MESSAGE, type Asset, type AssetKind } from '../domain/asset';
 import { renameFolder } from '../application/renameFolder';
 import { FolderList } from '../library/FolderList';
 import { AssetThumb } from '../ui/AssetThumb';
 import { Alert, Button, Dialog, EmptyState, Field, Input, PageHeader, Select, Spinner } from '../ui/primitives';
 
-const MAX_FILE_SIZE = 15 * 1024 * 1024;
-const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif'];
 
 export function LibraryPage() {
   const services = useServices();
@@ -49,9 +47,9 @@ export function LibraryPage() {
   }, [assets.data, folder, query]);
 
   const upload = async (files: File[]) => {
-    const valid = files.filter((file) => ACCEPTED.includes(file.type) && file.size <= MAX_FILE_SIZE);
+    const valid = files.filter(isAcceptedImage);
     const skipped = files.length - valid.length;
-    setError(skipped > 0 ? `${skipped} arquivo(s) ignorado(s): só imagens JPG, PNG, WEBP, AVIF ou GIF até 15 MB.` : null);
+    setError(skipped > 0 ? `${skipped} arquivo(s) ignorado(s): ${UPLOAD_RULES_MESSAGE}.` : null);
     if (valid.length === 0) return;
 
     setUploading({ done: 0, total: valid.length });
@@ -120,7 +118,7 @@ export function LibraryPage() {
         <input
           ref={fileInput}
           type="file"
-          accept={ACCEPTED.join(',')}
+          accept={ACCEPTED_IMAGE_TYPES.join(',')}
           multiple
           className="hidden"
           onChange={(event) => {

@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { ArrowRight, FlaskConical, ImageIcon, Sparkles } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { ArrowRight, FlaskConical, ImageIcon, Sparkles, Upload } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAssets, useBrandKits } from '../app/data';
 import { useServices } from '../app/services';
@@ -10,7 +10,7 @@ import { createCarousels, MAX_TEST_VARIANTS } from '../application/createCarouse
 import { StylePicker } from '../brand/StylePicker';
 import { ImagePickerDialog } from '../editor/ImagePickerDialog';
 import { AssetThumb } from '../ui/AssetThumb';
-import { inFolders, isPhotoLike } from '../domain/asset';
+import { ACCEPTED_IMAGE_TYPES, inFolders, isAcceptedImage, isPhotoLike, PRODUCT_FOLDER, UPLOAD_RULES_MESSAGE } from '../domain/asset';
 import { MOMENTUMM_STARTER, productOf, type VisualStyle } from '../domain/brandKit';
 import type { CopyMode } from '../domain/carousel';
 import {
@@ -68,6 +68,8 @@ export function CreatePage() {
   const [includeProduct, setIncludeProduct] = useState(true);
   const [productImageId, setProductImageId] = useState<string | null>(null);
   const [pickingProductImage, setPickingProductImage] = useState(false);
+  const [uploadingProductImage, setUploadingProductImage] = useState(false);
+  const productFileInput = useRef<HTMLInputElement>(null);
   const [folders, setFolders] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,6 +122,28 @@ export function CreatePage() {
       setError(errorMessage(cause));
     } finally {
       setCreatingStarter(false);
+    }
+  };
+
+  const uploadProductImage = async (file: File | undefined) => {
+    if (!file || !brand || !product) return;
+    if (!isAcceptedImage(file)) return setError(`Esse arquivo não serve: ${UPLOAD_RULES_MESSAGE}.`);
+    setUploadingProductImage(true);
+    setError(null);
+    try {
+      const asset = await services.assets.upload({ file, folder: PRODUCT_FOLDER, kind: 'screenshot', tags: ['app', 'tela', 'produto'] });
+      assets.setData((current) => [asset, ...current]);
+      setProductImageId(asset.id);
+      // The first print sent becomes the brand default, so next time it is already selected.
+      if (!product.imageAssetId) {
+        const { id: _id, createdAt: _c, updatedAt: _u, ...input } = brand;
+        const saved = await services.brandKits.update(brand.id, { ...input, product: { ...product, imageAssetId: asset.id } });
+        brands.setData((current) => current.map((kit) => (kit.id === saved.id ? saved : kit)));
+      }
+    } catch (cause) {
+      setError(errorMessage(cause));
+    } finally {
+      setUploadingProductImage(false);
     }
   };
 
@@ -278,12 +302,28 @@ export function CreatePage() {
                         <ImageIcon className="size-5" />
                       </span>
                     )}
-                    <div className="flex flex-col items-start gap-1">
-                      <Button size="sm" variant="secondary" onClick={() => setPickingProductImage(true)} disabled={generating || assets.data.length === 0}>
-                        {productImage ? 'Trocar imagem do produto' : 'Escolher imagem do produto'}
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="secondary" loading={uploadingProductImage} onClick={() => productFileInput.current?.click()} disabled={generating}>
+                        {!uploadingProductImage && <Upload className="size-4" aria-hidden />}
+                        Enviar print
                       </Button>
-                      {assets.data.length === 0 && <span className="text-xs text-faint">Suba o print na Biblioteca primeiro.</span>}
+                      {assets.data.length > 0 && (
+                        <Button size="sm" variant="secondary" onClick={() => setPickingProductImage(true)} disabled={generating || uploadingProductImage}>
+                          {productImage ? 'Trocar' : 'Escolher da biblioteca'}
+                        </Button>
+                      )}
                     </div>
+                    <input
+                      ref={productFileInput}
+                      type="file"
+                      accept={ACCEPTED_IMAGE_TYPES.join(',')}
+                      className="hidden"
+                      aria-label={`Enviar print do ${product.name}`}
+                      onChange={(event) => {
+                        void uploadProductImage(event.target.files?.[0]);
+                        event.target.value = '';
+                      }}
+                    />
                   </div>
                 )}
               </div>

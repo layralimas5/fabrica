@@ -32,6 +32,15 @@ export interface AssetUpload {
 }
 
 export const UNSORTED_FOLDER = 'Geral';
+export const PRODUCT_FOLDER = 'Produto';
+
+export const MAX_IMAGE_SIZE = 15 * 1024 * 1024;
+export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif'];
+export const UPLOAD_RULES_MESSAGE = 'só imagens JPG, PNG, WEBP, AVIF ou GIF até 15 MB';
+
+export function isAcceptedImage(file: Pick<File, 'type' | 'size'>): boolean {
+  return ACCEPTED_IMAGE_TYPES.includes(file.type) && file.size <= MAX_IMAGE_SIZE;
+}
 
 export function normalizeTag(raw: string): string {
   return raw.trim().toLowerCase().replace(/^#/, '').replace(/\s+/g, ' ');
