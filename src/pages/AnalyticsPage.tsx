@@ -16,6 +16,7 @@ import {
   CONTENT_KIND_LABELS,
   CONTENT_KINDS,
   isPublished,
+  overdueUnposted,
   kpis,
   pooledRate,
   recycleCandidates,
@@ -26,7 +27,8 @@ import {
   type AnalyticsFilters,
   type Scored,
 } from '../domain/analytics/summary';
-import { toCarouselInput } from '../domain/carousel';
+import { postedStatus, toCarouselInput } from '../domain/carousel';
+import { PublishedReconcile } from '../analytics/PublishedReconcile';
 import { todayIso } from '../domain/schedule';
 import { exactSlides, generateInsights, GROUP_KEYS, groupStats, type GroupKeyOf } from '../domain/winners/insights';
 import { accountKey, CONTENT_PLATFORM_LABELS, toRecordInput, type ContentRecord, type PerformanceKey } from '../domain/winners/record';
@@ -73,6 +75,23 @@ export function AnalyticsPage() {
   const full: AnalyticsFilters = { ...filters, accountId: scope.current?.id ?? null };
   const filtered = useMemo(() => applyAnalyticsFilters(items, full, today), [items, full.accountId, full.platform, full.period, full.from, full.to, full.kind, today]); // eslint-disable-line react-hooks/exhaustive-deps
   const published = useMemo(() => filtered.filter(isPublished), [filtered]);
+  const allPeriods = useMemo(() => applyAnalyticsFilters(items, { ...full, period: 'all' }, today), [items, full.accountId, full.platform, full.kind, today]); // eslint-disable-line react-hooks/exhaustive-deps
+  const overdue = useMemo(() => overdueUnposted(allPeriods, today), [allPeriods, today]);
+  const outsidePeriod = filters.period === 'all' ? 0 : allPeriods.filter(isPublished).length - published.length;
+
+  /** Every overdue carousel becomes Publicado on its scheduled day, so it counts in the right period. */
+  const markOverduePosted = async () => {
+    setError(null);
+    try {
+      for (const { carousel } of overdue) {
+        if (!carousel) continue;
+        const saved = await services.carousels.update(carousel.id, toCarouselInput({ ...carousel, status: postedStatus(true) }));
+        library.carousels.setData((current) => current.map((item) => (item.id === saved.id ? saved : item)));
+      }
+    } catch (cause) {
+      setError(errorMessage(cause));
+    }
+  };
   const measured = useMemo(() => filtered.filter(isMeasured), [filtered]);
   const records = useMemo(() => measured.map((item) => item.record), [measured]);
   const scored = useMemo(() => scoredItems(filtered, library.scoreValue), [filtered, library.scoreValue]);
@@ -202,6 +221,8 @@ export function AnalyticsPage() {
         </div>
       )}
 
+      <PublishedReconcile overdue={overdue.length} outsidePeriod={outsidePeriod} onMarkPosted={markOverduePosted} onShowAll={() => set({ period: 'all' })} />
+
       {published.length === 0 && measured.length === 0 ? (
         <EmptyState
           title="Nada publicado nesse filtro"
@@ -211,7 +232,12 @@ export function AnalyticsPage() {
       ) : (
         <div className="flex flex-col gap-10">
           <section aria-label="Números do período">
-            <KpiGrid published={published.length} kpis={kpiValues} rates={rates} />
+            <KpiGrid
+              published={published.length}
+              periodLabel={filters.period === 'all' ? 'desde o início' : filters.period === 'custom' ? 'no período escolhido' : `nos últimos ${ANALYTICS_PERIOD_LABELS[filters.period]}`}
+              kpis={kpiValues}
+              rates={rates}
+            />
             {measured.length < published.length && (
               <p className="mt-2 text-xs text-faint">
                 {published.length - measured.length} {published.length - measured.length === 1 ? 'conteúdo publicado ainda não tem' : 'conteúdos publicados ainda não têm'} métricas. Use “Métricas” no ranking abaixo.

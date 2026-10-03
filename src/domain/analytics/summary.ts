@@ -41,6 +41,14 @@ export function isPublished(item: AnalyticsItem): boolean {
   return item.carousel ? isPosted(item.carousel) || isMeasured(item) : true;
 }
 
+/**
+ * Carousels whose posting day already passed but are still "Agendado" or "Pronto": usually posted on the network
+ * and never marked in the Fábrica, so Analytics would undercount them. Today's posts are left out, they may still go up.
+ */
+export function overdueUnposted(items: AnalyticsItem[], today: string): AnalyticsItem[] {
+  return items.filter(({ carousel }) => carousel !== null && !isPosted(carousel) && Boolean(carousel.scheduledFor) && (carousel.scheduledFor as string) < today && carousel.status !== 'archived');
+}
+
 export function applyAnalyticsFilters(items: AnalyticsItem[], filters: AnalyticsFilters, today: string, ignoreAccount = false): AnalyticsItem[] {
   const { from, to } = periodRange({ period: filters.period as Period, from: filters.from, to: filters.to }, today);
   return items.filter(({ record }) => {
