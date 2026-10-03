@@ -19,6 +19,7 @@ interface SupabaseRepositories {
 }
 
 const CHUNK = 100;
+const UPLOAD_ATTEMPTS = 4;
 const LAST_BACKUP_KEY = 'last_backup_at';
 
 /**
@@ -70,13 +71,20 @@ export class SupabaseBackup implements BackupService {
     await this.upsert('brand_kits', 'as marcas', data.brandKits.map(({ id, name, createdAt, updatedAt: _u, ...rest }) => ({ id, name, data: rest, created_at: createdAt })));
     await this.upsert('presets', 'as predefinições', data.presets.map((preset) => ({ id: preset.id, name: preset.name, data: preset.settings, created_at: preset.createdAt })));
 
+    const { data: stored, error: listError } = await this.client.from('assets').select('id');
+    if (listError) fail('Não consegui ler as imagens que já estão na conta', listError);
+    const already = new Set((stored as { id: string }[]).map((row) => row.id));
     const assetRows = [];
+    const failedAssets: string[] = [];
     for (const asset of data.assets) {
-      const blob = await dataUrlToBlob(data.files[asset.id]);
+      if (already.has(asset.id)) continue;
       const extension = asset.mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg';
       const storagePath = `${userId}/${asset.id}.${extension}`;
-      const { error } = await this.client.storage.from(BUCKET).upload(storagePath, blob, { contentType: asset.mimeType, upsert: true });
-      if (error) fail(`Não consegui enviar ${asset.name}`, error);
+      const uploaded = await this.uploadWithRetry(storagePath, await dataUrlToBlob(data.files[asset.id]), asset.mimeType);
+      if (!uploaded) {
+        failedAssets.push(asset.name);
+        continue;
+      }
       assetRows.push({ id: asset.id, name: asset.name, folder: asset.folder, kind: asset.kind, tags: asset.tags, width: asset.width, height: asset.height, mime_type: asset.mimeType, storage_path: storagePath, created_at: asset.createdAt });
     }
     await this.upsert('assets', 'as imagens', assetRows);
@@ -93,7 +101,18 @@ export class SupabaseBackup implements BackupService {
     await this.upsert('content_records', 'os resultados', recordRows);
     await this.upsert('experiments', 'os experimentos', data.experiments.map(({ id, createdAt, updatedAt: _u, ...rest }) => ({ id, data: rest, created_at: createdAt })));
     await this.upsert('calendar_entries', 'o calendário', data.calendarEntries.map(({ id, createdAt, updatedAt: _u, ...rest }) => ({ id, date: rest.date, data: rest, created_at: createdAt })));
-    return summarize(data);
+    return { ...summarize(data), assets: data.assets.length - failedAssets.length, failedAssets };
+  }
+
+  /** Storage sometimes times out (504) on one file; trying again a few seconds later usually works. */
+  private async uploadWithRetry(path: string, blob: Blob, contentType: string): Promise<boolean> {
+    for (let attempt = 0; attempt < UPLOAD_ATTEMPTS; attempt += 1) {
+      if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
+      const { error } = await this.client.storage.from(BUCKET).upload(path, blob, { contentType, upsert: true });
+      if (!error) return true;
+      console.warn(`Tentativa ${attempt + 1} de enviar ${path} falhou:`, error.message);
+    }
+    return false;
   }
 
   private async upsert(table: string, label: string, rows: Record<string, unknown>[]): Promise<void> {

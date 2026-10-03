@@ -70,10 +70,17 @@ function BackupSection({ backup, local }: { backup: BackupService; local: boolea
     setMessage(null);
     try {
       const summary = await backup.importAll(file);
-      setMessage({
-        tone: 'success',
-        text: `Restaurado: ${summary.presets} predefinições, ${summary.accounts} contas, ${summary.brandKits} marcas, ${summary.assets} fotos, ${summary.carousels} carrosséis, ${summary.contentRecords} resultados, ${summary.experiments} testes e ${summary.calendarEntries} itens do calendário. Recarregando…`,
-      });
+      const restored = `Restaurado: ${summary.presets} predefinições, ${summary.accounts} contas, ${summary.brandKits} marcas, ${summary.assets} fotos, ${summary.carousels} carrosséis, ${summary.contentRecords} resultados, ${summary.experiments} testes e ${summary.calendarEntries} itens do calendário.`;
+      const failed = summary.failedAssets ?? [];
+      if (failed.length) {
+        setMessage({
+          tone: 'error',
+          text: `${restored} ${failed.length} ${failed.length === 1 ? 'foto não subiu' : 'fotos não subiram'} (o servidor não respondeu). Restaure o mesmo arquivo de novo: só o que falta é enviado.`,
+        });
+        setBusy(null);
+        return;
+      }
+      setMessage({ tone: 'success', text: `${restored} Recarregando…` });
       setTimeout(() => window.location.reload(), 1200);
     } catch (cause) {
       setMessage({ tone: 'error', text: errorMessage(cause) });

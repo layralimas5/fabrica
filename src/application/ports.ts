@@ -64,6 +64,8 @@ export interface BackupSummary {
   contentRecords: number;
   experiments: number;
   calendarEntries: number;
+  /** Photos the server kept refusing; restoring the same file again sends only what is missing. */
+  failedAssets?: string[];
 }
 
 /** Everything saved to one file that restores in either mode: the way to move from this browser to an account with login. */
