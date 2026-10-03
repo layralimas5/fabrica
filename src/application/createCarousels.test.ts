@@ -139,13 +139,19 @@ describe('createCarousels', () => {
     expect(carousels[2].slides.map((slide) => slide.title)).not.toContain('Conversão');
   });
 
-  it('a copy may have its own slide model outside a format test', async () => {
+  it('keeps every carousel of a big batch on the chosen model and the same structure', async () => {
     const services = fakeServices();
-    const { carousels } = await createCarousels(
-      services,
-      request({ texts: ['Slide 1, Um.\nSlide 2, Fim.', 'Slide 1, Dois.\nSlide 2, Fim.'], copySettings: [{ objective: null, contentType: null, style: 'bold' }, { objective: null, contentType: null }] }),
-    );
-    expect(carousels.map((carousel) => carousel.source.visualStyle)).toEqual(['bold', 'minimalista']);
+    const texts = Array.from({ length: 12 }, (_, copy) => Array.from({ length: 7 }, (_, slide) => `Slide ${slide + 1}, Copy ${copy} frase ${slide}.`).join('\n'));
+    const copySettings = texts.map(() => ({ objective: null, contentType: null, slideCount: null, guidance: 'Este conteúdo é um teste.' }));
+    const { carousels } = await createCarousels(services, request({ texts, copySettings, styles: ['dark'] }));
+    expect(carousels).toHaveLength(12);
+    expect(new Set(carousels.map((carousel) => carousel.source.visualStyle))).toEqual(new Set(['dark']));
+    const structure = (carousel: Carousel) => carousel.slides.map((slide) => slide.layout).join(',');
+    expect(new Set(carousels.map(structure)).size).toBe(1);
+    for (const carousel of carousels) {
+      const used = carousel.slides.map((slide) => slide.assetId).filter(Boolean);
+      expect(new Set(used).size).toBe(used.length);
+    }
   });
 
   it('only adds a CTA when asked', async () => {

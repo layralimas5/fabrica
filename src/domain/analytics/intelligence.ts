@@ -13,7 +13,7 @@ export type ExplorationLevel = (typeof EXPLORATION_LEVELS)[number];
 export const EXPLORATION_INFO: Record<ExplorationLevel, { label: string; detail: string }> = {
   safe: { label: 'Seguro', detail: 'Todas as copys usam os padrões vencedores' },
   balanced: { label: 'Balanceado', detail: 'Metade com os vencedores, metade testando o que pouco foi usado' },
-  experimental: { label: 'Experimental', detail: 'Tudo testando templates e tipos pouco usados' },
+  experimental: { label: 'Experimental', detail: 'Tudo testando tipos de conteúdo pouco usados' },
 };
 
 /** A pattern counts as a winner with at least 2 measured contents and an average above the account usual (50). */

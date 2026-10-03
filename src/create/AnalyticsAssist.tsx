@@ -84,12 +84,12 @@ export function AnalyticsAssist({ enabled, onEnabled, level, onLevel, recommenda
                 <li key={fact}>✓ {fact}</li>
               ))}
               {level !== 'safe' && recommendations.untestedTemplates.length > 0 && (
-                <li className="text-faint">Pra testar: {recommendations.untestedTemplates.map(templateLabel).join(', ')}</li>
+                <li className="text-faint">Modelos pouco testados (pra comparar, use "Testar formatos"): {recommendations.untestedTemplates.map(templateLabel).join(', ')}</li>
               )}
             </ul>
           ) : (
             <p className="text-xs text-muted">
-              {NOT_ENOUGH_DATA} Por enquanto, as copys seguem o que você escolheu{level !== 'safe' ? ', e as de teste usam templates e tipos pouco usados' : ''}.
+              {NOT_ENOUGH_DATA} Por enquanto, as copys seguem o que você escolheu{level !== 'safe' ? ', e as de teste usam tipos de conteúdo pouco usados' : ''}.
             </p>
           )}
         </div>
