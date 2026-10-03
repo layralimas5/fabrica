@@ -15,6 +15,7 @@ import {
   LIMITS,
   PERFORMANCE_KEYS,
   PERFORMANCE_LABELS,
+  hasAnyMetric,
   PILLAR_LABELS,
   PILLARS,
   PRODUCT_PRESENCE_LABELS,
@@ -23,11 +24,13 @@ import {
   sanitizeRecordInput,
   WINNER_TYPE_INFO,
   WINNER_TYPES,
+  withMeasurement,
   type ContentRecord,
   type ContentRecordInput,
   type PerformanceKey,
   type PerformanceMetrics,
 } from '../domain/winners/record';
+import { todayIso } from '../domain/schedule';
 import { suggestWinnerTypes } from '../domain/winners/score';
 import { Alert, Button, Dialog, Field, Input, Select, Textarea } from '../ui/primitives';
 import { Chip, ChipGroup } from './chips';
@@ -104,8 +107,10 @@ export function WinnerFormDialog({ open, onClose, initial, recordId, accounts, l
     // Content made elsewhere has its DNA redone when the script changes, unless the user already edited it.
     const scriptChanged = external && scriptToText(script) !== scriptToText(initial.script);
     const dna = scriptChanged && form.dna?.source !== 'edited' ? analyzeDna({ beats: script }) : form.dna;
+    const changed = PERFORMANCE_KEYS.some((key) => metrics[key] !== initial.metrics[key]);
+    const measured = changed && hasAnyMetric(metrics) ? withMeasurement(form, todayIso(), metrics) : form;
     const input = sanitizeRecordInput({
-      ...form,
+      ...measured,
       title: form.title.trim() || hook,
       hook,
       script,

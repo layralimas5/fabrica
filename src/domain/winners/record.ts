@@ -146,6 +146,16 @@ export const PERFORMANCE_LABELS: Record<PerformanceKey, string> = {
 /** Null means "not measured", which is different from zero. */
 export type PerformanceMetrics = Record<PerformanceKey, number | null>;
 
+/** The numbers of one day. A post is measured a few times while it grows, so its history tells how it is still moving. */
+export interface MetricSnapshot {
+  /** 'YYYY-MM-DD', the day the numbers were read in the app. One snapshot per day. */
+  day: string;
+  metrics: PerformanceMetrics;
+}
+
+/** Enough for months of measurements without the record growing forever. */
+export const MAX_SNAPSHOTS = 60;
+
 /** Which winner type each metric proves, so a card leads with the metrics that made it win. */
 export const WINNER_TYPE_METRICS: Record<WinnerType, PerformanceKey[]> = {
   alcance: ['views'],
@@ -196,6 +206,8 @@ export interface ContentRecord {
   metrics: PerformanceMetrics;
   /** When the numbers were last typed; they are usually updated a few times after posting. */
   metricsUpdatedAt: string | null;
+  /** Every measurement, oldest first. `metrics` is always the latest one. */
+  metricsHistory: MetricSnapshot[];
   /** Slide model the carousel was made with (Minimalista, TikTok…), compared in Analytics as the template. */
   visualStyle: VisualStyle | null;
   tags: string[];
@@ -242,6 +254,7 @@ export function emptyRecordInput(): ContentRecordInput {
     slideCount: null,
     metrics: emptyPerformance(),
     metricsUpdatedAt: null,
+    metricsHistory: [],
     visualStyle: null,
     tags: [],
     notes: '',
@@ -295,6 +308,7 @@ export function sanitizeRecordInput(raw: Partial<ContentRecordInput>): ContentRe
     slideCount,
     metrics,
     metricsUpdatedAt: typeof raw.metricsUpdatedAt === 'string' ? raw.metricsUpdatedAt : null,
+    metricsHistory: sanitizeHistory(raw, metrics),
     visualStyle: oneOf(VISUAL_STYLES, raw.visualStyle),
     tags: normalizeTags(raw.tags ?? []),
     notes: text(raw.notes, LIMITS.notes),
@@ -305,6 +319,45 @@ export function sanitizeRecordInput(raw: Partial<ContentRecordInput>): ContentRe
     dna: raw.dna ?? null,
     origin: raw.origin ?? null,
   };
+}
+
+function sanitizeSnapshot(raw: unknown): MetricSnapshot | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const { day, metrics } = raw as Partial<MetricSnapshot>;
+  if (typeof day !== 'string' || !ISO_DAY.test(day)) return null;
+  const clean = emptyPerformance();
+  for (const key of PERFORMANCE_KEYS) clean[key] = sanitizePerformanceValue(key, metrics?.[key]);
+  return hasAnyMetric(clean) ? { day, metrics: clean } : null;
+}
+
+/** One snapshot per day, oldest first. Records saved before the history existed start from their current numbers. */
+function sanitizeHistory(raw: Partial<ContentRecordInput>, metrics: PerformanceMetrics): MetricSnapshot[] {
+  const byDay = new Map<string, MetricSnapshot>();
+  for (const entry of Array.isArray(raw.metricsHistory) ? raw.metricsHistory : []) {
+    const snapshot = sanitizeSnapshot(entry);
+    if (snapshot) byDay.set(snapshot.day, snapshot);
+  }
+  if (byDay.size === 0 && hasAnyMetric(metrics)) {
+    const day = (typeof raw.metricsUpdatedAt === 'string' ? raw.metricsUpdatedAt.slice(0, 10) : null) ?? (typeof raw.publishedAt === 'string' ? raw.publishedAt : null);
+    if (day && ISO_DAY.test(day)) byDay.set(day, { day, metrics: { ...metrics } });
+  }
+  return [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day)).slice(-MAX_SNAPSHOTS);
+}
+
+/**
+ * Saves the numbers read on a day: replaces that day's snapshot, or adds a new one.
+ * The current numbers follow the latest day, so a late entry for an older day never hides newer ones.
+ */
+export function withMeasurement(input: ContentRecordInput, day: string, metrics: PerformanceMetrics, now = new Date()): ContentRecordInput {
+  const history = [...input.metricsHistory.filter((snapshot) => snapshot.day !== day), { day, metrics }].sort((a, b) => a.day.localeCompare(b.day));
+  return { ...input, metricsHistory: history, metrics: { ...history[history.length - 1].metrics }, metricsUpdatedAt: now.toISOString() };
+}
+
+/** Drops one day; the current numbers fall back to the latest day left, or to "not measured". */
+export function withoutMeasurement(input: ContentRecordInput, day: string): ContentRecordInput {
+  const history = input.metricsHistory.filter((snapshot) => snapshot.day !== day);
+  const latest = history[history.length - 1];
+  return { ...input, metricsHistory: history, metrics: latest ? { ...latest.metrics } : emptyPerformance(), metricsUpdatedAt: latest ? input.metricsUpdatedAt : null };
 }
 
 export function toRecordInput(record: ContentRecord): ContentRecordInput {

@@ -3,6 +3,9 @@ import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
 import type { Account } from '../domain/account';
 import type { Carousel } from '../domain/carousel';
+import { MeasurementTable } from '../analytics/MeasurementHistory';
+import { measurementSteps } from '../domain/analytics/growth';
+import { todayIso } from '../domain/schedule';
 import { recordFromCarousel } from '../domain/winners/fromCarousel';
 import {
   PERFORMANCE_KEYS,
@@ -10,14 +13,18 @@ import {
   sanitizePerformanceValue,
   sanitizeRecordInput,
   toRecordInput,
+  withMeasurement,
+  withoutMeasurement,
   type ContentRecord,
+  type ContentRecordInput,
   type PerformanceKey,
   type PerformanceMetrics,
 } from '../domain/winners/record';
 import { Alert, Button, Dialog, Field, Input } from '../ui/primitives';
 
 interface MetricsDialogProps {
-  carousel: Carousel;
+  /** Carousel being measured; null for content made elsewhere, which always has a record. */
+  carousel: Carousel | null;
   /** Results already typed for this carousel, if any. */
   existing: ContentRecord | null;
   account: Account | null;
@@ -28,14 +35,31 @@ interface MetricsDialogProps {
 
 type Drafts = Record<PerformanceKey, string>;
 
-/** "Adicionar métricas": only the numbers, updatable as the post keeps growing. Empty means not measured. */
+const toDrafts = (metrics: PerformanceMetrics): Drafts => Object.fromEntries(PERFORMANCE_KEYS.map((key) => [key, metrics[key] === null ? '' : String(metrics[key])])) as Drafts;
+
+/**
+ * "Adicionar métricas": the numbers read on a given day. Each day becomes a measurement in the history,
+ * so the Analytics can tell what is still growing. Empty means not measured.
+ */
 export function MetricsDialog({ carousel, existing, account, productName, onClose, onSaved }: MetricsDialogProps) {
   const { contentRecords } = useServices();
-  const base = existing ? toRecordInput(existing) : { ...recordFromCarousel(carousel, account, productName), winner: false };
-  const [drafts, setDrafts] = useState<Drafts>(() => Object.fromEntries(PERFORMANCE_KEYS.map((key) => [key, base.metrics[key] === null ? '' : String(base.metrics[key])])) as Drafts);
-  const [publishedAt, setPublishedAt] = useState(base.publishedAt ?? carousel.scheduledFor ?? new Date().toISOString().slice(0, 10));
+  const today = todayIso();
+  const [base, setBase] = useState<ContentRecordInput>(() => sanitizeRecordInput(existing ? toRecordInput(existing) : carousel ? { ...recordFromCarousel(carousel, account, productName), winner: false } : {}));
+  const [day, setDay] = useState(today);
+  const [drafts, setDrafts] = useState<Drafts>(() => toDrafts(base.metrics));
+  const [publishedAt, setPublishedAt] = useState(base.publishedAt ?? carousel?.scheduledFor ?? today);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const steps = measurementSteps({ ...base, publishedAt, id: '', createdAt: '', updatedAt: '' });
+  const editingDay = base.metricsHistory.some((snapshot) => snapshot.day === day);
+
+  /** Picking a day already measured opens its numbers to fix them. */
+  const chooseDay = (next: string) => {
+    setDay(next);
+    const snapshot = base.metricsHistory.find((item) => item.day === next);
+    if (snapshot) setDrafts(toDrafts(snapshot.metrics));
+  };
+  const removeDay = (removed: string) => setBase((current) => withoutMeasurement(current, removed));
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -50,11 +74,13 @@ export function MetricsDialog({ carousel, existing, account, productName, onClos
     ) as PerformanceMetrics;
     if (invalid.length) return setError(`Confere: ${invalid.map((key) => PERFORMANCE_LABELS[key].toLowerCase()).join(', ')} precisa ser um número positivo.`);
     if (!metrics.views) return setError('Informe pelo menos as visualizações: as taxas são calculadas em cima delas.');
+    if (!day || day > today) return setError('A data da medição não pode ser no futuro.');
+    if (publishedAt && day < publishedAt) return setError('A medição não pode ser antes do dia em que o post foi publicado.');
 
     setPending(true);
     setError(null);
     try {
-      const input = sanitizeRecordInput({ ...base, metrics, publishedAt, metricsUpdatedAt: new Date().toISOString() });
+      const input = sanitizeRecordInput(withMeasurement({ ...base, publishedAt }, day, metrics));
       onSaved(existing ? await contentRecords.update(existing.id, input) : await contentRecords.create(input));
     } catch (cause) {
       setError(errorMessage(cause));
@@ -64,7 +90,7 @@ export function MetricsDialog({ carousel, existing, account, productName, onClos
 
   return (
     <Dialog
-      title={existing ? 'Atualizar métricas' : 'Adicionar métricas'}
+      title={existing ? 'Nova medição' : 'Adicionar métricas'}
       open
       onClose={onClose}
       size="lg"
@@ -80,10 +106,15 @@ export function MetricsDialog({ carousel, existing, account, productName, onClos
       }
     >
       <form id="metrics-form" onSubmit={submit} className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <p className="max-w-md text-sm text-muted">Preencha só o que você tem. Dá pra voltar e atualizar quando o post crescer.</p>
+        <p className="text-sm text-muted">
+          Coloque os números como estão no app no dia da medição. Cada data vira um ponto no histórico, e o Analytics compara o quanto o post cresceu entre elas.
+        </p>
+        <div className="grid grid-cols-2 gap-3 sm:max-w-md">
+          <Field label="Medido em" htmlFor="metrics-day" hint={editingDay ? 'Já tem medição nesse dia: salvar substitui.' : undefined}>
+            <Input id="metrics-day" type="date" value={day} min={publishedAt || undefined} max={today} onChange={(e) => chooseDay(e.target.value)} />
+          </Field>
           <Field label="Publicado em" htmlFor="metrics-date">
-            <Input id="metrics-date" type="date" value={publishedAt} onChange={(e) => setPublishedAt(e.target.value)} />
+            <Input id="metrics-date" type="date" value={publishedAt} max={today} onChange={(e) => setPublishedAt(e.target.value)} />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -102,8 +133,14 @@ export function MetricsDialog({ carousel, existing, account, productName, onClos
             </Field>
           ))}
         </div>
-        {existing?.metricsUpdatedAt && (
-          <p className="text-xs text-faint">Última atualização: {new Date(existing.metricsUpdatedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</p>
+        {steps.length > 0 && (
+          <section aria-labelledby="metrics-history-title" className="flex flex-col gap-2">
+            <h3 id="metrics-history-title" className="text-sm font-semibold text-ink">
+              Histórico de medições
+            </h3>
+            <MeasurementTable steps={steps} onRemove={removeDay} />
+            <p className="text-[11px] text-faint">Apagar uma linha só vale depois de salvar.</p>
+          </section>
         )}
         {error && <Alert>{error}</Alert>}
       </form>
