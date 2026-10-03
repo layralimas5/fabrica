@@ -3,9 +3,11 @@
  *
  * Numbered slides (same as the content prompt output):
  *   Slide 1: texto   ·   Slide 1, texto   ·   "SLIDE 1 — GANCHO" alone with the text on the next lines
- *   An uppercase label after the number (GANCHO, PRODUTO…) is not text. PRODUTO, APP or PRINT marks the
- *   product slide, with or without a number ("SLIDE 6 — APP", "SLIDE - PRODUTO"), and so does a bracketed
- *   note like [INSERIR PRINT DO APP AQUI].
+ *   A label after the number is not text: an uppercase one (GANCHO, CTA FINAL), a known role in any case
+ *   ("Slide 13 — Cta", "Slide 1 — Capa (fundo escuro)") or one ending in a design note in parentheses when
+ *   the text comes on the next lines. A known role says what the slide is for, so a written CTA is the CTA
+ *   slide; "Slide 13 — CTA: texto" keeps both. PRODUTO, APP or PRINT marks the product slide, with or without
+ *   a number ("SLIDE 6 — APP", "SLIDE - PRODUTO"), and so does a bracketed note like [INSERIR PRINT DO APP AQUI].
  *   Blank lines inside a slide are kept as paragraph breaks. `---` lines are ignored; a new carousel starts
  *   when the numbering restarts at Slide 1.
  *   Tema do carrossel: / Título: name of the carousel · Legenda: post caption
@@ -20,12 +22,14 @@
  * Many carousels at once: a line like "CARROSSEL 2" or "Carrossel 2: título" starts a new carousel
  * (the text after it becomes its name). Without those headers, restarting at Slide 1 or `---` also works.
  */
-import { parseContentType, parseObjective, type ContentType, type Objective } from './content';
+import { parseContentType, parseObjective, type ContentType, type Objective, type SlideRole } from './content';
 
 export interface ScriptCarousel {
   /** Carousel name from "Tema do carrossel:" or "Título:", empty when not given. */
   title: string;
   slides: string[];
+  /** What each slide is for, when its label says it ("— CTA", "— Gancho"); null leaves it to the tool. */
+  roles: (SlideRole | null)[];
   caption: string;
   /** Slide marked as the product slide, if any. */
   productIndex: number | null;
@@ -59,9 +63,85 @@ function slideHeader(line: string): SlideHeader | null {
 const isSlideHeader = (line: string) => slideHeader(line) !== null;
 const LABEL = /^(tema do carrossel|tema|t[íi]tulo do carrossel|t[íi]tulo|legenda curta sugerida|legenda sugerida|legenda|objetivo|tipo de carrossel|tipo|ideia visual geral|ideia visual|instru[çc][ãa]o visual|formato da resposta)\s*:\s*(.*)$/i;
 const BRACKET_NOTE = /^\[[^\]]*\]$/;
+/** Inside a slide, "Título: …", "Apoio: …", "Botão: …" are parts of the slide text, not of the carousel. */
+const SLIDE_FIELD = /^(eyebrow|t[íi]tulo|subt[íi]tulo|apoio|texto|corpo|bot[ãa]o|rodap[ée]|frase)\s*:\s*(.*)$/i;
+/** Inside a slide, design instructions: never on the slide. */
+const SLIDE_NOTE = /^(visual|imagem|foto|fundo|nota|obs|observa[çc][ãa]o|refer[êe]ncia|layout|design)\s*:/i;
+const TABLE_ROW = /^\|.*\|$/;
 const CAROUSEL_HEADER = /^carrossel\s*\d+\s*(?:[:.,\-–—]\s*(.*))?$/i;
 const PRODUCT_NOTE = /print|produto|tela do|screenshot|mockup/i;
 const MAX_LABEL_WORDS = 3;
+/** "Capa (fundo escuro)", "O pedido (fundo claro)": a short label followed by a design note. */
+const NOTED_LABEL = /^(.{1,40}?)\s*\(([^)]*)\)$/;
+const MAX_NOTED_LABEL_WORDS = 5;
+/** "CTA: Antes de terminar…": a role word, a separator and the slide text on the same line. */
+const ROLE_WITH_TEXT = /^([\p{L} ]{2,25}?)\s*[:–—-]\s+(.+)$/u;
+
+const fold = (value: string) => value.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+
+/** Words written after "Slide N —", folded, and the role they mean. Product tags are handled apart. */
+const ROLE_WORDS: Record<string, SlideRole> = {
+  gancho: 'hook',
+  hook: 'hook',
+  capa: 'hook',
+  abertura: 'hook',
+  cta: 'cta',
+  'cta final': 'cta',
+  chamada: 'cta',
+  'chamada para acao': 'cta',
+  'chamada pra acao': 'cta',
+  contexto: 'context',
+  situacao: 'situation',
+  identificacao: 'identification',
+  problema: 'problem',
+  dor: 'problem',
+  consequencia: 'consequence',
+  ponto: 'point',
+  dica: 'point',
+  item: 'item',
+  passo: 'step',
+  erro: 'mistake',
+  crenca: 'belief',
+  argumento: 'argument',
+  exemplo: 'example',
+  historia: 'story',
+  insight: 'insight',
+  virada: 'insight',
+  solucao: 'solution',
+  resumo: 'summary',
+  conclusao: 'conclusion',
+  fechamento: 'conclusion',
+};
+
+/** "CTA", "Ponto 2", "Cta final" → its role; anything else → null. */
+function roleOf(label: string): SlideRole | null {
+  return ROLE_WORDS[fold(label).replace(/\s*\d+$/, '').replace(/\s+/g, ' ')] ?? null;
+}
+
+interface HeaderReading {
+  role: SlideRole | null;
+  /** Slide text written on the header line itself. */
+  text: string;
+  /** A label that only counts as one when the slide text comes on the next lines. */
+  textUnlessBody: string;
+}
+
+/** What follows "Slide N —": a label (with or without a role), slide text, or both. */
+function readHeader(rest: string): HeaderReading {
+  const none: HeaderReading = { role: null, text: '', textUnlessBody: '' };
+  if (!rest) return none;
+  const noted = NOTED_LABEL.exec(rest);
+  const core = noted ? noted[1].trim() : rest;
+  const role = roleOf(core);
+  // "Slide 1, gancho" alone on its line may be the slide's text; "Slide 13 — CTA" over the text is a label.
+  if (role) return isRoleTag(core) || noted ? { ...none, role } : { ...none, role, textUnlessBody: rest };
+  const withText = ROLE_WITH_TEXT.exec(rest);
+  const textRole = withText ? roleOf(withText[1]) : null;
+  if (withText && textRole) return { ...none, role: textRole, text: withText[2].trim() };
+  if (isRoleTag(core)) return none;
+  if (noted && core.split(/\s+/).length <= MAX_NOTED_LABEL_WORDS) return { ...none, textUnlessBody: rest };
+  return { ...none, text: rest };
+}
 
 /** True when the copy marks a slide for the app or product (SLIDE - APP, SLIDE 6 — PRODUTO, [PRINT DO APP]). */
 export function marksProductSlide(text: string): boolean {
@@ -117,9 +197,15 @@ function splitAtCarouselHeaders(lines: string[]): string[][] {
   return sections;
 }
 
-/** Removes markdown emphasis and headings that come along when copying from a chat. Keeps quotes and the words. */
+/**
+ * Removes markdown emphasis, quotes and heading marks that come along when copying from a chat or a .md file.
+ * A heading that is not a slide, a carousel or a label ("## Referência interna") is a section of notes: dropped.
+ */
 function clean(line: string): string {
-  return line.replace(/\*\*|__/g, '').replace(/^\s*(#{1,6}|>)\s+/, '').trim();
+  const heading = /^\s*#{1,6}\s+/.test(line);
+  const text = line.replace(/\*\*|__/g, '').replace(/^\s*(#{1,6}|>)\s+/, '').trim();
+  if (heading && !isSlideHeader(text) && !CAROUSEL_HEADER.test(text) && !LABEL.test(text)) return '';
+  return text;
 }
 
 function splitAtSeparator(lines: string[]): string[][] {
@@ -161,6 +247,9 @@ function parseBlock(lines: string[]): ScriptCarousel {
 
 function parseNumbered(lines: string[]): ScriptCarousel {
   const slides: string[][] = [];
+  const roles: (SlideRole | null)[] = [];
+  /** Per slide: header text kept only when no line follows it. */
+  const headerFallbacks: string[] = [];
   const title: string[] = [];
   const caption: string[] = [];
   let productIndex: number | null = null;
@@ -186,11 +275,25 @@ function parseNumbered(lines: string[]): ScriptCarousel {
       const productTag = PRODUCT_TAG.exec(header.rest);
       if (productTag) {
         productIndex = slides.length - 1;
+        roles.push('product');
+        headerFallbacks.push('');
         if (productTag[1]?.trim()) push(productTag[1].trim());
-      } else if (header.rest && !isRoleTag(header.rest)) {
-        push(header.rest);
+      } else {
+        const reading = readHeader(header.rest);
+        roles.push(reading.role);
+        headerFallbacks.push(reading.textUnlessBody);
+        if (reading.text) push(reading.text);
       }
       continue;
+    }
+    if (TABLE_ROW.test(line)) continue;
+    if (target === 'slide') {
+      if (SLIDE_NOTE.test(line)) continue;
+      const field = SLIDE_FIELD.exec(line);
+      if (field) {
+        if (field[2].trim()) push(field[2].trim());
+        continue;
+      }
     }
     const label = LABEL.exec(line);
     if (label) {
@@ -205,12 +308,13 @@ function parseNumbered(lines: string[]): ScriptCarousel {
     push(line);
   }
 
-  const texts = slides.map(joinParagraphs);
+  const texts = slides.map((lines, index) => joinParagraphs(lines) || headerFallbacks[index]);
   const kept = texts.map((text, index) => ({ text, index })).filter(({ text }) => text);
   const productPosition = productIndex === null ? -1 : kept.findIndex(({ index }) => index === productIndex);
   return {
     title: title.join(' '),
     slides: kept.map(({ text }) => text),
+    roles: kept.map(({ index }) => roles[index] ?? null),
     caption: caption.join('\n'),
     productIndex: productPosition >= 0 ? productPosition : null,
     objective,
@@ -244,7 +348,7 @@ function parsePlain(lines: string[]): ScriptCarousel {
     else if (target === 'objective') objective = parseObjective(label[2]) ?? objective;
     else if (target === 'contentType') contentType = parseContentType(label[2]) ?? contentType;
   }
-  return { title, slides, caption: caption.join('\n'), productIndex: null, objective, contentType };
+  return { title, slides, roles: slides.map(() => null), caption: caption.join('\n'), productIndex: null, objective, contentType };
 }
 
 export function scriptStats(carousels: ScriptCarousel[]): { carousels: number; slides: number } {

@@ -68,6 +68,8 @@ export type SlideCountOption = (typeof SLIDE_COUNT_OPTIONS)[number];
 
 export const MIN_SLIDES = 3;
 export const MAX_SLIDES = 12;
+/** Copy the user already split keeps every slide up to what Instagram takes in one carousel. */
+export const MAX_COPY_SLIDES = 20;
 
 /** Narrative skeletons. The AI may adapt them; the heuristic engine follows them literally. */
 export const NARRATIVES: Record<Exclude<ContentType, 'auto'>, SlideRole[]> = {

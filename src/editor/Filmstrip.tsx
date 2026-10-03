@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import { Reorder } from 'framer-motion';
 import { Plus } from 'lucide-react';
 import type { Slide } from '../domain/carousel';
-import { MAX_SLIDES, ROLE_LABELS } from '../domain/content';
+import { MAX_COPY_SLIDES, ROLE_LABELS } from '../domain/content';
 import type { RenderContext } from '../app/slideRendering';
 import { SlideCanvas } from '../ui/SlideCanvas';
 
@@ -41,7 +41,7 @@ export function Filmstrip({ context, slides, selectedId, onSelect, onReorder, on
           </Reorder.Item>
         ))}
       </Reorder.Group>
-      {slides.length < MAX_SLIDES && (
+      {slides.length < MAX_COPY_SLIDES && (
         <button
           type="button"
           onClick={onAdd}

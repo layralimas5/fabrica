@@ -38,7 +38,7 @@ export function checkCopies({ copies, manual, account, carousels, records, theme
   copies.forEach((copy, copyIndex) => {
     if (!copy.trim()) return;
     const blocks: ScriptCarousel[] =
-      manual || hasNumberedSlides(copy) ? parseScript(copy) : [{ title: '', slides: splitSentences(copy), caption: '', productIndex: null, objective: null, contentType: null }];
+      manual || hasNumberedSlides(copy) ? parseScript(copy) : [{ title: '', slides: splitSentences(copy), roles: [], caption: '', productIndex: null, objective: null, contentType: null }];
     blocks.forEach((block, blockIndex) => {
       if (block.slides.length === 0) return;
       const candidate = comparableFromScript(block, `nova-${copyIndex}-${blockIndex}`, account.id, theme, day, originId);

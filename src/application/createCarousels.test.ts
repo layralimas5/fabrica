@@ -154,6 +154,19 @@ describe('createCarousels', () => {
     }
   });
 
+  it('creates every written slide past 12 and keeps the written CTA as the CTA slide, CTA option on or off', async () => {
+    const copy = `${Array.from({ length: 12 }, (_, index) => `Slide ${index + 1}\nTexto ${index + 1}.`).join('\n\n')}
+
+Slide 13 — CTA
+Antes de terminar seu dia, responde:
+qual ação realmente fez você avançar hoje?`;
+    for (const addCta of [false, true]) {
+      const { carousels } = await createCarousels(fakeServices(), request({ texts: [copy], addCta }));
+      expect(carousels[0].slides).toHaveLength(13);
+      expect(carousels[0].slides[12]).toMatchObject({ role: 'cta', title: 'Antes de terminar seu dia, responde:\nqual ação realmente fez você avançar hoje?' });
+    }
+  });
+
   it('only adds a CTA when asked', async () => {
     const services = fakeServices();
     const { carousels } = await createCarousels(services, request({ addCta: true }));
