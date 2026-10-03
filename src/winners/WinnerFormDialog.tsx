@@ -46,6 +46,8 @@ interface WinnerFormDialogProps {
   /** Records already saved: theme suggestions and the comparison base for winner types. */
   library: ContentRecord[];
   title?: string;
+  /** "posted": a post already live, registered to be followed in Analytics; its numbers come next, in "Nova medição". */
+  mode?: 'winner' | 'posted';
   onSaved: (record: ContentRecord) => void;
 }
 
@@ -67,7 +69,7 @@ function parseDrafts(drafts: MetricDrafts): { metrics: PerformanceMetrics; inval
   return { metrics, invalid };
 }
 
-export function WinnerFormDialog({ open, onClose, initial, recordId, accounts, library, title, onSaved }: WinnerFormDialogProps) {
+export function WinnerFormDialog({ open, onClose, initial, recordId, accounts, library, title, mode = 'winner', onSaved }: WinnerFormDialogProps) {
   const { contentRecords } = useServices();
   const [form, setForm] = useState<ContentRecordInput>(initial);
   const [scriptText, setScriptText] = useState(() => scriptToText(initial.script));
@@ -75,6 +77,7 @@ export function WinnerFormDialog({ open, onClose, initial, recordId, accounts, l
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const external = initial.carouselId === null;
+  const posted = mode === 'posted';
 
   useEffect(() => {
     if (!open) return;
@@ -103,6 +106,7 @@ export function WinnerFormDialog({ open, onClose, initial, recordId, accounts, l
     const script = external ? scriptFromText(scriptText) : form.script;
     const hook = form.hook.trim() || script[0]?.text || '';
     if (!form.title.trim() && !hook) return setError('Dá um título ou escreve o gancho pra reconhecer esse conteúdo depois.');
+    if (posted && !form.publishedAt) return setError('Coloca a data em que o post foi publicado: o acompanhamento conta os dias a partir dela.');
 
     // Content made elsewhere has its DNA redone when the script changes, unless the user already edited it.
     const scriptChanged = external && scriptToText(script) !== scriptToText(initial.script);
@@ -135,7 +139,7 @@ export function WinnerFormDialog({ open, onClose, initial, recordId, accounts, l
   const formId = 'winner-form';
   return (
     <Dialog
-      title={title ?? (recordId ? 'Editar conteúdo' : '⭐ Marcar como vencedor')}
+      title={title ?? (posted ? '📌 Registrar post publicado' : recordId ? 'Editar conteúdo' : '⭐ Marcar como vencedor')}
       open={open}
       onClose={onClose}
       size="lg"
@@ -145,14 +149,15 @@ export function WinnerFormDialog({ open, onClose, initial, recordId, accounts, l
             Cancelar
           </Button>
           <Button variant="primary" type="submit" form={formId} loading={pending}>
-            Salvar
+            {posted ? 'Salvar e adicionar métricas' : 'Salvar'}
           </Button>
         </>
       }
     >
       <form id={formId} onSubmit={submit} className="flex flex-col gap-7">
         <section className="flex flex-col gap-3">
-          <div className="flex flex-wrap gap-1.5">
+          {posted && <p className="text-sm text-muted">Pra acompanhar um post que já está no ar. Depois de salvar, você coloca as métricas de hoje e volta a medir nos próximos dias.</p>}
+          <div className={posted ? 'hidden' : 'flex flex-wrap gap-1.5'}>
             <Chip active={form.winner} onClick={() => update({ winner: !form.winner })}>
               ⭐ Vencedor
             </Chip>
@@ -172,10 +177,20 @@ export function WinnerFormDialog({ open, onClose, initial, recordId, accounts, l
             </Field>
           </div>
           {external && (
-            <Field label="Roteiro" htmlFor="wf-script" hint="Um slide ou uma cena por linha. É daqui que sai a estrutura (DNA).">
-              <Textarea id="wf-script" rows={5} value={scriptText} onChange={(e) => setScriptText(e.target.value)} placeholder={'Você não tem problema de disciplina.\nVocê começa a semana cheia de planos…'} />
+            <Field
+              label={posted ? 'Como é o carrossel' : 'Roteiro'}
+              htmlFor="wf-script"
+              hint={posted ? 'Um slide por linha, na ordem. O primeiro vira o gancho se ele estiver vazio.' : 'Um slide ou uma cena por linha. É daqui que sai a estrutura (DNA).'}
+            >
+              <Textarea id="wf-script" rows={posted ? 7 : 5} value={scriptText} onChange={(e) => setScriptText(e.target.value)} placeholder={'Você não tem problema de disciplina.\nVocê começa a semana cheia de planos…'} />
             </Field>
           )}
+          <Field label="CTA" htmlFor="wf-cta" hint="A chamada pra ação do último slide ou da legenda.">
+            <Input id="wf-cta" value={form.cta} maxLength={LIMITS.cta} onChange={(e) => update({ cta: e.target.value })} placeholder="Comenta ROTINA que eu te mando o app" />
+          </Field>
+          <Field label="Legenda" htmlFor="wf-caption">
+            <Textarea id="wf-caption" rows={3} value={form.caption} maxLength={LIMITS.caption} onChange={(e) => update({ caption: e.target.value })} placeholder="A legenda como foi publicada" />
+          </Field>
         </section>
 
         <section className="flex flex-col gap-4">
@@ -198,7 +213,10 @@ export function WinnerFormDialog({ open, onClose, initial, recordId, accounts, l
               </Field>
             )}
             <Field label="Data de publicação" htmlFor="wf-date">
-              <Input id="wf-date" type="date" value={form.publishedAt ?? ''} onChange={(e) => update({ publishedAt: e.target.value || null })} />
+              <Input id="wf-date" type="date" value={form.publishedAt ?? ''} max={todayIso()} required={posted} onChange={(e) => update({ publishedAt: e.target.value || null })} />
+            </Field>
+            <Field label="Hora da publicação" htmlFor="wf-time">
+              <Input id="wf-time" type="time" value={form.publishedTime ?? ''} onChange={(e) => update({ publishedTime: e.target.value || null })} />
             </Field>
             <Field label="Formato" htmlFor="wf-format">
               <Select id="wf-format" value={form.format} onChange={(e) => update({ format: e.target.value as ContentRecordInput['format'] })}>
@@ -281,7 +299,7 @@ export function WinnerFormDialog({ open, onClose, initial, recordId, accounts, l
           </div>
         </section>
 
-        <section className="flex flex-col gap-3">
+        <section className={posted ? 'hidden' : 'flex flex-col gap-3'}>
           <div>
             <h3 className="text-sm font-semibold text-ink">Resultados</h3>
             <p className="mt-0.5 text-xs text-muted">Preencha só o que você tem. Campo vazio conta como "não medido", não como zero.</p>
@@ -304,7 +322,7 @@ export function WinnerFormDialog({ open, onClose, initial, recordId, accounts, l
           </div>
         </section>
 
-        <section className="flex flex-col gap-3">
+        <section className={posted ? 'hidden' : 'flex flex-col gap-3'}>
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
               <h3 className="text-sm font-semibold text-ink">Tipo de vencedor</h3>

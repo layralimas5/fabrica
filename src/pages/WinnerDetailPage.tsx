@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { ArrowLeft, Copy, Eye, Heart, PenLine, Pencil, Sparkles, Trophy, Users } from 'lucide-react';
+import { ArrowLeft, BarChart3, Copy, Eye, Heart, PenLine, Pencil, Sparkles, Trophy, Users } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { winnerContext } from '../application/winnerHandoff';
@@ -33,9 +33,12 @@ import { Alert, Button, EmptyState, Spinner } from '../ui/primitives';
 import { Chip, Tag } from '../winners/chips';
 import { DnaPanel } from '../winners/DnaPanel';
 import { MetricSelect } from '../winners/MetricSelect';
+import { useAddMetrics } from '../winners/useAddMetrics';
 import { useWinnerActions } from '../winners/useWinnerActions';
 import { accountLabelOf, useWinnerLibrary } from '../winners/useWinnerLibrary';
 import { formatDayBr, RecordThumb, ScoreBadge } from '../winners/WinnerCard';
+import { MeasurementTable, MomentumBadge, ViewsChart } from '../analytics/MeasurementHistory';
+import { measurementSteps, momentumOf } from '../domain/analytics/growth';
 
 const TABS = [
   { id: 'estrutura', label: 'Estrutura' },
@@ -48,6 +51,7 @@ export function WinnerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const library = useWinnerLibrary();
   const actions = useWinnerActions(library);
+  const measure = useAddMetrics((saved) => library.records.setData((current) => current.map((item) => (item.id === saved.id ? saved : item))));
   const [params, setParams] = useSearchParams();
   const tab: TabId = TABS.find((item) => item.id === params.get('aba'))?.id ?? 'estrutura';
   const { records, carousels, accounts, brands, assets } = library;
@@ -120,7 +124,10 @@ export function WinnerDetailPage() {
             {record.pillar && <Tag>{PILLAR_LABELS[record.pillar]}</Tag>}
             {record.hookType && <Tag>Gancho: {HOOK_TYPE_LABELS[record.hookType]}</Tag>}
             {record.productPresence && <Tag>{PRODUCT_PRESENCE_LABELS[record.productPresence]}</Tag>}
-            <Tag>{formatDayBr(recordDay(record))}</Tag>
+            <Tag>
+              {formatDayBr(recordDay(record))}
+              {record.publishedTime && ` às ${record.publishedTime}`}
+            </Tag>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -158,8 +165,11 @@ export function WinnerDetailPage() {
                 <Eye className="size-4" aria-hidden /> Ver conteúdo
               </Button>
             )}
+            <Button variant="primary" disabled={!measure.ready} onClick={() => measure.openRecord(record)}>
+              <BarChart3 className="size-4" aria-hidden /> Nova medição
+            </Button>
             <Button variant="ghost" onClick={() => actions.run('edit', record)}>
-              <Pencil className="size-4" aria-hidden /> Editar métricas
+              <Pencil className="size-4" aria-hidden /> Editar conteúdo
             </Button>
             {record.winner && (
               <Button variant="danger" onClick={() => actions.run('unmark', record)}>
@@ -203,6 +213,7 @@ export function WinnerDetailPage() {
       </div>
 
       {actions.dialogs}
+      {measure.dialog}
     </div>
   );
 
@@ -315,8 +326,22 @@ function MetricsTab({ record }: { record: ContentRecord }) {
     { label: 'Taxa de conversão', value: conversion === null ? null : formatPercent(conversion) },
   ].filter((item) => item.value !== null);
 
+  const steps = measurementSteps(record);
+
   return (
     <div className="grid gap-6 lg:grid-cols-2">
+      {steps.length > 0 && (
+        <section aria-labelledby="metrics-history" className="flex flex-col gap-3 lg:col-span-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 id="metrics-history" className="text-sm font-semibold text-ink">
+              Evolução
+            </h3>
+            <MomentumBadge momentum={momentumOf(record)} />
+          </div>
+          {steps.length > 1 || record.publishedAt ? <ViewsChart steps={steps} publishedAt={record.publishedAt} /> : null}
+          <MeasurementTable steps={steps} />
+        </section>
+      )}
       <section aria-labelledby="metrics-attention">
         <h3 id="metrics-attention" className="mb-3 text-sm font-semibold text-ink">
           Números
@@ -346,6 +371,22 @@ function MetricsTab({ record }: { record: ContentRecord }) {
                 </div>
               ))}
             </dl>
+          </section>
+        )}
+        {record.cta && (
+          <section aria-labelledby="metrics-cta">
+            <h3 id="metrics-cta" className="mb-3 text-sm font-semibold text-ink">
+              CTA
+            </h3>
+            <p className="rounded-2xl bg-subtle p-4 text-sm text-ink">{record.cta}</p>
+          </section>
+        )}
+        {record.caption && (
+          <section aria-labelledby="metrics-caption">
+            <h3 id="metrics-caption" className="mb-3 text-sm font-semibold text-ink">
+              Legenda
+            </h3>
+            <p className="whitespace-pre-line rounded-2xl bg-subtle p-4 text-sm text-ink">{record.caption}</p>
           </section>
         )}
         {record.notes && (

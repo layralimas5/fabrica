@@ -130,6 +130,21 @@ export function exactSlides(record: ContentRecord): Grouping | null {
   return record.format === 'carrossel' && count ? { key: String(count), label: `${count} slides` } : null;
 }
 
+/** Parts of the day, since a handful of posts per exact hour says nothing. */
+const DAY_PARTS: { until: number; key: string; label: string }[] = [
+  { until: 6, key: 'madrugada', label: 'Madrugada (0h–6h)' },
+  { until: 12, key: 'manha', label: 'Manhã (6h–12h)' },
+  { until: 18, key: 'tarde', label: 'Tarde (12h–18h)' },
+  { until: 24, key: 'noite', label: 'Noite (18h–24h)' },
+];
+
+function dayPart(time: string | null): Grouping | null {
+  if (!time) return null;
+  const hour = Number(time.slice(0, 2));
+  const part = DAY_PARTS.find((item) => hour < item.until);
+  return part ? { key: part.key, label: part.label } : null;
+}
+
 export const GROUP_KEYS = {
   format: (record: ContentRecord): Grouping => ({ key: record.format, label: CONTENT_FORMAT_LABELS[record.format] }),
   hookType: (record: ContentRecord): Grouping | null => (record.hookType ? { key: record.hookType, label: HOOK_TYPE_LABELS[record.hookType] } : null),
@@ -138,6 +153,7 @@ export const GROUP_KEYS = {
   contentType: (record: ContentRecord): Grouping | null => (record.contentType ? { key: record.contentType, label: CONTENT_TYPE_LABELS[record.contentType] } : null),
   theme: (record: ContentRecord): Grouping | null => (record.theme ? { key: record.theme.toLowerCase(), label: record.theme } : null),
   template: (record: ContentRecord): Grouping | null => (record.visualStyle ? { key: record.visualStyle, label: VISUAL_STYLE_LABELS[record.visualStyle] } : null),
+  postingTime: (record: ContentRecord): Grouping | null => dayPart(record.publishedTime),
   tag: (record: ContentRecord): Grouping[] => record.tags.map((tag) => ({ key: tag, label: `#${tag}` })),
   slides: (record: ContentRecord): Grouping | null => {
     const count = record.slideCount ?? record.dna?.slideCount ?? null;
@@ -158,6 +174,7 @@ const DIMENSION_PHRASES: Record<Dimension, { group: (label: string) => string; o
   contentType: { group: (label) => `Carrosséis do tipo ${label.toLowerCase()}`, others: 'os de outros tipos' },
   theme: { group: (label) => `Conteúdos sobre ${label.toLowerCase()}`, others: 'os outros temas' },
   template: { group: (label) => `Carrosséis no template ${label}`, others: 'os outros templates' },
+  postingTime: { group: (label) => `Posts publicados no período ${label.toLowerCase()}`, others: 'os de outros horários' },
   tag: { group: (label) => `Conteúdos com ${label}`, others: 'os sem essa tag' },
   slides: { group: (label) => `Carrosséis de ${label}`, others: 'os de outro tamanho' },
   productPlacement: { group: (label) => `Conteúdos em que o produto ${label}`, others: 'os demais' },

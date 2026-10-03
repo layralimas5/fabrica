@@ -48,6 +48,7 @@ function withCarouselFacts(record: ContentRecord, carousel: Carousel): ContentRe
     visualStyle: record.visualStyle ?? carousel.source.visualStyle,
     tags: record.tags.length ? record.tags : (carousel.source.tags ?? []),
     theme: record.theme || carousel.source.theme || '',
+    publishedTime: record.publishedTime ?? carousel.source.scheduledTime ?? null,
   };
 }
 

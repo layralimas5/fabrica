@@ -1,5 +1,5 @@
 import { VISUAL_STYLES, type VisualStyle } from '../brandKit';
-import { normalizeTags } from '../carousel';
+import { normalizeTags, normalizeTime } from '../carousel';
 import { CONTENT_TYPES, OBJECTIVES, type ContentType, type Objective, type SlideRole } from '../content';
 import type { ContentDna } from './dna';
 
@@ -194,12 +194,17 @@ export interface ContentRecord {
   accountLabel: string;
   /** 'YYYY-MM-DD' */
   publishedAt: string | null;
+  /** 'HH:MM' it went live, compared in Analytics as the posting time. */
+  publishedTime: string | null;
   format: ContentFormat;
   theme: string;
   pillar: Pillar | null;
   /** What the content was made for and its narrative type, as chosen when it was created. */
   objective: Objective | null;
   contentType: Exclude<ContentType, 'auto'> | null;
+  /** The call to action of the last slide or of the caption. */
+  cta: string;
+  caption: string;
   hookType: HookType | null;
   productPresence: ProductPresence | null;
   slideCount: number | null;
@@ -224,7 +229,7 @@ export interface ContentRecord {
 
 export type ContentRecordInput = Omit<ContentRecord, 'id' | 'createdAt' | 'updatedAt'>;
 
-export const LIMITS = { title: 120, hook: 300, theme: 60, accountLabel: 40, notes: 2000, beats: 30, beatText: 600, slides: 30 } as const;
+export const LIMITS = { title: 120, hook: 300, cta: 300, caption: 2200, theme: 60, accountLabel: 40, notes: 2000, beats: 30, beatText: 600, slides: 30 } as const;
 
 export function emptyPerformance(): PerformanceMetrics {
   return Object.fromEntries(PERFORMANCE_KEYS.map((key) => [key, null])) as PerformanceMetrics;
@@ -244,11 +249,14 @@ export function emptyRecordInput(): ContentRecordInput {
     accountId: null,
     accountLabel: '',
     publishedAt: null,
+    publishedTime: null,
     format: 'carrossel',
     theme: '',
     pillar: null,
     objective: null,
     contentType: null,
+    cta: '',
+    caption: '',
     hookType: null,
     productPresence: null,
     slideCount: null,
@@ -298,11 +306,14 @@ export function sanitizeRecordInput(raw: Partial<ContentRecordInput>): ContentRe
     accountId: typeof raw.accountId === 'string' && raw.accountId ? raw.accountId : null,
     accountLabel: text(raw.accountLabel, LIMITS.accountLabel),
     publishedAt: typeof raw.publishedAt === 'string' && ISO_DAY.test(raw.publishedAt) ? raw.publishedAt : null,
+    publishedTime: normalizeTime(raw.publishedTime),
     format: oneOf(CONTENT_FORMATS, raw.format) ?? base.format,
     theme: text(raw.theme, LIMITS.theme),
     pillar: oneOf(PILLARS, raw.pillar),
     objective: oneOf(OBJECTIVES, raw.objective),
     contentType: oneOf(CONTENT_TYPES.filter((type) => type !== 'auto'), raw.contentType) as ContentRecordInput['contentType'],
+    cta: text(raw.cta, LIMITS.cta),
+    caption: text(raw.caption, LIMITS.caption),
     hookType: oneOf(HOOK_TYPES, raw.hookType),
     productPresence: oneOf(PRODUCT_PRESENCES, raw.productPresence),
     slideCount,
