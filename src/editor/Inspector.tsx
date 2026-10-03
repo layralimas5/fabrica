@@ -20,7 +20,7 @@ import {
 } from '../domain/carousel';
 import type { ImageShade } from '../domain/shade';
 import { ROLE_LABELS } from '../domain/content';
-import { compatibleLayouts, LAYOUTS, layoutWithImage, type LayoutId } from '../domain/layouts';
+import { compatibleLayouts, LAYOUTS, layoutWithImage, layoutWithoutImage, type LayoutId } from '../domain/layouts';
 import { AssetThumb } from '../ui/AssetThumb';
 import { Alert, Button, Field, Input, Select, Textarea } from '../ui/primitives';
 
@@ -139,7 +139,7 @@ export function Inspector(props: InspectorProps) {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => onChange({ assetId: null, layout: LAYOUTS[slide.layout].needsImage ? LAYOUTS[slide.layout].textOnlyFallback : slide.layout })}
+                onClick={() => onChange({ assetId: null, layout: LAYOUTS[slide.layout].needsImage ? layoutWithoutImage(props.shadeContext.visualStyle) : slide.layout })}
               >
                 Remover
               </Button>
@@ -264,7 +264,7 @@ function CardSection({ slide, assets, visualStyle, onChange, onPickCard }: CardS
   const toCard = () => {
     const next = toCardSlide(slide);
     // Until a background photo is chosen, the slide shows only its text behind the card.
-    onChange({ ...next, layout: next.assetId ? slide.layout : visualStyle === 'tiktok' ? 'native_photo' : LAYOUTS[slide.layout].textOnlyFallback });
+    onChange({ ...next, layout: next.assetId ? slide.layout : LAYOUTS[slide.layout].needsImage ? layoutWithoutImage(visualStyle) : slide.layout });
   };
   const toFull = () => {
     const next = toFullSlide(slide);

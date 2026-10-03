@@ -86,7 +86,7 @@ describe('HeuristicAi.draftCarousel', () => {
 });
 
 describe('composeSlides', () => {
-  it('enforces readability, appends a CTA and keeps layout rhythm', async () => {
+  it('enforces readability, appends a CTA and keeps one layout for the text slides', async () => {
     const draft = await new HeuristicAi().draftCarousel(request());
     draft.slides[0].title = 'Um gancho longo demais que passa muito do limite de palavras permitido para o primeiro slide do carrossel';
     draft.slides.pop();
@@ -94,7 +94,7 @@ describe('composeSlides', () => {
     const slides = composeSlides(draft, { objective: 'compartilhamento', assets: [] });
     expect(wordCount(slides[0].title.replace('…', ''))).toBeLessThanOrEqual(14);
     expect(slides.at(-1)?.role).toBe('cta');
-    for (let i = 1; i < slides.length - 1; i++) expect(slides[i].layout).not.toBe(slides[i - 1].layout);
+    expect(new Set(slides.slice(1, -1).map((slide) => slide.layout)).size).toBe(1);
     expect(slides.every((slide) => !LAYOUTS[slide.layout].needsImage)).toBe(true);
   });
 
@@ -142,9 +142,26 @@ describe('matchImages', () => {
 });
 
 describe('assignLayouts', () => {
-  it('falls back to text layouts when there is no image', () => {
-    const layouts = assignLayouts([{ role: 'hook', hasBullets: false, hasImage: false, suggested: 'image_full_quote' }]);
-    expect(layouts[0]).toBe('big_statement');
+  const slide = (hasImage: boolean, role: 'hook' | 'point' | 'cta' = 'point') => ({ role, hasBullets: false, hasImage });
+
+  it('gives every slide of the same kind the same layout, so the carousel keeps one look', () => {
+    const layouts = assignLayouts([slide(true, 'hook'), slide(false), slide(true), slide(false), slide(true), slide(false), slide(false, 'cta')], 'minimalista');
+    expect(layouts).toEqual(['image_full_quote', 'text_center', 'image_top_text_bottom', 'text_center', 'image_top_text_bottom', 'text_center', 'cta']);
+  });
+
+  it('never puts the inverted background slide in the middle of a light style', () => {
+    const layouts = assignLayouts(Array.from({ length: 8 }, (_, index) => slide(index % 3 === 0)), 'clean');
+    expect(layouts).not.toContain('big_statement');
+    expect(new Set(layouts.slice(1).filter((layout) => LAYOUTS[layout].needsImage)).size).toBe(1);
+  });
+
+  it('follows the style: editorial texts sit on the side, dark photos go full', () => {
+    expect(assignLayouts([slide(false), slide(false)], 'editorial')).toEqual(['text_side', 'text_side']);
+    expect(assignLayouts([slide(true, 'hook'), slide(true)], 'dark')).toEqual(['image_full_quote', 'image_full_quote']);
+  });
+
+  it('falls back to the style text layout when a forced photo layout has no photo', () => {
+    expect(assignLayouts([{ ...slide(false, 'hook'), forced: 'image_full_quote' }], 'minimalista')).toEqual(['text_center']);
   });
 });
 
