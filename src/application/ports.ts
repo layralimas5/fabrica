@@ -66,7 +66,7 @@ export interface BackupSummary {
   calendarEntries: number;
 }
 
-/** Local mode only: everything lives in this browser, so it can be saved to a file and restored anywhere. */
+/** Everything saved to one file that restores in either mode: the way to move from this browser to an account with login. */
 export interface BackupService {
   exportAll(): Promise<Blob>;
   /** Adds what is in the file; items with the same id are replaced by the backup version. */

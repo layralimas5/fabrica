@@ -6,33 +6,39 @@ import { existingRecordFor } from '../domain/winners/fromCarousel';
 import type { ContentRecord } from '../domain/winners/record';
 import { MetricsDialog } from './MetricsDialog';
 
-/** "Adicionar métricas" from any screen that shows a carousel. */
-export function useAddMetrics(onSaved?: (record: ContentRecord, carousel: Carousel) => void) {
+type Target = { kind: 'carousel'; carousel: Carousel } | { kind: 'record'; record: ContentRecord };
+
+/** "Adicionar métricas" from any screen that shows a carousel, or a content made elsewhere. */
+export function useAddMetrics(onSaved?: (record: ContentRecord, carousel: Carousel | null) => void) {
   const records = useContentRecords();
   const accounts = useAccounts();
   const brands = useBrandKits();
-  const [carousel, setCarousel] = useState<Carousel | null>(null);
+  const [target, setTarget] = useState<Target | null>(null);
 
   const recordOf = useCallback((item: Carousel) => existingRecordFor(item, records.data), [records.data]);
 
+  const open = useCallback((carousel: Carousel) => setTarget({ kind: 'carousel', carousel }), []);
+  const openRecord = useCallback((record: ContentRecord) => setTarget({ kind: 'record', record }), []);
+
   let dialog: ReactNode = null;
-  if (carousel) {
-    const brand = brandForCarousel(carousel, brands.data, accounts.data);
+  if (target) {
+    const carousel = target.kind === 'carousel' ? target.carousel : null;
+    const brand = carousel ? brandForCarousel(carousel, brands.data, accounts.data) : null;
     dialog = (
       <MetricsDialog
         carousel={carousel}
-        existing={recordOf(carousel)}
-        account={accounts.data.find((item) => item.id === carousel.source.accountId) ?? null}
+        existing={carousel ? recordOf(carousel) : target.kind === 'record' ? (records.data.find((item) => item.id === target.record.id) ?? target.record) : null}
+        account={accounts.data.find((item) => item.id === (carousel?.source.accountId ?? (target.kind === 'record' ? target.record.accountId : null))) ?? null}
         productName={brand ? (productOf(brand)?.name ?? null) : null}
-        onClose={() => setCarousel(null)}
+        onClose={() => setTarget(null)}
         onSaved={(saved) => {
           records.setData((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
           onSaved?.(saved, carousel);
-          setCarousel(null);
+          setTarget(null);
         }}
       />
     );
   }
 
-  return { open: setCarousel, recordOf, dialog, ready: !records.loading && !accounts.loading && !brands.loading };
+  return { open, openRecord, recordOf, dialog, ready: !records.loading && !accounts.loading && !brands.loading };
 }

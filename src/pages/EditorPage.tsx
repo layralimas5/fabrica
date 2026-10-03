@@ -172,7 +172,7 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
           </Button>
           {isPosted(carousel) && (
             <Button variant="secondary" disabled={!metrics.ready} onClick={() => metrics.open(carousel)}>
-              <BarChart3 className="size-4" aria-hidden /> {metrics.recordOf(carousel)?.metricsUpdatedAt || carousel.metrics ? 'Atualizar métricas' : 'Adicionar métricas'}
+              <BarChart3 className="size-4" aria-hidden /> {metrics.recordOf(carousel)?.metricsUpdatedAt || carousel.metrics ? 'Nova medição' : 'Adicionar métricas'}
             </Button>
           )}
           <Button variant="secondary" disabled={!winner.ready} onClick={() => winner.mark(carousel)}>

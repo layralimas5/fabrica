@@ -5,6 +5,7 @@ import { useAccountScope } from '../app/accountScope';
 import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
 import { AccountComparison, ChampionCard, ContentThumb, KpiGrid, RankingTable, SectionTitle, TemplateCard, WinnerTile } from '../analytics/sections';
+import { GrowthSection } from '../analytics/GrowthSection';
 import { RankingCard } from '../analytics/RankingCard';
 import { accountLabel as labelOfAccount } from '../domain/account';
 import { isMeasured, type AnalyticsItem } from '../domain/analytics/items';
@@ -58,7 +59,7 @@ export function AnalyticsPage() {
   const metrics = useAddMetrics((saved, carousel) => {
     library.records.setData((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
     // After the first numbers, a posted carousel moves to "Em análise", like in the editor.
-    if (carousel.status !== 'published') return;
+    if (carousel?.status !== 'published') return;
     services.carousels
       .update(carousel.id, toCarouselInput({ ...carousel, status: 'analyzing' }))
       .then((updated) => library.carousels.setData((current) => current.map((item) => (item.id === updated.id ? updated : item))))
@@ -77,7 +78,8 @@ export function AnalyticsPage() {
   const published = useMemo(() => filtered.filter(isPublished), [filtered]);
   const allPeriods = useMemo(() => applyAnalyticsFilters(items, { ...full, period: 'all' }, today), [items, full.accountId, full.platform, full.kind, today]); // eslint-disable-line react-hooks/exhaustive-deps
   const overdue = useMemo(() => overdueUnposted(allPeriods, today), [allPeriods, today]);
-  const outsidePeriod = filters.period === 'all' ? 0 : allPeriods.filter(isPublished).length - published.length;
+  const publishedAnyDay = useMemo(() => allPeriods.filter(isPublished), [allPeriods]);
+  const outsidePeriod = filters.period === 'all' ? 0 : publishedAnyDay.length - published.length;
 
   /** Every overdue carousel becomes Publicado on its scheduled day, so it counts in the right period. */
   const markOverduePosted = async () => {
@@ -135,7 +137,7 @@ export function AnalyticsPage() {
     }
   };
   const open = (item: AnalyticsItem) => navigate(item.carousel ? `/carrossel/${item.carousel.id}` : `/vencedores/${item.record.id}`);
-  const editMetrics = (item: AnalyticsItem) => (item.carousel ? metrics.open(item.carousel) : actions.run('edit', item.record));
+  const editMetrics = (item: AnalyticsItem) => (item.carousel ? metrics.open(item.carousel) : metrics.openRecord(item.record));
   const showcase = (entry: Scored) => ({ entry, thumb: thumb(entry.item), accountLabel: accountOf(entry.item), scoreDetail: scoreDetail(entry.item), onView: () => view(entry.item), onVary: () => void vary(entry.item) });
 
   const kpiValues = kpis(measured, KPI_KEYS);
@@ -256,6 +258,8 @@ export function AnalyticsPage() {
             )}
             <InsightsPanel insights={insights} measured={measured.length} limit={5} />
           </div>
+
+          <GrowthSection items={publishedAnyDay} today={today} accountLabel={accountOf} onMeasure={editMetrics} />
 
           <section aria-labelledby="winners-title">
             <SectionTitle hint="Os melhores Performance Scores do filtro, comparando cada conteúdo com a média da própria conta.">

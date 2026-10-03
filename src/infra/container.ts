@@ -14,6 +14,7 @@ import {
   supabaseExperiments,
   SupabasePresets,
 } from './supabase/supabaseServices';
+import { SupabaseBackup } from './supabase/supabaseBackup';
 
 /**
  * Composition root. With VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY the app runs on Supabase and Claude;
@@ -41,8 +42,7 @@ export function createServices(): Services {
 
   const client = createClient(url, anonKey);
   const useHeuristic = import.meta.env.VITE_AI_ENGINE === 'heuristic';
-  return {
-    auth: new SupabaseAuth(client),
+  const repositories = {
     brandKits: new SupabaseBrandKits(client),
     assets: new SupabaseAssets(client),
     carousels: new SupabaseCarousels(client),
@@ -51,7 +51,11 @@ export function createServices(): Services {
     contentRecords: new SupabaseContentRecords(client),
     experiments: supabaseExperiments(client),
     calendarEntries: supabaseCalendarEntries(client),
+  };
+  return {
+    auth: new SupabaseAuth(client),
+    ...repositories,
     ai: useHeuristic ? new HeuristicAi() : new ClaudeAi(client),
-    backup: null,
+    backup: new SupabaseBackup(client, repositories),
   };
 }
