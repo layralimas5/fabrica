@@ -82,8 +82,9 @@ export function composeSlides(
           hasBullets: slide.bullets.length > 1,
           hasImage: assetIds[index] !== null,
           // The cut-out reads best over a full photo with the text at the bottom.
-          suggested: asCard(slide) && assetIds[index] !== null ? 'image_full_quote' : slide.layout,
+          forced: asCard(slide) && assetIds[index] !== null ? 'image_full_quote' : null,
         })),
+        visualStyle,
       );
 
   return drafts.map((slide, index) => ({

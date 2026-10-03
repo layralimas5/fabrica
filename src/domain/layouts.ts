@@ -39,46 +39,47 @@ export const LAYOUTS: Record<LayoutId, LayoutMeta> = {
 
 export const POST_LAYOUTS: LayoutId[] = ['post_image', 'post_text'];
 
-const ROLE_PREFERENCES: Partial<Record<SlideRole, LayoutId[]>> = {
-  hook: ['image_full_quote', 'text_center', 'big_statement'],
-  belief: ['big_statement', 'text_center'],
-  insight: ['big_statement', 'text_center'],
-  conclusion: ['text_center', 'big_statement'],
-  summary: ['list', 'text_side'],
-  product: ['image_top_text_bottom', 'image_left_text_right'],
-  cta: ['cta'],
+/**
+ * One look per visual style: every photo slide uses the same layout, every text slide another, so the carousel reads
+ * as one piece instead of a mix of templates. The cover (first slide) opens on the full photo when it has one.
+ */
+export interface StyleLook {
+  cover: LayoutId;
+  image: LayoutId;
+  text: LayoutId;
+}
+
+export const STYLE_LOOKS: Record<VisualStyle, StyleLook> = {
+  minimalista: { cover: 'image_full_quote', image: 'image_top_text_bottom', text: 'text_center' },
+  editorial: { cover: 'image_full_quote', image: 'image_top_text_bottom', text: 'text_side' },
+  clean: { cover: 'image_full_quote', image: 'image_top_text_bottom', text: 'text_center' },
+  bold: { cover: 'image_full_quote', image: 'image_full_quote', text: 'text_center' },
+  dark: { cover: 'image_full_quote', image: 'image_full_quote', text: 'text_center' },
+  lifestyle: { cover: 'image_full_quote', image: 'image_full_quote', text: 'text_center' },
+  post: { cover: 'post_image', image: 'post_image', text: 'post_text' },
+  tiktok: { cover: 'native_photo', image: 'native_photo', text: 'big_statement' },
 };
 
-const ROTATION: LayoutId[] = ['image_top_text_bottom', 'text_side', 'image_left_text_right', 'image_full_quote', 'text_center'];
+const DEFAULT_STYLE: VisualStyle = 'minimalista';
 
 interface LayoutCandidate {
   role: SlideRole;
   hasBullets: boolean;
   hasImage: boolean;
-  suggested?: LayoutId | null;
+  /** Set only when the slide needs a specific layout to work (the app cut-out over a full photo). */
+  forced?: LayoutId | null;
 }
 
-/** Picks one layout per slide, keeping visual rhythm (no two neighbours alike, images only where available). */
-export function assignLayouts(slides: LayoutCandidate[]): LayoutId[] {
-  const result: LayoutId[] = [];
-  let rotationIndex = 0;
-
-  slides.forEach((slide, index) => {
-    const previous = result[index - 1];
-    const usable = (layout: LayoutId) => (LAYOUTS[layout].needsImage && !slide.hasImage ? LAYOUTS[layout].textOnlyFallback : layout);
-
-    const preferences: LayoutId[] = [];
-    if (slide.suggested) preferences.push(slide.suggested);
-    if (slide.hasBullets) preferences.push('list');
-    preferences.push(...(ROLE_PREFERENCES[slide.role] ?? []));
-    for (let i = 0; i < ROTATION.length; i++) preferences.push(ROTATION[(rotationIndex + i) % ROTATION.length]);
-
-    const chosen = preferences.map(usable).find((layout) => layout !== previous || layout === 'cta') ?? usable(preferences[0]);
-    if (ROTATION.includes(chosen)) rotationIndex = (ROTATION.indexOf(chosen) + 1) % ROTATION.length;
-    result.push(chosen);
+/** Picks one layout per slide from the style's look: same kind of slide, same layout, all through the carousel. */
+export function assignLayouts(slides: LayoutCandidate[], style: VisualStyle = DEFAULT_STYLE): LayoutId[] {
+  const look = STYLE_LOOKS[style];
+  return slides.map((slide, index) => {
+    if (slide.forced) return LAYOUTS[slide.forced].needsImage && !slide.hasImage ? look.text : slide.forced;
+    if (slide.role === 'cta' && !slide.hasImage) return 'cta';
+    if (slide.hasBullets && !slide.hasImage) return 'list';
+    if (!slide.hasImage) return look.text;
+    return index === 0 ? look.cover : look.image;
   });
-
-  return result;
 }
 
 /** Layouts a slide can switch to. Lists accept any slide: body sentences become items when there are no bullets. */
@@ -91,10 +92,12 @@ export function compatibleLayouts(hasImage: boolean): LayoutId[] {
  * A slide with an app cut-out shows the photo full, so the card has room over it.
  */
 export function layoutWithImage(layout: LayoutId, style: VisualStyle, hasCard = false): LayoutId {
-  if (style === 'tiktok') return 'native_photo';
-  if (layout === 'post_text') return 'post_image';
-  if (hasCard && style !== 'post') return 'image_full_quote';
-  if (layout === 'text_center' || layout === 'big_statement') return 'image_full_quote';
-  if (layout === 'text_side') return 'image_top_text_bottom';
-  return layout;
+  if (LAYOUTS[layout].needsImage) return hasCard && style !== 'post' ? 'image_full_quote' : layout;
+  if (hasCard && style !== 'post' && style !== 'tiktok') return 'image_full_quote';
+  return STYLE_LOOKS[style].image;
+}
+
+/** Layout a slide falls back to when its image is removed: the style's text slide. */
+export function layoutWithoutImage(style: VisualStyle): LayoutId {
+  return STYLE_LOOKS[style].text;
 }

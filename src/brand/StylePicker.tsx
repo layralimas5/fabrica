@@ -7,18 +7,16 @@ import { VISUAL_STYLE_LABELS, VISUAL_STYLES, type BrandKitInput, type VisualStyl
 import { DEFAULT_SLIDE_STYLE, type Slide } from '../domain/carousel';
 import { DEFAULT_SHADE, type ImageShade } from '../domain/shade';
 import type { AccountIdentity } from '../domain/account';
-import type { LayoutId } from '../domain/layouts';
+import { STYLE_LOOKS, type LayoutId } from '../domain/layouts';
 import { SlideCanvas } from '../ui/SlideCanvas';
 
 const THUMB_SCALE = 0.14;
 const SAMPLE_TEXT = 'Você não precisa de mais motivação.';
 
-/** The layout that best shows what each style looks like. */
+/** The layout that best shows what each style looks like: the same one the carousel's slides get. */
 function sampleLayout(style: VisualStyle, hasPhoto: boolean): LayoutId {
-  if (style === 'tiktok') return hasPhoto ? 'native_photo' : 'big_statement';
-  if (style === 'post') return hasPhoto ? 'post_image' : 'post_text';
-  if (style === 'lifestyle' && hasPhoto) return 'image_full_quote';
-  return 'text_center';
+  const look = STYLE_LOOKS[style];
+  return hasPhoto && (style === 'tiktok' || style === 'post' || style === 'lifestyle') ? look.image : look.text;
 }
 
 export function sampleSlide(style: VisualStyle, photoId: string | null): Slide {
