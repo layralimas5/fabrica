@@ -78,8 +78,6 @@ export interface BatchTest {
 export interface CopySetting {
   objective: Objective | null;
   contentType: ContentType | null;
-  /** Slide model of this copy (from the Analytics plan); ignored in a format test. */
-  style?: VisualStyle | null;
   slideCount?: SlideCountOption | null;
   /** Direction for the writing AI, e.g. the account's winning hooks. */
   guidance?: string | null;
@@ -100,8 +98,6 @@ interface PreparedCopy {
   mode: CopyMode;
   objective: Objective;
   contentType: ContentType;
-  /** Slide model chosen for this copy alone, when not testing formats. */
-  style?: VisualStyle;
   /** Image the product slide shows; null leaves the copy without one. */
   productImageId: string | null;
   /** Position of the copy box, for error messages. */
@@ -124,14 +120,13 @@ export async function createCarousels(services: Services, request: CreateRequest
     if (!text) continue;
     const setting = request.copySettings?.[index];
     const defaults = { objective: setting?.objective ?? request.objective, contentType: setting?.contentType ?? request.contentType };
-    const style = styles.length === 1 ? (setting?.style ?? undefined) : undefined;
     const tuning = { slideCount: setting?.slideCount ?? request.slideCount, guidance: setting?.guidance ?? null };
     const productImageId = copyImages[index] ?? product?.imageAssetId ?? null;
     // The product only shows where the copy asks for it (SLIDE - APP, SLIDE 6 — PRODUTO).
     const copyProduct = product && marksProductSlide(text) ? { ...product, imageAssetId: productImageId } : null;
     // Numbered slides mean the user already split the copy: keep their slides even in AI mode.
-    const prepared = request.mode === 'manual' || hasNumberedSlides(text) ? manualCopies(text, defaults) : [await aiCopy(services, request, text, style ?? styles[0], assets, copyProduct, defaults, tuning)];
-    copies.push(...prepared.map((copy) => ({ ...copy, style, productImageId, copyNumber: index + 1 })));
+    const prepared = request.mode === 'manual' || hasNumberedSlides(text) ? manualCopies(text, defaults) : [await aiCopy(services, request, text, styles[0], assets, copyProduct, defaults, tuning)];
+    copies.push(...prepared.map((copy) => ({ ...copy, productImageId, copyNumber: index + 1 })));
   }
   if (copies.length === 0) throw new Error('Escreva pelo menos uma linha de texto.');
   assertAppSlidesHaveImage(copies);
@@ -142,10 +137,10 @@ export async function createCarousels(services: Services, request: CreateRequest
   const versionOf = (copy: PreparedCopy) => request.test?.copyVersions[copy.copyNumber - 1] ?? defaultVersion(copy.copyNumber - 1);
   const test = request.test ? await startTest(services, request.test.brief, request.accountId, { carousels: copies.length * (isTest ? styles.length : 1), styles: styles.length, copyVersions: copies.map(versionOf) }) : null;
   if (test) experimentIds.push(test.id);
-  // A format test makes one variant per style; otherwise the copy may have its own style.
-  const stylesOf = (copy: PreparedCopy) => (isTest ? styles : [copy.style ?? styles[0]]);
+  // Every carousel of the batch uses the chosen model; only a format test makes one variant per model.
+  const batchStyles = isTest ? styles : [styles[0]];
   const nextSlot = test ? slotPlanner(test.brief) : null;
-  const slots: TestSlot[][] = copies.map((copy) => stylesOf(copy).map((style) => (nextSlot ? nextSlot({ copyIndex: copy.copyNumber - 1, styleLabel: VISUAL_STYLE_LABELS[style], copyVersion: versionOf(copy) }) : null)).filter((slot): slot is TestSlot => slot !== null));
+  const slots: TestSlot[][] = copies.map((copy) => batchStyles.map((style) => (nextSlot ? nextSlot({ copyIndex: copy.copyNumber - 1, styleLabel: VISUAL_STYLE_LABELS[style], copyVersion: versionOf(copy) }) : null)).filter((slot): slot is TestSlot => slot !== null));
   const planned = request.schedule ? distributeDates(copies.length, request.schedule) : [];
   // In a time test the days are handed out so every time gets a similar mix of weekdays.
   const dates = test && testsTime(test.brief.variables) && planned.length > 0 ? spreadTimesOverWeekdays(planned, slots.map((list) => list[0]?.time ?? null)) : planned;
@@ -157,7 +152,7 @@ export async function createCarousels(services: Services, request: CreateRequest
 
   for (const [position, prepared] of copies.entries()) {
     const { caption, copy } = prepared;
-    const copyStyles = stylesOf(prepared);
+    const copyStyles = batchStyles;
     const photoStyles = copyStyles.filter((style) => !textOnly(style));
     // As a card, the product slide needs a background photo like any other slide.
     const fullPrint = request.productDisplay === 'card' ? null : prepared.productImageId;

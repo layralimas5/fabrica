@@ -559,7 +559,6 @@ export function CreatePage() {
       return {
         ...own,
         contentType: own.contentType ?? plan.contentType ?? null,
-        style: plan.style ?? null,
         slideCount: plan.slideCount ?? null,
         guidance: guidanceFor(intelligence.recommendations, plan),
       };
@@ -972,13 +971,11 @@ export function CreatePage() {
                 onEnabled={(enabled) => {
                   setUseAnalytics(enabled);
                   remember(ANALYTICS_STORAGE_KEY, enabled ? 'on' : 'off');
-                  if (enabled && exploration !== 'safe') startTest('template');
                 }}
                 level={exploration}
                 onLevel={(level) => {
                   setExploration(level);
                   remember(EXPLORATION_STORAGE_KEY, level);
-                  if (useAnalytics && level !== 'safe') startTest('template');
                 }}
                 recommendations={intelligence.recommendations}
                 accountName={account ? accountLabel(account) : null}
