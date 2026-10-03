@@ -49,11 +49,17 @@ describe('ficha do teste', () => {
     expect(versionPart('Controle · 08:00', 1)).toBe('08:00');
   });
 
+  it('a template test needs two slide models, like a format test', () => {
+    const brief = { ...defaultBrief(['template']), name: 'Teste de Template #01' };
+    expect(briefProblems(brief, { carousels: 2, styles: 1, copyVersions: [] })).toContain('Marque pelo menos 2 modelos de slide pra comparar.');
+    expect(briefProblems(brief, { carousels: 4, styles: 2, copyVersions: [] })).toEqual([]);
+  });
+
   it('explains what keeps the test from comparing anything, for every selected variable', () => {
     const brief = { ...defaultBrief(['horario', 'gancho', 'design']), times: ['08:00'] };
     expect(briefProblems(brief, { carousels: 4, styles: 1, copyVersions: ['Controle', 'Controle'] })).toEqual([
       'Pra testar horário, coloque pelo menos 2 horários diferentes.',
-      'Pra testar formato, marque pelo menos 2 modelos de slide.',
+      'Marque pelo menos 2 modelos de slide pra comparar.',
       'Marque nas copys qual é o Controle e qual é a Variação: o teste precisa das duas.',
     ]);
     expect(briefProblems({ ...defaultBrief([]), name: 'x' }, { carousels: 1, styles: 1, copyVersions: [] })).toEqual(['Escolha o que está testando.']);
