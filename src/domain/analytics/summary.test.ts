@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { emptyPerformance, emptyRecordInput, type ContentRecord, type PerformanceMetrics } from '../winners/record';
 import type { AnalyticsItem } from './items';
-import { accountStats, applyAnalyticsFilters, kpis, pooledRate, templateStats, weeklyChampion } from './summary';
+import type { Carousel } from '../carousel';
+import { accountStats, applyAnalyticsFilters, isPublished, kpis, overdueUnposted, pooledRate, templateStats, weeklyChampion } from './summary';
 
 let sequence = 0;
 function item(overrides: Partial<Omit<ContentRecord, 'metrics'>> & { metrics?: Partial<PerformanceMetrics> } = {}): AnalyticsItem {
@@ -26,6 +27,22 @@ const scoreOf = (metrics: PerformanceMetrics) => (metrics.views && metrics.share
 const base = { accountId: null, platform: 'all' as const, period: 'all' as const, from: '', to: '', kind: 'all' as const };
 
 describe('analytics summary', () => {
+  it('finds carousels past their posting day that were never marked as posted', () => {
+    const withCarousel = (status: Carousel['status'], scheduledFor: string | null) => ({ ...item(), carousel: { id: `c${status}${scheduledFor}`, status, scheduledFor } as Carousel });
+    const items = [
+      withCarousel('ready', '2026-09-28'),
+      withCarousel('draft', '2026-10-01'),
+      withCarousel('ready', '2026-10-03'),
+      withCarousel('ready', null),
+      withCarousel('published', '2026-09-20'),
+      withCarousel('archived', '2026-09-20'),
+    ];
+    const overdue = overdueUnposted(items, '2026-10-03');
+    expect(overdue).toEqual([items[0], items[1]]);
+    expect(items.filter(isPublished)).toEqual([items[4]]);
+  });
+
+
   it('filters by account, platform, content kind and period together', () => {
     const items = [
       item({ platform: 'tiktok', format: 'carrossel' }),

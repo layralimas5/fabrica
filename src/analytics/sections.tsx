@@ -23,11 +23,11 @@ export function ContentThumb({ item, brands, assets, accounts }: { item: Analyti
   return <RecordThumb record={item.record} carousel={null} brand={null} assets={assets} accounts={accounts} />;
 }
 
-export function KpiGrid({ published, kpis, rates }: { published: number; kpis: Kpi[]; rates: Partial<Record<PerformanceKey, number | null>> }) {
+export function KpiGrid({ published, periodLabel, kpis, rates }: { published: number; periodLabel: string; kpis: Kpi[]; rates: Partial<Record<PerformanceKey, number | null>> }) {
   const visible = kpis.filter((kpi) => kpi.measured > 0);
   return (
     <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-      <KpiCard label="Conteúdos publicados" value={published.toLocaleString('pt-BR')} />
+      <KpiCard label="Conteúdos publicados" value={published.toLocaleString('pt-BR')} detail={periodLabel} />
       {visible.map((kpi) => (
         <KpiCard
           key={kpi.key}
