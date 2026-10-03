@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import { BarChart3, CalendarDays, FlaskConical, FolderKanban, Images, Palette, Plus, Settings, Sparkles, Trophy, UsersRound } from 'lucide-react';
 import { AccountScopeProvider } from '../app/accountScope';
+import { BackupReminder } from './BackupReminder';
 import { AccountSwitcher } from './AccountSwitcher';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useServices } from '../app/services';
@@ -79,6 +80,7 @@ function ShellLayout() {
       </aside>
 
       <main id="conteudo" className="min-w-0 px-4 py-8 sm:px-8 lg:px-12 lg:py-12">
+        <BackupReminder />
         <Outlet />
       </main>
     </div>

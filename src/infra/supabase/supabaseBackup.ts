@@ -19,6 +19,7 @@ interface SupabaseRepositories {
 }
 
 const CHUNK = 100;
+const LAST_BACKUP_KEY = 'last_backup_at';
 
 /**
  * Backup for the account with login. Restoring keeps every id, so carousels still point to their photos,
@@ -35,7 +36,7 @@ export class SupabaseBackup implements BackupService {
     const assetList = await assets.list();
     const files: Record<string, string> = {};
     for (const asset of assetList) files[asset.id] = await blobToDataUrl(await assets.fetchBlob(asset));
-    return buildBackup({
+    const backup = buildBackup({
       accounts: await accounts.list(),
       presets: await presets.list(),
       brandKits: await brandKits.list(),
@@ -46,6 +47,16 @@ export class SupabaseBackup implements BackupService {
       calendarEntries: await calendarEntries.list(),
       files,
     });
+    const { error } = await this.client.auth.updateUser({ data: { [LAST_BACKUP_KEY]: new Date().toISOString() } });
+    if (error) console.warn('Backup baixado, mas a data não foi guardada:', error.message);
+    return backup;
+  }
+
+  /** Kept in the user's metadata, so it survives clearing the browser without a new table. */
+  async lastBackupAt(): Promise<string | null> {
+    const { data } = await this.client.auth.getUser();
+    const value: unknown = data.user?.user_metadata?.[LAST_BACKUP_KEY];
+    return typeof value === 'string' ? value : null;
   }
 
   /** In dependency order: what a row points to is saved before the row. Restoring twice replaces, never duplicates. */
