@@ -30,7 +30,7 @@ export function SettingsPage() {
       </dl>
 
       <PlanningSettings />
-      {backup && <BackupSection backup={backup} />}
+      {backup && <BackupSection backup={backup} local={auth.mode !== 'supabase'} />}
       {ai.engine === 'heuristic' && auth.mode === 'supabase' && <Badge tone="warning">IA local ativa (VITE_AI_ENGINE=heuristic)</Badge>}
 
       {auth.mode === 'supabase' && (
@@ -45,7 +45,7 @@ export function SettingsPage() {
   );
 }
 
-function BackupSection({ backup }: { backup: BackupService }) {
+function BackupSection({ backup, local }: { backup: BackupService; local: boolean }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<'export' | 'import' | null>(null);
   const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
@@ -90,8 +90,9 @@ function BackupSection({ backup }: { backup: BackupService }) {
     <section aria-labelledby="backup-title" className="mt-6 rounded-2xl border border-line bg-surface p-5">
       <h2 id="backup-title" className="text-sm font-semibold text-ink">Backup</h2>
       <p className="mt-1 text-sm text-muted">
-        Tudo fica salvo neste navegador, sem login. Baixe um backup de vez em quando: com ele você recupera predefinições, contas, marcas, fotos e carrosséis em outro navegador, outro computador
-        ou outro endereço da Fábrica. Limpar os dados do navegador apaga o que não estiver no backup.
+        {local
+          ? 'Tudo fica salvo neste navegador, sem login. Cada endereço da Fábrica (o do computador e o da internet) tem os seus próprios dados. Baixe um backup de vez em quando: com ele você leva tudo pra outro navegador, outro endereço ou pra conta com login. Limpar os dados do navegador apaga o que não estiver no backup.'
+          : 'Seus dados ficam na sua conta e aparecem em qualquer navegador em que você entrar. Pra trazer o que foi feito no modo sem login, baixe o backup lá e restaure aqui: fotos, carrosséis, contas, resultados e calendário vêm juntos.'}
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
         <Button variant="primary" loading={busy === 'export'} disabled={busy !== null} onClick={() => void download()}>

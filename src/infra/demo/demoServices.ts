@@ -20,6 +20,7 @@ import { normalizeCarousel, type Carousel, type CarouselInput } from '../../doma
 import { normalizeRecord, sanitizeRecordInput, type ContentRecord, type ContentRecordInput } from '../../domain/winners/record';
 import { sanitizeExperimentInput, type Experiment, type ExperimentInput } from '../../domain/experiments/experiment';
 import { sanitizeEntryInput, type CalendarEntry, type CalendarEntryInput } from '../../domain/calendar/calendar';
+import { blobToDataUrl, buildBackup, dataUrlToBlob, readBackup, summarize } from '../backupFile';
 import { readImageSize } from '../imageSize';
 
 const store: UseStore = createStore('fabrica-carrosseis-demo', 'kv');
@@ -204,47 +205,6 @@ export class DemoAccounts implements AccountRepository {
   }
 }
 
-const BACKUP_APP = 'fabrica';
-const BACKUP_VERSION = 1;
-
-interface BackupFile {
-  app: typeof BACKUP_APP;
-  version: number;
-  exportedAt: string;
-  accounts: Account[];
-  /** Missing in backups made before presets existed. */
-  presets?: Preset[];
-  brandKits: BrandKit[];
-  assets: Asset[];
-  carousels: Carousel[];
-  /** Missing in backups made before the winners library existed. */
-  contentRecords?: ContentRecord[];
-  /** Missing in backups made before experiments and the calendar existed. */
-  experiments?: Experiment[];
-  calendarEntries?: CalendarEntry[];
-  /** Image files by asset id, as data URLs. */
-  files: Record<string, string>;
-}
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error ?? new Error('Não consegui ler a imagem.'));
-    reader.readAsDataURL(blob);
-  });
-}
-
-async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
-  return (await fetch(dataUrl)).blob();
-}
-
-function isBackupFile(value: unknown): value is BackupFile {
-  if (!value || typeof value !== 'object') return false;
-  const file = value as Partial<BackupFile>;
-  return file.app === BACKUP_APP && Array.isArray(file.accounts) && Array.isArray(file.brandKits) && Array.isArray(file.assets) && Array.isArray(file.carousels) && typeof file.files === 'object';
-}
-
 /** Replaces items with the same id and keeps the rest. */
 function upsertById<T extends { id: string }>(current: T[], incoming: T[]): T[] {
   const ids = new Set(incoming.map((item) => item.id));
@@ -259,10 +219,7 @@ export class LocalBackup implements BackupService {
       const blob = await get<Blob>(await scopedKey(`blob:${asset.id}`), store);
       if (blob) files[asset.id] = await blobToDataUrl(blob);
     }
-    const backup: BackupFile = {
-      app: BACKUP_APP,
-      version: BACKUP_VERSION,
-      exportedAt: now(),
+    return buildBackup({
       accounts: await readCollection<Account>('accounts'),
       presets: await readCollection<Preset>('presets'),
       brandKits: await readCollection<BrandKit>('brandKits'),
@@ -272,45 +229,23 @@ export class LocalBackup implements BackupService {
       experiments: await readCollection<Experiment>('experiments'),
       calendarEntries: await readCollection<CalendarEntry>('calendarEntries'),
       files,
-    };
-    return new Blob([JSON.stringify(backup)], { type: 'application/json' });
+    });
   }
 
   async importAll(file: Blob): Promise<BackupSummary> {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(await file.text());
-    } catch {
-      throw new Error('Esse arquivo não é um backup da Fábrica.');
+    const data = await readBackup(file);
+    for (const asset of data.assets) {
+      await set(await scopedKey(`blob:${asset.id}`), await dataUrlToBlob(data.files[asset.id]), store);
     }
-    if (!isBackupFile(parsed)) throw new Error('Esse arquivo não é um backup da Fábrica.');
-
-    for (const [assetId, dataUrl] of Object.entries(parsed.files)) {
-      await set(await scopedKey(`blob:${assetId}`), await dataUrlToBlob(dataUrl), store);
-    }
-    const restoredAssets = parsed.assets.filter((asset) => asset.id in parsed.files);
-    await writeCollection('assets', upsertById(await readCollection<Asset>('assets'), restoredAssets));
-    await writeCollection('accounts', upsertById(await readCollection<Account>('accounts'), parsed.accounts));
-    await writeCollection('brandKits', upsertById(await readCollection<BrandKit>('brandKits'), parsed.brandKits));
-    await writeCollection('carousels', upsertById(await readCollection<Carousel>('carousels'), parsed.carousels));
-    const presets = parsed.presets ?? [];
-    await writeCollection('presets', upsertById(await readCollection<Preset>('presets'), presets));
-    const contentRecords = (parsed.contentRecords ?? []).map(normalizeRecord);
-    await writeCollection('contentRecords', upsertById(await readCollection<ContentRecord>('contentRecords'), contentRecords));
-    const experiments = parsed.experiments ?? [];
-    await writeCollection('experiments', upsertById(await readCollection<Experiment>('experiments'), experiments));
-    const calendarEntries = parsed.calendarEntries ?? [];
-    await writeCollection('calendarEntries', upsertById(await readCollection<CalendarEntry>('calendarEntries'), calendarEntries));
-    return {
-      presets: presets.length,
-      accounts: parsed.accounts.length,
-      brandKits: parsed.brandKits.length,
-      assets: restoredAssets.length,
-      carousels: parsed.carousels.length,
-      contentRecords: contentRecords.length,
-      experiments: experiments.length,
-      calendarEntries: calendarEntries.length,
-    };
+    await writeCollection('assets', upsertById(await readCollection<Asset>('assets'), data.assets));
+    await writeCollection('accounts', upsertById(await readCollection<Account>('accounts'), data.accounts));
+    await writeCollection('brandKits', upsertById(await readCollection<BrandKit>('brandKits'), data.brandKits));
+    await writeCollection('carousels', upsertById(await readCollection<Carousel>('carousels'), data.carousels));
+    await writeCollection('presets', upsertById(await readCollection<Preset>('presets'), data.presets));
+    await writeCollection('contentRecords', upsertById(await readCollection<ContentRecord>('contentRecords'), data.contentRecords));
+    await writeCollection('experiments', upsertById(await readCollection<Experiment>('experiments'), data.experiments));
+    await writeCollection('calendarEntries', upsertById(await readCollection<CalendarEntry>('calendarEntries'), data.calendarEntries));
+    return summarize(data);
   }
 }
 

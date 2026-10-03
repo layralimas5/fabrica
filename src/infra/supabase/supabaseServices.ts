@@ -10,9 +10,9 @@ import { sanitizeExperimentInput, type Experiment, type ExperimentInput } from '
 import { sanitizeEntryInput, type CalendarEntry, type CalendarEntryInput } from '../../domain/calendar/calendar';
 import { readImageSize } from '../imageSize';
 
-const BUCKET = 'assets';
+export const BUCKET = 'assets';
 
-function fail(action: string, error: { message: string } | null): never {
+export function fail(action: string, error: { message: string } | null): never {
   throw new Error(`${action}: ${error?.message ?? 'erro desconhecido'}`);
 }
 
@@ -227,7 +227,7 @@ const rowToCarousel = (row: CarouselRow): Carousel =>
   updatedAt: row.updated_at,
   });
 
-const carouselToRow = (input: CarouselInput) => ({
+export const carouselToRow = (input: CarouselInput) => ({
   brand_kit_id: input.brandKitId,
   title: input.title,
   status: input.status,
@@ -365,7 +365,7 @@ interface ContentRecordRow {
 const rowToRecord = (row: ContentRecordRow): ContentRecord =>
   normalizeRecord({ ...row.data, id: row.id, carouselId: row.carousel_id, winner: row.winner, publishedAt: row.published_at, createdAt: row.created_at, updatedAt: row.updated_at });
 
-const recordToRow = (input: ContentRecordInput) => {
+export const recordToRow = (input: ContentRecordInput) => {
   const { carouselId, winner, publishedAt, ...data } = sanitizeRecordInput(input);
   return { carousel_id: carouselId, winner, published_at: publishedAt, data };
 };
