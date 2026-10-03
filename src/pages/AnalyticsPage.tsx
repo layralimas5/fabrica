@@ -1,4 +1,4 @@
-import { AlertTriangle, Gauge, Recycle } from 'lucide-react';
+import { AlertTriangle, Gauge, Pin, Recycle } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAccountScope } from '../app/accountScope';
@@ -32,12 +32,13 @@ import { postedStatus, toCarouselInput } from '../domain/carousel';
 import { PublishedReconcile } from '../analytics/PublishedReconcile';
 import { todayIso } from '../domain/schedule';
 import { exactSlides, generateInsights, GROUP_KEYS, groupStats, type GroupKeyOf } from '../domain/winners/insights';
-import { accountKey, CONTENT_PLATFORM_LABELS, toRecordInput, type ContentRecord, type PerformanceKey } from '../domain/winners/record';
+import { accountKey, CONTENT_PLATFORM_LABELS, emptyRecordInput, toRecordInput, type ContentRecord, type ContentRecordInput, type PerformanceKey } from '../domain/winners/record';
 import { SCORE_PROFILE_LABELS } from '../domain/winners/score';
 import { Alert, Button, EmptyState, Field, Input, PageHeader, Spinner } from '../ui/primitives';
 import { Chip } from '../winners/chips';
 import { InsightsPanel, ScoreSettingsDialog } from '../winners/InsightsPanel';
 import { useAddMetrics } from '../winners/useAddMetrics';
+import { WinnerFormDialog } from '../winners/WinnerFormDialog';
 import { useWinnerActions } from '../winners/useWinnerActions';
 import { accountLabelOf, useWinnerLibrary } from '../winners/useWinnerLibrary';
 import { useExperimentLab } from '../experiments/useExperimentLab';
@@ -67,6 +68,7 @@ export function AnalyticsPage() {
   });
   const [filters, setFilters] = useState<Omit<AnalyticsFilters, 'accountId'>>({ platform: 'all', period: '30', from: '', to: '', kind: 'all' });
   const [scoreOpen, setScoreOpen] = useState(false);
+  const [registering, setRegistering] = useState(false);
   const lab = useExperimentLab();
   const { settings: similarity } = useSimilaritySettings();
   const [error, setError] = useState<string | null>(null);
@@ -103,11 +105,18 @@ export function AnalyticsPage() {
   // Accounts are compared across the same filter, but always all of them.
   const comparison = useMemo(() => accountStats(applyAnalyticsFilters(items, full, today, true), library.scoreValue), [items, full.platform, full.period, full.from, full.to, full.kind, library.scoreValue, today]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** A post already live, of the account in view, published today unless changed. */
+  const postedDraft = useMemo<ContentRecordInput>(
+    () => ({ ...emptyRecordInput(), winner: false, accountId: scope.current?.id ?? null, platform: scope.current?.platform ?? 'instagram', publishedAt: today }),
+    [scope.current, today], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
   const patterns: { title: string; keyOf: GroupKeyOf }[] = [
     { title: 'Ganchos vencedores', keyOf: GROUP_KEYS.hookType },
     { title: 'Temas vencedores', keyOf: GROUP_KEYS.theme },
     { title: 'Tipos de carrossel', keyOf: GROUP_KEYS.contentType },
     { title: 'Quantidade de slides', keyOf: exactSlides },
+    { title: 'Horários de postagem', keyOf: GROUP_KEYS.postingTime },
     { title: 'Tags', keyOf: GROUP_KEYS.tag },
     { title: 'Objetivos', keyOf: GROUP_KEYS.objective },
   ];
@@ -157,9 +166,14 @@ export function AnalyticsPage() {
         title="Analytics"
         description="O que performou, por que performou e o que criar agora."
         action={
-          <Button variant="ghost" onClick={() => setScoreOpen(true)}>
-            <Gauge className="size-4" aria-hidden /> Score: {SCORE_PROFILE_LABELS[score.profile]}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="ghost" onClick={() => setScoreOpen(true)}>
+              <Gauge className="size-4" aria-hidden /> Score: {SCORE_PROFILE_LABELS[score.profile]}
+            </Button>
+            <Button variant="primary" onClick={() => setRegistering(true)}>
+              <Pin className="size-4" aria-hidden /> Registrar post publicado
+            </Button>
+          </div>
         }
       />
 
@@ -228,8 +242,12 @@ export function AnalyticsPage() {
       {published.length === 0 && measured.length === 0 ? (
         <EmptyState
           title="Nada publicado nesse filtro"
-          description="Marque os carrosséis como postados e use “Adicionar métricas” no editor. Conteúdo feito fora da Fábrica entra pelos Modelos Vencedores."
-          action={<Link to="/projetos" className="text-sm font-medium text-accent underline-offset-4 hover:underline">Ir para Projetos</Link>}
+          description="Marque os carrosséis como postados e use “Adicionar métricas” no editor. Post que já está no ar e não foi feito aqui (ou se perdeu) entra por “Registrar post publicado”."
+          action={
+            <Button variant="primary" onClick={() => setRegistering(true)}>
+              <Pin className="size-4" aria-hidden /> Registrar post publicado
+            </Button>
+          }
         />
       ) : (
         <div className="flex flex-col gap-10">
@@ -393,6 +411,20 @@ export function AnalyticsPage() {
 
       {actions.dialogs}
       {metrics.dialog}
+      <WinnerFormDialog
+        open={registering}
+        mode="posted"
+        onClose={() => setRegistering(false)}
+        initial={postedDraft}
+        recordId={null}
+        accounts={accounts.data}
+        library={library.records.data}
+        onSaved={(saved) => {
+          library.records.setData((current) => [saved, ...current]);
+          setRegistering(false);
+          metrics.openRecord(saved);
+        }}
+      />
       {scoreOpen && <ScoreSettingsDialog open onClose={() => setScoreOpen(false)} profile={score.profile} weights={score.weights} onProfile={score.setProfile} onCustom={score.setCustom} />}
     </div>
   );
