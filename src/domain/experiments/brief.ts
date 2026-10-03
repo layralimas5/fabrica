@@ -250,7 +250,7 @@ export function briefProblems(brief: TestBrief, batch: BatchShape): string[] {
     if (times.length < 2) problems.push('Pra testar horário, coloque pelo menos 2 horários diferentes.');
     else if (batch.carousels < times.length) problems.push(`Pra testar ${times.length} horários, crie pelo menos ${times.length} carrosséis.`);
   }
-  if (brief.variables.includes('design') && batch.styles < 2) problems.push('Pra testar formato, marque pelo menos 2 modelos de slide.');
+  if (brief.variables.some(versionsComeFromStyle) && batch.styles < 2) problems.push('Marque pelo menos 2 modelos de slide pra comparar.');
   if (versionsChosenPerCopy(brief.variables) && new Set(batch.copyVersions).size < 2) {
     problems.push('Marque nas copys qual é o Controle e qual é a Variação: o teste precisa das duas.');
   }

@@ -14,7 +14,7 @@ import { EXPLORATION_LEVELS, guidanceFor, planCopies, type ExplorationLevel } fr
 import { TextStylePanel } from '../create/TextStylePanel';
 import { CopyAppImage } from '../create/CopyAppImage';
 import { TestBriefCard } from '../create/TestBriefCard';
-import { briefProblems, defaultBrief, defaultVersion, setVariables, testsTime, VERSION_LABELS, versionsChosenPerCopy, type TestBrief } from '../domain/experiments/brief';
+import { briefProblems, defaultBrief, defaultVersion, setVariables, testsTime, VERSION_LABELS, versionsChosenPerCopy, versionsComeFromStyle, type TestBrief } from '../domain/experiments/brief';
 import { variablesOf, type TestVariable } from '../domain/experiments/experiment';
 import type { CreateSettings, Preset } from '../domain/preset';
 import { useServices } from '../app/services';
@@ -462,14 +462,15 @@ export function CreatePage() {
   const toggleTesting = (enabled: boolean) => {
     setFormatTest(enabled);
     if (enabled) return startTest('design');
-    const rest = brief.variables.filter((variable) => variable !== 'design');
+    const rest = brief.variables.filter((variable) => !versionsComeFromStyle(variable));
     if (rest.length === 0) setTestOn(false);
     setBrief((current) => setVariables(current, rest));
   };
 
-  /** Chips of the ficha: Design turns "Testar formatos" on and off with it. */
+  /** Chips of the ficha: Design and Template turn "Testar formatos" on and off with them. */
   const changeTestVariables = (variables: TestVariable[]) => {
-    if (variables.includes('design') !== testing) setFormatTest(variables.includes('design'));
+    const byStyle = variables.some(versionsComeFromStyle);
+    if (byStyle !== testing) setFormatTest(byStyle);
     setBrief((current) => setVariables(current, variables));
   };
 
@@ -653,6 +654,15 @@ export function CreatePage() {
 
   // Every carousel belongs to an account, so Analytics can compare each account with itself.
   const ready = account !== null && copyInfo.some((info) => (mode === 'manual' || info.numbered ? info.stats.slides > 0 : info.copy.trim().length >= MIN_AI_COPY_LENGTH));
+  /** Why "Gerar" is off, shown right above it so the user never clicks a dead button. */
+  const blockers = [
+    ...new Set([
+      account === null ? 'Escolha a conta que vai postar.' : null,
+      account !== null && !ready ? (mode === 'manual' ? 'Cole a copy com pelo menos um slide.' : `Escreva pelo menos ${MIN_AI_COPY_LENGTH} caracteres de copy.`) : null,
+      testing && styles.length < 2 ? 'Marque pelo menos 2 modelos de slide pra comparar.' : null,
+      ...testProblems,
+    ].filter((reason): reason is string => reason !== null)),
+  ];
   const changeCopyCount = (count: number) => {
     setCopies((current) => (count <= current.length ? current.slice(0, count) : [...current, ...Array.from({ length: count - current.length }, () => '')]));
     setCopySettings((current) => current.slice(0, count));
@@ -1233,7 +1243,14 @@ export function CreatePage() {
               {mode === 'ai' && services.ai.engine === 'heuristic' && ' · IA local (sem Claude)'}
               {total > 1 && ` · vai criar ${total} carrosséis`}
             </p>
-            <Button variant="primary" size="lg" disabled={!ready || (testing && styles.length < 2) || testProblems.length > 0} loading={generating} onClick={() => void generate()}>
+            {blockers.length > 0 && !generating && (
+              <ul role="status" className="flex flex-col gap-1 text-sm text-amber-800 dark:text-amber-200">
+                {blockers.map((reason) => (
+                  <li key={reason}>• {reason}</li>
+                ))}
+              </ul>
+            )}
+            <Button variant="primary" size="lg" disabled={blockers.length > 0} loading={generating} onClick={() => void generate()}>
               {!generating && <Sparkles className="size-4" aria-hidden />}
               {testing || testOn ? 'Gerar teste' : total > 1 ? `Gerar ${total} carrosséis` : 'Gerar carrossel'}
               {!generating && <ArrowRight className="size-4" aria-hidden />}
