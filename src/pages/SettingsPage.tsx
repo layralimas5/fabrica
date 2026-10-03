@@ -1,5 +1,6 @@
 import { Download, LogOut, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
+import { downloadBackup } from '../app/downloadBackup';
 import { useServices, useSession } from '../app/services';
 import { errorMessage } from '../app/useResource';
 import type { BackupService } from '../application/ports';
@@ -54,13 +55,7 @@ function BackupSection({ backup, local }: { backup: BackupService; local: boolea
     setBusy('export');
     setMessage(null);
     try {
-      const blob = await backup.exportAll();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `fabrica-backup-${new Date().toISOString().slice(0, 10)}.json`;
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      await downloadBackup(backup);
       setMessage({ tone: 'success', text: 'Backup baixado. Guarda esse arquivo num lugar seguro (Drive, OneDrive).' });
     } catch (cause) {
       setMessage({ tone: 'error', text: errorMessage(cause) });

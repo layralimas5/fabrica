@@ -211,6 +211,8 @@ function upsertById<T extends { id: string }>(current: T[], incoming: T[]): T[] 
   return [...current.filter((item) => !ids.has(item.id)), ...incoming];
 }
 
+const LAST_BACKUP_KEY = 'lastBackupAt';
+
 export class LocalBackup implements BackupService {
   async exportAll(): Promise<Blob> {
     const assets = await readCollection<Asset>('assets');
@@ -219,7 +221,7 @@ export class LocalBackup implements BackupService {
       const blob = await get<Blob>(await scopedKey(`blob:${asset.id}`), store);
       if (blob) files[asset.id] = await blobToDataUrl(blob);
     }
-    return buildBackup({
+    const backup = buildBackup({
       accounts: await readCollection<Account>('accounts'),
       presets: await readCollection<Preset>('presets'),
       brandKits: await readCollection<BrandKit>('brandKits'),
@@ -230,6 +232,12 @@ export class LocalBackup implements BackupService {
       calendarEntries: await readCollection<CalendarEntry>('calendarEntries'),
       files,
     });
+    await set(await scopedKey(LAST_BACKUP_KEY), now(), store);
+    return backup;
+  }
+
+  async lastBackupAt(): Promise<string | null> {
+    return (await get<string>(await scopedKey(LAST_BACKUP_KEY), store)) ?? null;
   }
 
   async importAll(file: Blob): Promise<BackupSummary> {

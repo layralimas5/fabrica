@@ -71,6 +71,8 @@ export interface BackupService {
   exportAll(): Promise<Blob>;
   /** Adds what is in the file; items with the same id are replaced by the backup version. */
   importAll(file: Blob): Promise<BackupSummary>;
+  /** When the last backup was downloaded (ISO), kept with the user so the monthly reminder knows. */
+  lastBackupAt(): Promise<string | null>;
 }
 
 export interface CarouselRepository {
