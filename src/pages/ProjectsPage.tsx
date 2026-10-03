@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { CalendarDays, Check, CheckSquare, Download, Eye, Folder, FolderOpen, Search, Star, Trash2, X } from 'lucide-react';
+import { CalendarDays, Check, CheckSquare, Download, Eye, Folder, FolderOpen, Search, Star, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { renderContextFor } from '../app/renderContextFor';
@@ -16,6 +16,7 @@ import { formatDay } from '../domain/schedule';
 import { brandForCarousel } from '../domain/brandKit';
 import { useMarkWinner } from '../winners/useMarkWinner';
 import { useAccountScope } from '../app/accountScope';
+import { SelectionBar } from '../projects/SelectionBar';
 
 const STATUS_TONE = STATUS_TONES;
 
@@ -42,7 +43,7 @@ export function ProjectsPage() {
       .catch((cause: unknown) => setError(errorMessage(cause)));
   });
   const scope = useAccountScope();
-  /** Selection mode: pick many carousels and mark them as posted at once. */
+  /** Selection mode: pick many carousels and act on all of them at once. */
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -94,11 +95,53 @@ export function ProjectsPage() {
     setSelected(new Set());
   };
 
-  const markSelected = async (posted: boolean) => {
+  const startSelection = (id: string) => {
+    setSelecting(true);
+    setSelected(new Set([id]));
+  };
+
+  const selectedCarousels = () => carousels.data.filter((carousel) => selected.has(carousel.id));
+
+  /** Saves each selected carousel that changes; stops at the first error and keeps the selection to retry. */
+  const updateSelected = async (change: (carousel: Carousel) => Carousel | null) => {
+    setError(null);
     setBulkBusy(true);
     try {
-      for (const carousel of carousels.data) if (selected.has(carousel.id) && isPosted(carousel) !== posted) await setPosted(carousel, posted);
+      for (const carousel of selectedCarousels()) {
+        const next = change(carousel);
+        if (!next) continue;
+        const saved = await services.carousels.update(carousel.id, toCarouselInput(next));
+        carousels.setData((current) => current.map((item) => (item.id === saved.id ? saved : item)));
+      }
       exitSelection();
+    } catch (cause) {
+      setError(errorMessage(cause));
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const markSelected = (posted: boolean) =>
+    updateSelected((carousel) => (isPosted(carousel) === posted ? null : { ...carousel, status: postedStatus(posted) }));
+
+  const setSelectedStatus = (status: CarouselStatus) => updateSelected((carousel) => (carousel.status === status ? null : { ...carousel, status }));
+
+  const moveSelected = (project: string, folder: string) =>
+    updateSelected((carousel) => (carousel.project === project && carousel.folder === folder ? null : { ...carousel, project, folder }));
+
+  const removeSelected = async () => {
+    const chosen = selectedCarousels();
+    if (!window.confirm(`Excluir ${chosen.length} ${chosen.length === 1 ? 'carrossel' : 'carrosséis'}? Não dá pra desfazer.`)) return;
+    setError(null);
+    setBulkBusy(true);
+    try {
+      for (const carousel of chosen) {
+        await services.carousels.remove(carousel.id);
+        carousels.setData((current) => current.filter((item) => item.id !== carousel.id));
+      }
+      exitSelection();
+    } catch (cause) {
+      setError(errorMessage(cause));
     } finally {
       setBulkBusy(false);
     }
@@ -109,8 +152,8 @@ export function ProjectsPage() {
     return brand ? renderContextFor(carousel, brand, assets.data, services.assets, accounts.data) : null;
   };
 
-  const exportFiltered = async () => {
-    const oldestFirst = [...filtered].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const exportCarousels = async (list: Carousel[]) => {
+    const oldestFirst = [...list].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     const items = oldestFirst.flatMap((carousel) => {
       const context = contextOf(carousel);
       return context ? [{ context, carousel }] : [];
@@ -143,7 +186,7 @@ export function ProjectsPage() {
                   <CheckSquare className="size-4" aria-hidden /> Selecionar
                 </Button>
               )}
-              <Button variant="secondary" loading={exporting !== null} onClick={() => void exportFiltered()}>
+              <Button variant="secondary" loading={exporting !== null} onClick={() => void exportCarousels(filtered)}>
                 {!exporting && <Download className="size-4" aria-hidden />}
                 {exporting ? `Gerando ${exporting.done}/${exporting.total} slides` : `Baixar ${filtered.length} em ZIP`}
               </Button>
@@ -183,25 +226,20 @@ export function ProjectsPage() {
       {(error ?? carousels.error) && <div className="mb-4"><Alert>{error ?? carousels.error}</Alert></div>}
 
       {selecting && (
-        <div className="sticky top-16 z-20 mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-accent/40 bg-surface/95 p-3 shadow-sm backdrop-blur lg:top-4">
-          <p className="px-1 text-sm font-medium text-ink" aria-live="polite">
-            {selected.size === 0 ? 'Toque nos carrosséis pra selecionar' : `${selected.size} ${selected.size === 1 ? 'selecionado' : 'selecionados'}`}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="ghost" disabled={bulkBusy} onClick={() => setSelected(new Set(filtered.map((carousel) => carousel.id)))}>
-              Selecionar todos ({filtered.length})
-            </Button>
-            <Button size="sm" variant="primary" loading={bulkBusy} disabled={selected.size === 0} onClick={() => void markSelected(true)}>
-              {!bulkBusy && <Check className="size-4" aria-hidden />} Marcar como postado
-            </Button>
-            <Button size="sm" variant="secondary" disabled={selected.size === 0 || bulkBusy} onClick={() => void markSelected(false)}>
-              Desmarcar postado
-            </Button>
-            <Button size="sm" variant="ghost" disabled={bulkBusy} onClick={exitSelection}>
-              <X className="size-4" aria-hidden /> Sair da seleção
-            </Button>
-          </div>
-        </div>
+        <SelectionBar
+          selectedCount={selected.size}
+          visibleCount={filtered.length}
+          busy={bulkBusy || exporting !== null}
+          places={tree.map((node) => ({ project: node.project, folders: node.folders.map((folder) => folder.name) }))}
+          onSelectAll={() => setSelected(new Set(filtered.map((carousel) => carousel.id)))}
+          onClear={() => setSelected(new Set())}
+          onExit={exitSelection}
+          onMarkPosted={(posted) => void markSelected(posted)}
+          onSetStatus={(status) => void setSelectedStatus(status)}
+          onMove={(project, folder) => void moveSelected(project, folder)}
+          onDownload={() => void exportCarousels(selectedCarousels())}
+          onRemove={() => void removeSelected()}
+        />
       )}
 
       <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
@@ -290,6 +328,15 @@ export function ProjectsPage() {
                       {selected.has(carousel.id) && <Check className="size-4" />}
                     </span>
                   </button>
+                )}
+                {!selecting && (
+                  <button
+                    type="button"
+                    aria-label={`Selecionar ${carousel.title} e outros`}
+                    title="Selecionar vários"
+                    onClick={() => startSelection(carousel.id)}
+                    className="absolute left-3 top-3 grid size-6 place-items-center rounded-md border-2 border-white bg-black/20 shadow-sm opacity-100 transition-opacity focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:opacity-0 sm:group-hover:opacity-100"
+                  />
                 )}
                 <div className={clsx('absolute right-3 top-3 flex gap-1.5 opacity-100 sm:opacity-0 sm:focus-within:opacity-100 sm:group-hover:opacity-100', selecting && 'hidden')}>
                   <Button
