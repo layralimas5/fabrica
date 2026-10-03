@@ -328,7 +328,7 @@ function manualCopies(text: string, defaults: Pick<PreparedCopy, 'objective' | '
       title: block.title || limitWords(stripTrailingPeriod(block.slides[0].replace(/\n/g, ' ')), 8),
       caption: block.caption,
       slides: block.slides.map((line, index) => ({
-        role: index === block.productIndex ? 'product' : index === 0 ? 'hook' : 'point',
+        role: index === block.productIndex ? 'product' : (block.roles[index] ?? (index === 0 ? 'hook' : 'point')),
         title: line,
         subtitle: null,
         body: null,

@@ -2,7 +2,7 @@ import type { ImageShade } from '../domain/shade';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CarouselRepository } from '../application/ports';
 import { blankSlide, duplicateSlide, moveItem, type Carousel, type CarouselFormat, type CarouselStatus, type Slide, type SlideStyle } from '../domain/carousel';
-import { MAX_SLIDES } from '../domain/content';
+import { MAX_COPY_SLIDES } from '../domain/content';
 import { errorMessage } from '../app/useResource';
 
 const AUTOSAVE_DELAY = 700;
@@ -53,7 +53,7 @@ export function useCarouselEditor(repo: CarouselRepository, initial: Carousel) {
   const insertAfter = useCallback(
     (id: string, slide: Slide) => {
       mutate((current) => {
-        if (current.slides.length >= MAX_SLIDES) return current;
+        if (current.slides.length >= MAX_COPY_SLIDES) return current;
         const index = current.slides.findIndex((item) => item.id === id);
         const slides = [...current.slides];
         slides.splice(index + 1, 0, slide);
