@@ -1,22 +1,26 @@
+import type { SpokenWord } from '../../domain/video/wordAlignment';
+
 export interface VoiceOption {
+  /** e.g. "pt-BR-FranciscaNeural". */
   id: string;
-  label: string;
+  /** e.g. "pt-BR". */
+  locale: string;
+  gender: 'female' | 'male';
+  /** e.g. "Francisca", "ThalitaMultilingual". */
+  name: string;
 }
 
-export interface LoadProgress {
-  /** 0..1, or null while the size is unknown. */
-  fraction: number | null;
-  label: string;
+export interface SpokenAudio {
+  /** Mono samples at the synthesizer's sample rate. */
+  samples: Float32Array;
+  /** When each word was said, as reported by the voice. */
+  words: SpokenWord[];
 }
 
-/** Text to speech that runs on the user's own machine. */
 export interface SpeechSynthesizer {
-  readonly voices: readonly VoiceOption[];
   readonly sampleRate: number;
-  /** Downloads and loads the voice model (only the first time is slow). */
-  prepare(onProgress?: (progress: LoadProgress) => void): Promise<void>;
-  /** Mono samples of one sentence spoken by the voice. */
-  synthesize(text: string, voiceId: string, speed: number): Promise<Float32Array>;
+  listVoices(): Promise<VoiceOption[]>;
+  synthesize(text: string, voiceId: string, speed: number): Promise<SpokenAudio>;
 }
 
 export interface EncodeRequest {

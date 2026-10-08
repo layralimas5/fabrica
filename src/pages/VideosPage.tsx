@@ -6,12 +6,13 @@ import { useAssets, useBrandKits } from '../app/data';
 import { slugify } from '../app/exportCarousel';
 import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
-import { videoTools } from '../app/videoTools';
 import { accountLabel } from '../domain/account';
 import { sanitizeEntryInput } from '../domain/calendar/calendar';
 import { todayIso } from '../domain/schedule';
 import { defaultLook, type VideoLook } from '../domain/video/look';
 import { MAX_SCRIPT_LENGTH } from '../domain/video/videoScript';
+import { DEFAULT_VOICE } from '../domain/video/voices';
+import { useVoiceCatalog } from '../videos/useVoiceCatalog';
 import { Alert, Button, Field, PageHeader, Select, Spinner, Textarea } from '../ui/primitives';
 import { ScenePicker } from '../videos/ScenePicker';
 import type { PictureSource } from '../videos/scenePictures';
@@ -27,6 +28,24 @@ Escolhe uma só pra essa semana e protege ela como se fosse a única.
 
 Comenta "uma" que eu te mando o meu método.`;
 
+const VOICE_KEY = 'fabrica:video-voice';
+
+function readStoredVoice(): string {
+  try {
+    return localStorage.getItem(VOICE_KEY) || DEFAULT_VOICE;
+  } catch {
+    return DEFAULT_VOICE;
+  }
+}
+
+function storeVoice(id: string): void {
+  try {
+    localStorage.setItem(VOICE_KEY, id);
+  } catch {
+    // Remembering the voice is a per-browser convenience; the default works without it.
+  }
+}
+
 function download(result: VideoResult, title: string) {
   const link = document.createElement('a');
   link.href = result.url;
@@ -39,7 +58,7 @@ export function VideosPage() {
   const scope = useAccountScope();
   const brands = useBrandKits();
   const assets = useAssets();
-  const { speech } = videoTools();
+  const catalog = useVoiceCatalog();
 
   const [accountId, setAccountId] = useState<string | null>(scope.current?.id ?? null);
   const account = scope.accounts.find((item) => item.id === accountId) ?? null;
@@ -48,7 +67,7 @@ export function VideosPage() {
   const [script, setScript] = useState('');
   const [pictures, setPictures] = useState<(PictureSource | null)[]>([]);
   const [fallbackPicture, setFallbackPicture] = useState<PictureSource | null>(null);
-  const [voiceId, setVoiceId] = useState(speech.voices[0].id);
+  const [voiceId, setVoiceId] = useState(readStoredVoice);
   const [speed, setSpeed] = useState(1);
   const [look, setLook] = useState<VideoLook>(() => defaultLook(null));
   const [music, setMusic] = useState<MusicChoice | null>(null);
@@ -72,6 +91,11 @@ export function VideosPage() {
   const { scenes, status } = maker;
   const working = status.kind === 'working';
   const title = look.headline.trim() || scenes[0]?.sentences[0]?.text || 'Vídeo';
+
+  const chooseVoice = (id: string) => {
+    setVoiceId(id);
+    storeVoice(id);
+  };
 
   const setPicture = (index: number, value: PictureSource | null) =>
     setPictures((current) => {
@@ -106,7 +130,7 @@ export function VideosPage() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <PageHeader title="Vídeos" description="Roteiro, imagens e voz viram um Reels narrado com legenda, pronto pra postar. Tudo no seu computador, sem custo." />
+      <PageHeader title="Vídeos" description="Roteiro, imagens e voz viram um Reels narrado com legenda, pronto pra postar. Sem custo." />
 
       {notice && (
         <div className="mb-4">
@@ -156,7 +180,7 @@ export function VideosPage() {
             ))}
           </Section>
 
-          <VoicePanel voices={speech.voices} voiceId={voiceId} speed={speed} sample={maker.sample} canListen={scenes.length > 0 && !working} onVoice={setVoiceId} onSpeed={setSpeed} onListen={() => void maker.listen()} />
+          <VoicePanel groups={catalog.groups} loading={catalog.loading} error={catalog.error} voiceId={voiceId} speed={speed} sample={maker.sample} canListen={scenes.length > 0 && !working} onVoice={chooseVoice} onSpeed={setSpeed} onListen={() => void maker.listen()} />
           <LookPanel look={look} onChange={(patch) => setLook((current) => ({ ...current, ...patch }))} />
           <MusicPanel music={music} onChange={setMusic} />
         </div>

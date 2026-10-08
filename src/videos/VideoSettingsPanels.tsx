@@ -1,8 +1,8 @@
 import { Music, Play } from 'lucide-react';
 import type { ReactNode } from 'react';
-import type { VoiceOption } from '../application/video/ports';
 import { CAPTION_POSITION_LABELS, CAPTION_POSITIONS, CAPTION_STYLE_LABELS, CAPTION_STYLES, MAX_HEADLINE, type CaptionPosition, type CaptionStyle, type VideoLook } from '../domain/video/look';
 import { FONT_CHOICES } from '../domain/brandKit';
+import { localeOfVoice, voiceLabel, type VoiceGroup } from '../domain/video/voices';
 import { Button, Field, Input, Select } from '../ui/primitives';
 import type { MusicChoice, VoiceSample } from './useVideoMaker';
 
@@ -16,7 +16,7 @@ export function Section({ title, description, children }: { title: string; descr
   );
 }
 
-export const SPEEDS = [
+const SPEEDS = [
   { value: 0.9, label: 'Mais calma' },
   { value: 1, label: 'Normal' },
   { value: 1.1, label: 'Um pouco rápida' },
@@ -24,7 +24,9 @@ export const SPEEDS = [
 ];
 
 interface VoicePanelProps {
-  voices: readonly VoiceOption[];
+  groups: VoiceGroup[];
+  loading: boolean;
+  error: string | null;
   voiceId: string;
   speed: number;
   sample: VoiceSample;
@@ -34,16 +36,37 @@ interface VoicePanelProps {
   onListen: () => void;
 }
 
-export function VoicePanel({ voices, voiceId, speed, sample, canListen, onVoice, onSpeed, onListen }: VoicePanelProps) {
-  const loading = sample.loading;
+export function VoicePanel({ groups, loading, error, voiceId, speed, sample, canListen, onVoice, onSpeed, onListen }: VoicePanelProps) {
+  const locale = localeOfVoice(voiceId);
+  const group = groups.find((item) => item.locale === locale);
   return (
-    <Section title="Voz" description="Gerada aqui no seu computador, de graça. Na primeira vez baixa o modelo (uns 100 MB) e depois fica guardado.">
+    <Section title="Voz" description="Vozes neurais da Microsoft, de graça, com o tempo de cada palavra: a legenda acompanha a fala.">
+      {error && <p className="text-xs text-red-600 dark:text-red-400">Não consegui carregar as vozes: {error}</p>}
       <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Idioma e país" htmlFor="video-locale" hint="Voz de outro país lê o roteiro com o sotaque dela. As multilíngues falam português melhor.">
+          <Select
+            id="video-locale"
+            value={locale}
+            disabled={loading || !groups.length}
+            onChange={(event) => {
+              const next = groups.find((item) => item.locale === event.target.value);
+              if (next?.voices[0]) onVoice(next.voices[0].id);
+            }}
+          >
+            {loading && <option value={locale}>Carregando vozes…</option>}
+            {groups.map((item) => (
+              <option key={item.locale} value={item.locale}>
+                {item.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
         <Field label="Voz" htmlFor="video-voice">
-          <Select id="video-voice" value={voiceId} onChange={(event) => onVoice(event.target.value)}>
-            {voices.map((voice) => (
+          <Select id="video-voice" value={voiceId} disabled={loading || !group} onChange={(event) => onVoice(event.target.value)}>
+            {!group && <option value={voiceId}>{voiceId}</option>}
+            {group?.voices.map((voice) => (
               <option key={voice.id} value={voice.id}>
-                {voice.label}
+                {voiceLabel(voice)}
               </option>
             ))}
           </Select>
@@ -58,17 +81,9 @@ export function VoicePanel({ voices, voiceId, speed, sample, canListen, onVoice,
           </Select>
         </Field>
       </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <Button onClick={onListen} loading={sample.playing} disabled={!canListen}>
-          {!sample.playing && <Play className="size-4" aria-hidden />} Ouvir a primeira frase
-        </Button>
-        {loading && (
-          <span role="status" className="text-xs text-muted">
-            Baixando {loading.label.toLowerCase()}
-            {loading.fraction !== null && `: ${Math.round(loading.fraction * 100)}%`}
-          </span>
-        )}
-      </div>
+      <Button onClick={onListen} loading={sample.playing} disabled={!canListen} className="self-start">
+        {!sample.playing && <Play className="size-4" aria-hidden />} Ouvir a primeira frase
+      </Button>
       {sample.error && <p className="text-xs text-red-600 dark:text-red-400">{sample.error}</p>}
     </Section>
   );
@@ -130,7 +145,7 @@ function Check({ id, label, checked, onChange }: { id: string; label: string; ch
   );
 }
 
-export const MUSIC_VOLUMES = [
+const MUSIC_VOLUMES = [
   { value: 0.08, label: 'Bem baixa' },
   { value: 0.14, label: 'Baixa' },
   { value: 0.22, label: 'Média' },

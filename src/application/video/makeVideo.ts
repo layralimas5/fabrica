@@ -1,13 +1,11 @@
 import { VIDEO_FPS, VIDEO_HEIGHT, VIDEO_WIDTH } from '../../domain/video/look';
 import { assembleNarration, trimSilence } from '../../domain/video/narration';
-import { buildTimeline, wordWeight, type VideoTimeline } from '../../domain/video/timeline';
+import { buildTimeline, type SpokenSentence, type VideoTimeline } from '../../domain/video/timeline';
 import { sentencesOf, type VideoScene } from '../../domain/video/videoScript';
-import type { LoadProgress, SpeechSynthesizer, VideoEncoderPort } from './ports';
+import { wordWeight } from '../../domain/video/wordAlignment';
+import type { SpeechSynthesizer, SpokenAudio, VideoEncoderPort } from './ports';
 
-export type VideoStage =
-  | { step: 'loading'; progress: LoadProgress }
-  | { step: 'voice'; done: number; total: number }
-  | { step: 'video'; fraction: number };
+export type VideoStage = { step: 'voice'; done: number; total: number } | { step: 'video'; fraction: number };
 
 export interface MakeVideoRequest {
   scenes: VideoScene[];
@@ -26,31 +24,52 @@ export interface MadeVideo {
 }
 
 const SECONDS_PER_WEIGHT = 0.058;
+const PARALLEL_SENTENCES = 3;
 
 /** Timeline guessed from the text alone, for the preview before any voice is generated. */
 export function estimatedTimeline(scenes: VideoScene[], speed = 1): VideoTimeline {
-  const durations = sentencesOf(scenes).map((sentence) => (sentence.text.split(/\s+/).reduce((sum, word) => sum + wordWeight(word), 0) * SECONDS_PER_WEIGHT) / speed);
-  return buildTimeline(scenes, durations);
+  const spoken = sentencesOf(scenes).map((sentence): SpokenSentence => ({
+    duration: (sentence.text.split(/\s+/).reduce((sum, word) => sum + wordWeight(word), 0) * SECONDS_PER_WEIGHT) / speed,
+    words: [],
+  }));
+  return buildTimeline(scenes, spoken);
 }
 
-/** Voice for each sentence, then the timeline, then every frame encoded into an MP4. */
+async function speakAll(speech: SpeechSynthesizer, texts: string[], voiceId: string, speed: number, onDone: (done: number) => void, signal?: AbortSignal): Promise<SpokenAudio[]> {
+  const results: SpokenAudio[] = new Array(texts.length);
+  let next = 0;
+  let done = 0;
+  const worker = async () => {
+    while (next < texts.length) {
+      if (signal?.aborted) throw new DOMException('Cancelado', 'AbortError');
+      const index = next++;
+      const spoken = await speech.synthesize(texts[index], voiceId, speed);
+      results[index] = trimSilence(spoken.samples, spoken.words, speech.sampleRate);
+      onDone(++done);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(PARALLEL_SENTENCES, texts.length) }, worker));
+  return results;
+}
+
+/** Voice for each sentence, then the timeline from when each word was said, then every frame encoded into an MP4. */
 export async function makeVideo(speech: SpeechSynthesizer, encoder: VideoEncoderPort, request: MakeVideoRequest): Promise<MadeVideo> {
   const sentences = sentencesOf(request.scenes);
   if (!sentences.length) throw new Error('Escreva o roteiro antes de gerar o vídeo.');
 
-  await speech.prepare((progress) => request.onStage?.({ step: 'loading', progress }));
-
-  const voices: Float32Array[] = [];
-  for (const [index, sentence] of sentences.entries()) {
-    if (request.signal?.aborted) throw new DOMException('Cancelado', 'AbortError');
-    request.onStage?.({ step: 'voice', done: index, total: sentences.length });
-    voices.push(trimSilence(await speech.synthesize(sentence.text, request.voiceId, request.speed), speech.sampleRate));
-  }
-  request.onStage?.({ step: 'voice', done: sentences.length, total: sentences.length });
+  request.onStage?.({ step: 'voice', done: 0, total: sentences.length });
+  const voices = await speakAll(
+    speech,
+    sentences.map((sentence) => sentence.text),
+    request.voiceId,
+    request.speed,
+    (done) => request.onStage?.({ step: 'voice', done, total: sentences.length }),
+    request.signal,
+  );
 
   const timeline = buildTimeline(
     request.scenes,
-    voices.map((samples) => samples.length / speech.sampleRate),
+    voices.map((voice) => ({ duration: voice.samples.length / speech.sampleRate, words: voice.words })),
   );
   const blob = await encoder.encode({
     width: VIDEO_WIDTH,
@@ -58,7 +77,14 @@ export async function makeVideo(speech: SpeechSynthesizer, encoder: VideoEncoder
     fps: VIDEO_FPS,
     duration: timeline.duration,
     drawFrame: request.painterFor(timeline),
-    narration: { samples: assembleNarration(voices, speech.sampleRate, timeline), sampleRate: speech.sampleRate },
+    narration: {
+      samples: assembleNarration(
+        voices.map((voice) => voice.samples),
+        speech.sampleRate,
+        timeline,
+      ),
+      sampleRate: speech.sampleRate,
+    },
     music: request.music,
     onProgress: (fraction) => request.onStage?.({ step: 'video', fraction }),
     signal: request.signal,
@@ -67,7 +93,7 @@ export async function makeVideo(speech: SpeechSynthesizer, encoder: VideoEncoder
 }
 
 /** One sentence spoken, to hear the voice before generating the whole video. */
-export async function previewVoice(speech: SpeechSynthesizer, text: string, voiceId: string, speed: number, onProgress?: (progress: LoadProgress) => void): Promise<Float32Array> {
-  await speech.prepare(onProgress);
-  return trimSilence(await speech.synthesize(text, voiceId, speed), speech.sampleRate);
+export async function previewVoice(speech: SpeechSynthesizer, text: string, voiceId: string, speed: number): Promise<Float32Array> {
+  const spoken = await speech.synthesize(text, voiceId, speed);
+  return trimSilence(spoken.samples, spoken.words, speech.sampleRate).samples;
 }

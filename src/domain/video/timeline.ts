@@ -1,6 +1,7 @@
 import type { VideoScene } from './videoScript';
+import { alignWords, type SpokenWord } from './wordAlignment';
 
-/** When each scene, caption and word is on screen, derived from how long each spoken sentence lasts. */
+/** When each scene, caption and word is on screen, derived from the voice of each sentence. */
 
 export interface TimedWord {
   text: string;
@@ -33,6 +34,12 @@ export interface VideoTimeline {
   duration: number;
 }
 
+/** One sentence as the voice spoke it: its length and, when the voice reports it, when each word was said. */
+export interface SpokenSentence {
+  duration: number;
+  words: SpokenWord[];
+}
+
 export interface TimelineSpacing {
   /** Silence before the first word. */
   leadIn: number;
@@ -46,48 +53,37 @@ export interface TimelineSpacing {
 
 export const DEFAULT_SPACING: TimelineSpacing = { leadIn: 0.2, sentenceGap: 0.18, sceneGap: 0.32, tail: 0.7 };
 
-/** Spoken weight of a word: longer words take longer, punctuation adds the pause the voice makes. */
-export function wordWeight(word: string): number {
-  const letters = word.replace(/[^\p{L}\p{N}]/gu, '').length;
-  const pause = /[.!?…]$/.test(word) ? 3 : /[,;:]$/.test(word) ? 2 : 0;
-  return Math.max(letters, 1) + 1 + pause;
-}
-
-/** Spreads the words of one sentence over its spoken duration, proportionally to their weight. */
-function timeWords(captions: string[], start: number, duration: number): TimedCaption[] {
+function timeCaptions(captions: string[], start: number, spoken: SpokenSentence): TimedCaption[] {
   const groups = captions.map((caption) => caption.split(/\s+/).filter(Boolean));
-  const total = groups.flat().reduce((sum, word) => sum + wordWeight(word), 0) || 1;
-  let cursor = start;
+  const spans = alignWords(groups.flat(), spoken.words, spoken.duration);
+  let index = 0;
   return groups.map((words) => {
     const timed = words.map((text) => {
-      const length = (wordWeight(text) / total) * duration;
-      const word = { text, start: cursor, end: cursor + length };
-      cursor += length;
-      return word;
+      const span = spans[index++];
+      return { text, start: start + span.start, end: start + span.end };
     });
-    return { start: timed[0]?.start ?? cursor, end: timed[timed.length - 1]?.end ?? cursor, words: timed };
+    return { start: timed[0]?.start ?? start, end: timed[timed.length - 1]?.end ?? start, words: timed };
   });
 }
 
-/** `durations` has the spoken length (seconds) of every sentence, in script order. */
-export function buildTimeline(scenes: VideoScene[], durations: number[], spacing: TimelineSpacing = DEFAULT_SPACING): VideoTimeline {
+export function buildTimeline(scenes: VideoScene[], spoken: SpokenSentence[], spacing: TimelineSpacing = DEFAULT_SPACING): VideoTimeline {
   const expected = scenes.reduce((sum, scene) => sum + scene.sentences.length, 0);
-  if (durations.length !== expected) throw new Error(`Esperava ${expected} trechos de voz e recebi ${durations.length}.`);
+  if (spoken.length !== expected) throw new Error(`Esperava ${expected} trechos de voz e recebi ${spoken.length}.`);
 
   const timedScenes: TimedScene[] = [];
   const sentences: TimedSentence[] = [];
   const captions: TimedCaption[] = [];
   let cursor = spacing.leadIn;
-  let spoken = 0;
+  let next = 0;
 
   scenes.forEach((scene, sceneIndex) => {
     const sceneStart = sceneIndex === 0 ? 0 : cursor - spacing.sceneGap / 2;
     scene.sentences.forEach((sentence, sentenceIndex) => {
       if (sentenceIndex > 0) cursor += spacing.sentenceGap;
-      const duration = durations[spoken++];
+      const voice = spoken[next++];
       sentences.push({ start: cursor, sceneIndex });
-      captions.push(...timeWords(sentence.captions, cursor, duration));
-      cursor += duration;
+      captions.push(...timeCaptions(sentence.captions, cursor, voice));
+      cursor += voice.duration;
     });
     const isLast = sceneIndex === scenes.length - 1;
     const end = isLast ? cursor + spacing.tail : cursor + spacing.sceneGap / 2;

@@ -3,7 +3,6 @@ import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
 import { videoTools } from '../app/videoTools';
 import { makeVideo, previewVoice, type VideoStage } from '../application/video/makeVideo';
-import type { LoadProgress } from '../application/video/ports';
 import { ensureFont } from '../render/fonts';
 import { drawVideoFrame } from '../render/videoFrame';
 import type { VideoLook } from '../domain/video/look';
@@ -26,8 +25,6 @@ export type MakerStatus = { kind: 'idle' } | { kind: 'working'; stage: VideoStag
 export interface VoiceSample {
   playing: boolean;
   error: string | null;
-  /** Set while the voice model downloads the first time. */
-  loading: LoadProgress | null;
 }
 
 export interface VideoSettings {
@@ -40,11 +37,25 @@ export interface VideoSettings {
   music: MusicChoice | null;
 }
 
+function play(samples: Float32Array, sampleRate: number, onEnd: () => void): void {
+  const context = new AudioContext();
+  const buffer = context.createBuffer(1, samples.length, sampleRate);
+  buffer.copyToChannel(new Float32Array(samples), 0);
+  const source = context.createBufferSource();
+  source.buffer = buffer;
+  source.connect(context.destination);
+  source.onended = () => {
+    void context.close();
+    onEnd();
+  };
+  source.start();
+}
+
 /** Generates the video and the voice sample; keeps the result URL alive until the next one. */
 export function useVideoMaker(settings: VideoSettings) {
-  const { assets } = useServices();
+  const { assets, auth } = useServices();
   const [status, setStatus] = useState<MakerStatus>({ kind: 'idle' });
-  const [sample, setSample] = useState<VoiceSample>({ playing: false, error: null, loading: null });
+  const [sample, setSample] = useState<VoiceSample>({ playing: false, error: null });
   const abort = useRef<AbortController | null>(null);
   const scenes = useMemo(() => parseVideoScript(settings.script), [settings.script]);
   const resultUrl = status.kind === 'done' ? status.result.url : null;
@@ -58,7 +69,7 @@ export function useVideoMaker(settings: VideoSettings) {
     abort.current = controller;
     setStatus({ kind: 'working', stage: null });
     try {
-      const { speech, encoder } = videoTools();
+      const { speech, encoder } = videoTools(auth);
       if (!(await encoder.supported())) throw new Error('Este navegador não grava MP4. Abra a Fábrica no Chrome ou no Edge atualizados.');
       const [pictures] = await Promise.all([
         Promise.all(scenes.map((_, index) => decodePicture(assets, pictureFor(settings.pictures, settings.fallbackPicture, index)))),
@@ -80,40 +91,28 @@ export function useVideoMaker(settings: VideoSettings) {
     } finally {
       abort.current = null;
     }
-  }, [assets, scenes, settings]);
+  }, [assets, auth, scenes, settings]);
 
   const cancel = useCallback(() => abort.current?.abort(), []);
 
   const listen = useCallback(async () => {
     const first = scenes[0]?.sentences[0]?.text;
     if (!first) return;
-    setSample({ playing: true, error: null, loading: null });
+    setSample({ playing: true, error: null });
     try {
-      const { speech } = videoTools();
-      const samples = await previewVoice(speech, first, settings.voiceId, settings.speed, (loading) => setSample({ playing: true, error: null, loading }));
-      setSample({ playing: true, error: null, loading: null });
-      const context = new AudioContext();
-      const buffer = context.createBuffer(1, samples.length, speech.sampleRate);
-      buffer.copyToChannel(new Float32Array(samples), 0);
-      const source = context.createBufferSource();
-      source.buffer = buffer;
-      source.connect(context.destination);
-      source.onended = () => {
-        void context.close();
-        setSample({ playing: false, error: null, loading: null });
-      };
-      source.start();
+      const { speech } = videoTools(auth);
+      const samples = await previewVoice(speech, first, settings.voiceId, settings.speed);
+      play(samples, speech.sampleRate, () => setSample({ playing: false, error: null }));
     } catch (cause) {
-      setSample({ playing: false, error: errorMessage(cause), loading: null });
+      setSample({ playing: false, error: errorMessage(cause) });
     }
-  }, [scenes, settings.voiceId, settings.speed]);
+  }, [auth, scenes, settings.voiceId, settings.speed]);
 
   return { scenes, status, generate, cancel, listen, sample, reset: () => setStatus({ kind: 'idle' }) };
 }
 
 export function stageLabel(stage: VideoStage | null): { label: string; fraction: number | null } {
   if (!stage) return { label: 'Preparando', fraction: null };
-  if (stage.step === 'loading') return { label: `Baixando a voz (só na primeira vez): ${stage.progress.label}`, fraction: stage.progress.fraction };
-  if (stage.step === 'voice') return { label: `Gravando a narração: frase ${Math.min(stage.done + 1, stage.total)} de ${stage.total}`, fraction: stage.total ? stage.done / stage.total : null };
+  if (stage.step === 'voice') return { label: `Gravando a narração: ${stage.done} de ${stage.total} frases`, fraction: stage.total ? stage.done / stage.total : null };
   return { label: 'Montando o vídeo', fraction: stage.fraction };
 }

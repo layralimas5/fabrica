@@ -1,3 +1,4 @@
+import { Pause, Play } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useServices } from '../app/services';
 import { estimatedTimeline } from '../application/video/makeVideo';
@@ -44,6 +45,29 @@ export function VideoPreview({ scenes, pictures, fallbackPicture, look, speed }:
   }, [look.font, look.weight]);
 
   const clampedTime = timeline ? Math.min(time, timeline.duration) : 0;
+  const [playing, setPlaying] = useState(false);
+  const timeRef = useRef(clampedTime);
+  timeRef.current = clampedTime;
+
+  // Plays the preview silently in real time, so the captions can be seen changing word by word.
+  useEffect(() => {
+    if (!playing || !timeline) return;
+    const from = timeRef.current >= timeline.duration ? 0 : timeRef.current;
+    const startedAt = performance.now() - from * 1000;
+    let frame = 0;
+    const tick = (now: number) => {
+      const elapsed = (now - startedAt) / 1000;
+      if (elapsed >= timeline.duration) {
+        setTime(timeline.duration);
+        setPlaying(false);
+        return;
+      }
+      setTime(elapsed);
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [playing, timeline]);
 
   useEffect(() => {
     const context = canvas.current?.getContext('2d');
@@ -68,6 +92,14 @@ export function VideoPreview({ scenes, pictures, fallbackPicture, look, speed }:
       />
       {timeline && (
         <div className="mx-auto flex w-full max-w-[300px] items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setPlaying((current) => !current)}
+            aria-label={playing ? 'Pausar a prévia' : 'Tocar a prévia'}
+            className="grid size-8 shrink-0 place-items-center rounded-full bg-ink text-canvas transition-colors hover:bg-ink/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+          >
+            {playing ? <Pause className="size-3.5" aria-hidden /> : <Play className="size-3.5" aria-hidden />}
+          </button>
           <label htmlFor="preview-time" className="sr-only">
             Momento da prévia
           </label>
@@ -78,7 +110,10 @@ export function VideoPreview({ scenes, pictures, fallbackPicture, look, speed }:
             max={timeline.duration}
             step={0.05}
             value={clampedTime}
-            onChange={(event) => setTime(Number(event.target.value))}
+            onChange={(event) => {
+              setPlaying(false);
+              setTime(Number(event.target.value));
+            }}
             className="w-full accent-[var(--accent)]"
           />
           <span className="w-16 shrink-0 text-right text-xs tabular-nums text-muted">
@@ -86,7 +121,7 @@ export function VideoPreview({ scenes, pictures, fallbackPicture, look, speed }:
           </span>
         </div>
       )}
-      <figcaption className="text-center text-[11px] text-faint">Prévia com o tempo estimado. O vídeo final segue o ritmo real da voz.</figcaption>
+      <figcaption className="text-center text-[11px] text-faint">Prévia sem som e com tempo estimado. No vídeo final a legenda segue o tempo exato da voz.</figcaption>
     </figure>
   );
 }
