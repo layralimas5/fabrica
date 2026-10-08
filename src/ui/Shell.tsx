@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { BarChart3, CalendarDays, FlaskConical, FolderKanban, Images, Palette, Plus, Settings, Sparkles, Trophy, UsersRound } from 'lucide-react';
+import { BarChart3, CalendarDays, Clapperboard, FlaskConical, FolderKanban, Images, Palette, Plus, Settings, Sparkles, Trophy, UsersRound } from 'lucide-react';
 import { AccountScopeProvider } from '../app/accountScope';
 import { BackupReminder } from './BackupReminder';
 import { AccountSwitcher } from './AccountSwitcher';
@@ -9,6 +9,7 @@ import { Badge, Button } from './primitives';
 
 const NAV = [
   { to: '/criar', label: 'Criar', icon: Sparkles },
+  { to: '/videos', label: 'Vídeos', icon: Clapperboard },
   { to: '/calendario', label: 'Calendário', icon: CalendarDays },
   { to: '/projetos', label: 'Projetos', icon: FolderKanban },
   { to: '/analytics', label: 'Analytics', icon: BarChart3 },
