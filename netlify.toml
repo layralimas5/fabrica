@@ -6,6 +6,18 @@
 [build.environment]
   NODE_VERSION = "22"
 
+[functions]
+  node_bundler = "esbuild"
+  # A biblioteca de voz abre um WebSocket (ws, com addons nativos opcionais): vai inteira, sem empacotar.
+  external_node_modules = ["msedge-tts"]
+
+# Voz dos vídeos: função que fala com o serviço de vozes da Microsoft.
+[[redirects]]
+  from = "/api/tts"
+  to = "/.netlify/functions/tts"
+  status = 200
+  force = true
+
 # Rotas do app (/criar, /agenda, /carrossel/:id...) sempre abrem o index.html.
 [[redirects]]
   from = "/*"

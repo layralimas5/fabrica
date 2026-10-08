@@ -7,6 +7,7 @@ import { Shell } from './ui/Shell';
 import { Spinner } from './ui/primitives';
 
 const CreatePage = lazy(() => import('./pages/CreatePage').then((m) => ({ default: m.CreatePage })));
+const VideosPage = lazy(() => import('./pages/VideosPage').then((m) => ({ default: m.VideosPage })));
 const EditorPage = lazy(() => import('./pages/EditorPage').then((m) => ({ default: m.EditorPage })));
 const ProjectsPage = lazy(() => import('./pages/ProjectsPage').then((m) => ({ default: m.ProjectsPage })));
 const LibraryPage = lazy(() => import('./pages/LibraryPage').then((m) => ({ default: m.LibraryPage })));
@@ -42,6 +43,7 @@ export default function App({ services }: { services: Services }) {
               }
             >
               <Route path="/criar" element={<CreatePage />} />
+              <Route path="/videos" element={<VideosPage />} />
               <Route path="/carrossel/:id" element={<EditorPage />} />
               <Route path="/projetos" element={<ProjectsPage />} />
               <Route path="/calendario" element={<CalendarPage />} />

@@ -28,6 +28,11 @@ export class SupabaseAuth implements AuthService {
     return toUser(data.session?.user);
   }
 
+  async accessToken(): Promise<string | null> {
+    const { data } = await this.client.auth.getSession();
+    return data.session?.access_token ?? null;
+  }
+
   onChange(listener: (user: User | null) => void): () => void {
     const { data } = this.client.auth.onAuthStateChange((_event, session) => listener(toUser(session?.user)));
     return () => data.subscription.unsubscribe();

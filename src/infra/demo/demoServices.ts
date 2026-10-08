@@ -45,6 +45,10 @@ export class DemoAuth implements AuthService {
     return LOCAL_USER;
   }
 
+  async accessToken(): Promise<string | null> {
+    return null;
+  }
+
   onChange(listener: (user: User | null) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);

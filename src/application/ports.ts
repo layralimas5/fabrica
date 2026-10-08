@@ -18,6 +18,8 @@ export interface AuthService {
   /** 'local': no login, everything saved in this browser. */
   readonly mode: 'supabase' | 'local';
   currentUser(): Promise<User | null>;
+  /** Token that proves the session to the Fábrica's own functions; null in local mode. */
+  accessToken(): Promise<string | null>;
   onChange(listener: (user: User | null) => void): () => void;
   signInWithPassword(email: string, password: string): Promise<void>;
   signUp(email: string, password: string): Promise<{ needsConfirmation: boolean }>;

@@ -12,7 +12,7 @@
     "noEmit": true,
     "isolatedModules": true,
     "skipLibCheck": true,
-    "types": ["vite/client", "vitest/config"]
+    "types": ["vite/client", "vitest/config", "node"]
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "server", "netlify", "vite.config.ts"]
 }
