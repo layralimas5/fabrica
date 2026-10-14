@@ -10,6 +10,7 @@
   --color-muted: var(--muted);
   --color-faint: var(--faint);
   --color-accent: var(--accent);
+  --color-series: var(--series-1);
 }
 
 :root {
@@ -21,6 +22,15 @@
   --muted: #5d5d66;
   --faint: #8d8d96;
   --accent: #5b4bff;
+  /* Charts: one validated series hue plus recessive chrome (dataviz reference palette). */
+  --series-1: #2a78d6;
+  --chart-grid: #ecebe7;
+  --chart-axis: #c3c2b7;
+  --funnel-1: #184f95;
+  --funnel-2: #256abf;
+  --funnel-3: #3987e5;
+  --funnel-4: #6da7ec;
+  --funnel-5: #86b6ef;
   color-scheme: light;
 }
 
@@ -34,6 +44,14 @@
     --muted: #a3a3ad;
     --faint: #75757f;
     --accent: #8b7fff;
+    --series-1: #3987e5;
+    --chart-grid: #26262b;
+    --chart-axis: #3a3a40;
+    --funnel-1: #9ec5f4;
+    --funnel-2: #6da7ec;
+    --funnel-3: #3987e5;
+    --funnel-4: #256abf;
+    --funnel-5: #184f95;
     color-scheme: dark;
   }
 }

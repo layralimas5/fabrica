@@ -20,6 +20,7 @@ const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage').then((m) => ({ 
 const WinnerDetailPage = lazy(() => import('./pages/WinnerDetailPage').then((m) => ({ default: m.WinnerDetailPage })));
 const BrandProjectsPage = lazy(() => import('./pages/BrandProjectsPage').then((m) => ({ default: m.BrandProjectsPage })));
 const ConnectionsPage = lazy(() => import('./pages/ConnectionsPage').then((m) => ({ default: m.ConnectionsPage })));
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const AccountsPage = lazy(() => import('./pages/AccountsPage').then((m) => ({ default: m.AccountsPage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 
@@ -52,6 +53,7 @@ export default function App({ services }: { services: Services }) {
               <Route path="/calendario" element={<CalendarPage />} />
               <Route path="/agenda" element={<Navigate to="/calendario?visao=dia" replace />} />
               <Route path="/vencedores" element={<WinnersPage />} />
+              <Route path="/painel" element={<DashboardPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/vencedores/analise" element={<Navigate to="/analytics" replace />} />
               <Route path="/vencedores/:id" element={<WinnerDetailPage />} />
