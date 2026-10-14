@@ -11,6 +11,9 @@ import type { RemixScript } from '../domain/winners/remix';
 import type { Project, ProjectInput } from '../domain/project';
 import type { Publication, PublicationInput } from '../domain/social/publication';
 import type { ContentVersion, ContentVersionInput } from '../domain/contentVersion';
+import type { SocialConfig, SocialConnection, SyncRun } from '../domain/social/connection';
+import type { AccountSnapshot, PostSnapshot } from '../domain/social/metrics';
+import type { SocialPlatform } from '../domain/social/publication';
 
 export interface User {
   id: string;
@@ -121,6 +124,24 @@ export interface ContentVersionRepository {
   remove(id: string): Promise<void>;
 }
 
+/**
+ * Accounts connected through the official logins of the networks, and what their syncs read.
+ * Needs the Supabase mode: in local mode `available` is false and every call explains why.
+ */
+export interface SocialService {
+  readonly available: boolean;
+  config(): Promise<SocialConfig>;
+  listConnections(): Promise<SocialConnection[]>;
+  /** URL of the network's authorization screen. */
+  startConnection(platform: SocialPlatform, projectId: string | null): Promise<string>;
+  disconnect(connectionId: string, deleteData: boolean): Promise<void>;
+  sync(connectionId: string): Promise<{ status: SyncRun['status']; publications: number; error: string | null }>;
+  updateLinks(connectionId: string, links: { accountId: string | null; projectId: string | null }): Promise<void>;
+  listRuns(limit: number): Promise<SyncRun[]>;
+  postSnapshots(sinceDay: string): Promise<PostSnapshot[]>;
+  accountSnapshots(sinceDay: string): Promise<AccountSnapshot[]>;
+}
+
 export interface AiService {
   readonly engine: 'claude' | 'heuristic';
   draftCarousel(request: DraftRequest): Promise<CarouselDraft>;
@@ -149,6 +170,7 @@ export interface Services {
   projects: ProjectRepository;
   publications: PublicationRepository;
   contentVersions: ContentVersionRepository;
+  social: SocialService;
   ai: AiService;
   backup: BackupService | null;
 }

@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { BarChart3, CalendarDays, Clapperboard, FlaskConical, FolderKanban, Images, Layers, Palette, Plus, Settings, Sparkles, Trophy, UsersRound, type LucideIcon } from 'lucide-react';
+import { BarChart3, CalendarDays, Clapperboard, FlaskConical, FolderKanban, Images, Layers, Palette, PlugZap, Plus, Settings, Sparkles, Trophy, UsersRound, type LucideIcon } from 'lucide-react';
 import { AccountScopeProvider } from '../app/accountScope';
 import { BackupReminder } from './BackupReminder';
 import { AccountSwitcher } from './AccountSwitcher';
@@ -37,6 +37,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     items: [
       { to: '/projetos', label: 'Projetos', icon: Layers },
       { to: '/contas', label: 'Contas', icon: UsersRound },
+      { to: '/conexoes', label: 'Contas conectadas', icon: PlugZap },
       { to: '/biblioteca', label: 'Biblioteca', icon: Images },
       { to: '/marcas', label: 'Brand Kits', icon: Palette },
       { to: '/configuracoes', label: 'Configurações', icon: Settings },

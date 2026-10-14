@@ -18,6 +18,8 @@ import {
   SupabasePresets,
 } from './supabase/supabaseServices';
 import { SupabaseBackup } from './supabase/supabaseBackup';
+import { SupabaseSocial } from './supabase/supabaseSocial';
+import { UnavailableSocial } from './demo/unavailableSocial';
 
 /**
  * Composition root. With VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY the app runs on Supabase and Claude;
@@ -41,6 +43,7 @@ export function createServices(): Services {
       projects: demoProjects(),
       publications: demoPublications(),
       contentVersions: new DemoContentVersions(),
+      social: new UnavailableSocial(),
       ai: new HeuristicAi(),
       backup: new LocalBackup(),
     };
@@ -64,6 +67,7 @@ export function createServices(): Services {
     auth: new SupabaseAuth(client),
     ...repositories,
     contentVersions: new SupabaseContentVersions(client),
+    social: new SupabaseSocial(client),
     ai: useHeuristic ? new HeuristicAi() : new ClaudeAi(client),
     backup: new SupabaseBackup(client, repositories),
   };
