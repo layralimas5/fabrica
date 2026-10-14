@@ -13,6 +13,12 @@ function check(action: string, error: { message: string } | null): void {
   if (error) throw new Error(`${action}: ${error.message}`);
 }
 
+function required<T>(action: string, data: T | null, error: { message: string } | null): T {
+  check(action, error);
+  if (data === null) throw new Error(`${action}: nada foi devolvido.`);
+  return data;
+}
+
 export async function saveTokenSet(db: SupabaseClient, key: CryptoKey, connectionId: string, tokens: TokenSet): Promise<void> {
   const { error } = await db.from('social_tokens').upsert({
     connection_id: connectionId,
@@ -32,8 +38,8 @@ export async function loadTokenSet(db: SupabaseClient, key: CryptoKey, connectio
   const { data: row, error } = await db.from('social_tokens').select('access_token_enc, refresh_token_enc').eq('connection_id', connectionId).maybeSingle();
   check('ler token', error);
   if (!row) throw new Error('Conexão sem token guardado.');
-  const { data: connection, error: connectionError } = await db.from('social_connections').select('token_expires_at, refresh_expires_at, scopes').eq('id', connectionId).single();
-  check('ler conexão', connectionError);
+  const result = await db.from('social_connections').select('token_expires_at, refresh_expires_at, scopes').eq('id', connectionId).single();
+  const connection = required('ler conexão', result.data, result.error);
   return {
     accessToken: await decrypt(key, row.access_token_enc),
     refreshToken: row.refresh_token_enc ? await decrypt(key, row.refresh_token_enc) : null,
@@ -93,9 +99,8 @@ export function supabaseSyncStore(db: SupabaseClient, key: CryptoKey, userId: st
         return existing.id as string;
       }
       const data = { ...facts, platform, carouselId: null, recordId: null, title: titleFromCaption(post.caption), source: 'sync' };
-      const { data: inserted, error } = await db.from('publications').insert({ ...columns, user_id: owner, source: 'sync', data }).select('id').single();
-      check('criar publicação', error);
-      return inserted.id as string;
+      const created = await db.from('publications').insert({ ...columns, user_id: owner, source: 'sync', data }).select('id').single();
+      return required('criar publicação', created.data, created.error).id as string;
     },
 
     async savePostMetrics(publicationId, owner, day, metrics) {
