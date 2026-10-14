@@ -26,11 +26,6 @@
   --series-1: #2a78d6;
   --chart-grid: #ecebe7;
   --chart-axis: #c3c2b7;
-  --funnel-1: #184f95;
-  --funnel-2: #256abf;
-  --funnel-3: #3987e5;
-  --funnel-4: #6da7ec;
-  --funnel-5: #86b6ef;
   color-scheme: light;
 }
 
@@ -47,11 +42,6 @@
     --series-1: #3987e5;
     --chart-grid: #26262b;
     --chart-axis: #3a3a40;
-    --funnel-1: #9ec5f4;
-    --funnel-2: #6da7ec;
-    --funnel-3: #3987e5;
-    --funnel-4: #256abf;
-    --funnel-5: #184f95;
     color-scheme: dark;
   }
 }

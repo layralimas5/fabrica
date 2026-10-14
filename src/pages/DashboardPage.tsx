@@ -18,7 +18,20 @@ import { todayIso } from '../domain/schedule';
 import { timeAgo } from '../domain/social/connection';
 import { POST_METRIC_LABELS, type PostMetricKey } from '../domain/social/metrics';
 import { Alert, Button, EmptyState, Input, PageHeader, Select, Spinner } from '../ui/primitives';
+import { ContentConversions } from '../tracking/ContentConversions';
+import { useTracking } from '../tracking/useTracking';
+import { change as changeOf } from '../domain/dashboard/dashboard';
+import { countStage, eventsInRange, measuredStagesOf, type TrackingEventName } from '../domain/tracking/tracking';
 
+const CONVERSION_LABELS = { click: 'Cliques nos links', lp_view: 'Visitas à LP', quiz_start: 'Inícios do quiz', quiz_complete: 'Quiz concluído', signup: 'Cadastros' } as const;
+const CONVERSION_DEFINITIONS = {
+  click: 'Cliques nos links curtos da Fábrica, registrados no servidor antes de a página abrir. Prévias de link (WhatsApp, Instagram) não contam. Clique não é visita: a página pode nem carregar.',
+  lp_view: 'Visitas registradas pelo snippet na landing page. A mesma pessoa conta uma vez quando deu consentimento; visitas anônimas contam uma a uma.',
+  quiz_start: "Pessoas que começaram o quiz (evento fabrica.track('quiz_start')).",
+  quiz_complete: "Pessoas que terminaram o quiz (evento fabrica.track('quiz_complete')).",
+  signup: 'Cadastros enviados pelo app. Os confirmados vêm do servidor com o segredo do projeto.',
+} as const;
+const CONVERSION_SETUP = { click: 'gere links curtos', lp_view: 'instale o snippet', quiz_start: 'evento do quiz', quiz_complete: 'evento do quiz', signup: 'evento do cadastro' } as const;
 const PLATFORM_FILTERS: (DashPlatform | 'all')[] = ['all', 'instagram', 'facebook', 'tiktok', 'outros'];
 const SERIES_METRICS: PostMetricKey[] = ['views', 'reach', 'likes', 'comments', 'shares', 'saves'];
 
@@ -37,6 +50,7 @@ const DEFINITIONS = {
 export function DashboardPage() {
   const scope = useAccountScope();
   const data = useDashboardData(scope.projects);
+  const tracking = useTracking();
   const today = todayIso();
   const [filters, setFilters] = useState<Omit<DashFilters, 'project'>>({ platform: 'all', accountKey: null, period: '30', from: '', to: '' });
   const [seriesMetric, setSeriesMetric] = useState<PostMetricKey>('views');
@@ -63,6 +77,14 @@ export function DashboardPage() {
   );
   const series = useMemo(() => dailySeries(summary.items, seriesMetric, summary.ranges.current), [summary, seriesMetric]);
   const accountOptions = useMemo(() => accountChoices(data.items, scope, data.social.connections), [data.items, scope, data.social.connections]);
+  const projectEvents = useMemo(() => tracking.events.data.filter((event) => !scope.project || event.projectId === scope.project.id), [tracking.events.data, scope.project]);
+  const measured = useMemo(() => measuredStagesOf(projectEvents, tracking.tracking.available && tracking.links.data.length > 0), [projectEvents, tracking.tracking.available, tracking.links.data.length]);
+  const conversionKpi = (name: TrackingEventName) => {
+    if (!measured.has(name)) return null;
+    const now = countStage(eventsInRange(projectEvents, summary.ranges.current.from, summary.ranges.current.to), name);
+    const before = countStage(eventsInRange(projectEvents, summary.ranges.previous.from, summary.ranges.previous.to), name);
+    return { value: now, previous: before, change: changeOf(now, before), covered: now, total: now };
+  };
   const lastSync = scopedConnections.map((connection) => connection.lastSyncAt).filter(Boolean).sort().at(-1) ?? null;
 
   if (data.loading || scope.loading) return <Spinner label="Montando o painel" />;
@@ -139,6 +161,25 @@ export function DashboardPage() {
         />
       </div>
 
+      <h2 className="mb-3 mt-8 text-xs font-semibold uppercase tracking-wider text-faint">Conversões rastreadas{scope.project ? ` de ${scope.project.name}` : ''}</h2>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        {(['click', 'lp_view', 'quiz_start', 'quiz_complete', 'signup'] as const).map((name) => (
+          <KpiCard
+            key={name}
+            label={CONVERSION_LABELS[name]}
+            kpi={conversionKpi(name)}
+            format={(value) => value.toLocaleString('pt-BR')}
+            definition={CONVERSION_DEFINITIONS[name]}
+            unavailable="Não medido"
+            note={measured.has(name) ? 'pessoas no período (projeto inteiro)' : CONVERSION_SETUP[name]}
+          />
+        ))}
+      </div>
+      <p className="mt-2 text-[11px] text-faint">
+        Os filtros de rede e conta não se aplicam aqui: as conversões vêm dos eventos das páginas e apps. O funil completo e a atribuição por link estão em{' '}
+        <Link to="/conversoes" className="underline underline-offset-4">Conversões</Link>.
+      </p>
+
       {summary.items.length === 0 ? (
         <div className="mt-8">
           <EmptyState
@@ -194,7 +235,15 @@ export function DashboardPage() {
         </>
       )}
 
-      <ContentDetail item={selected} onClose={() => setSelected(null)} carousels={data.carousels.data} brands={data.brands.data} assets={data.assets.data} accounts={data.accounts.data} />
+      <ContentDetail
+        item={selected}
+        onClose={() => setSelected(null)}
+        carousels={data.carousels.data}
+        brands={data.brands.data}
+        assets={data.assets.data}
+        accounts={data.accounts.data}
+        conversions={selected && <ContentConversions item={selected} links={tracking.links.data} events={tracking.events.data} shortLinkBase={tracking.tracking.shortLinkBase} />}
+      />
     </div>
   );
 }

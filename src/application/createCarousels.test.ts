@@ -38,6 +38,7 @@ function fakeServices(): Services & { saved: Carousel[]; experimentsSaved: Exper
     publications: {} as Services['publications'],
     contentVersions: {} as Services['contentVersions'],
     social: {} as Services['social'],
+    tracking: {} as Services['tracking'],
     backup: null,
     ai: new HeuristicAi(),
     carousels: {

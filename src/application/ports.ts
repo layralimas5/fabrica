@@ -14,6 +14,7 @@ import type { ContentVersion, ContentVersionInput } from '../domain/contentVersi
 import type { SocialConfig, SocialConnection, SyncRun } from '../domain/social/connection';
 import type { AccountSnapshot, PostSnapshot } from '../domain/social/metrics';
 import type { SocialPlatform } from '../domain/social/publication';
+import type { TrackingEvent, TrackingLink, TrackingLinkInput } from '../domain/tracking/tracking';
 
 export interface User {
   id: string;
@@ -142,6 +143,27 @@ export interface SocialService {
   accountSnapshots(sinceDay: string): Promise<AccountSnapshot[]>;
 }
 
+/**
+ * Tracked links (both modes) and the events of the landing pages and apps (Supabase mode only: events arrive
+ * at the server function `track`, never in the browser that is reading them).
+ */
+export interface TrackingService {
+  /** False in local mode: short links and events need the server. */
+  readonly available: boolean;
+  /** Base of the short links (/l/<slug>), the Fábrica's own address. */
+  readonly shortLinkBase: string;
+  /** URL the snippet sends events to, or null in local mode. */
+  readonly endpoint: string | null;
+  listLinks(): Promise<TrackingLink[]>;
+  createLink(input: TrackingLinkInput): Promise<TrackingLink>;
+  removeLink(id: string): Promise<void>;
+  listEvents(sinceDay: string): Promise<TrackingEvent[]>;
+  /** New server secret of a project, returned once (only its hash is stored). */
+  rotateSecret(projectId: string): Promise<string>;
+  /** Deletes every event of a project (data deletion request). */
+  deleteEvents(projectId: string): Promise<void>;
+}
+
 export interface AiService {
   readonly engine: 'claude' | 'heuristic';
   draftCarousel(request: DraftRequest): Promise<CarouselDraft>;
@@ -171,6 +193,7 @@ export interface Services {
   publications: PublicationRepository;
   contentVersions: ContentVersionRepository;
   social: SocialService;
+  tracking: TrackingService;
   ai: AiService;
   backup: BackupService | null;
 }

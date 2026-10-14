@@ -32,6 +32,14 @@
     X-Frame-Options = "DENY"
     X-Robots-Tag = "noindex, nofollow"
 
+# Snippet de rastreamento usado nas landing pages: muda pouco, mas precisa chegar rápido quando muda.
+[[headers]]
+  for = "/t.js"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+    Access-Control-Allow-Origin = "*"
+    X-Robots-Tag = "noindex"
+
 [[headers]]
   for = "/assets/*"
   [headers.values]

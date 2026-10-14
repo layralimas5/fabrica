@@ -20,6 +20,11 @@ import {
 import { SupabaseBackup } from './supabase/supabaseBackup';
 import { SupabaseSocial } from './supabase/supabaseSocial';
 import { UnavailableSocial } from './demo/unavailableSocial';
+import { LocalTracking } from './demo/localTracking';
+import { SupabaseTracking } from './supabase/supabaseTracking';
+
+/** Address of the Fábrica itself, base of the short links /l/<slug>. */
+const appUrl = (import.meta.env.VITE_APP_URL as string | undefined) || window.location.origin;
 
 /**
  * Composition root. With VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY the app runs on Supabase and Claude;
@@ -44,6 +49,7 @@ export function createServices(): Services {
       publications: demoPublications(),
       contentVersions: new DemoContentVersions(),
       social: new UnavailableSocial(),
+      tracking: new LocalTracking(appUrl),
       ai: new HeuristicAi(),
       backup: new LocalBackup(),
     };
@@ -68,6 +74,7 @@ export function createServices(): Services {
     ...repositories,
     contentVersions: new SupabaseContentVersions(client),
     social: new SupabaseSocial(client),
+    tracking: new SupabaseTracking(client, url, appUrl),
     ai: useHeuristic ? new HeuristicAi() : new ClaudeAi(client),
     backup: new SupabaseBackup(client, repositories),
   };

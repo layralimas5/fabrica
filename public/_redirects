@@ -1,2 +1,4 @@
 /api/tts  /.netlify/functions/tts  200!
+# Links rastreáveis: o clique é registrado na função track do Supabase, que redireciona para a landing page.
+/l/*  https://rvizhshxcrfhdgfpennu.supabase.co/functions/v1/track/go/:splat  200!
 /*  /index.html  200
