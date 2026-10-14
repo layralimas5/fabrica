@@ -23,6 +23,7 @@ const ConnectionsPage = lazy(() => import('./pages/ConnectionsPage').then((m) =>
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const ConversionsPage = lazy(() => import('./pages/ConversionsPage').then((m) => ({ default: m.ConversionsPage })));
 const IntelligencePage = lazy(() => import('./pages/IntelligencePage').then((m) => ({ default: m.IntelligencePage })));
+const GroupsPage = lazy(() => import('./pages/GroupsPage').then((m) => ({ default: m.GroupsPage })));
 const AccountsPage = lazy(() => import('./pages/AccountsPage').then((m) => ({ default: m.AccountsPage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 
@@ -58,6 +59,7 @@ export default function App({ services }: { services: Services }) {
               <Route path="/painel" element={<DashboardPage />} />
               <Route path="/conversoes" element={<ConversionsPage />} />
               <Route path="/inteligencia" element={<IntelligencePage />} />
+              <Route path="/grupos" element={<GroupsPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/vencedores/analise" element={<Navigate to="/analytics" replace />} />
               <Route path="/vencedores/:id" element={<WinnerDetailPage />} />

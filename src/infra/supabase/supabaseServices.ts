@@ -12,6 +12,7 @@ import { sanitizeProjectInput, type Project, type ProjectInput } from '../../dom
 import { sanitizePublicationInput, type Publication, type PublicationInput } from '../../domain/social/publication';
 import { sanitizeVersionInput, type ContentVersion, type ContentVersionInput } from '../../domain/contentVersion';
 import { sanitizeInsightInput, type AiInsight, type AiInsightInput } from '../../domain/intelligence/insight';
+import { sanitizeDistributionInput, sanitizeGroupInput, type FacebookGroup, type FacebookGroupInput, type GroupDistribution, type GroupDistributionInput } from '../../domain/groups/groups';
 import { readImageSize } from '../imageSize';
 
 export const BUCKET = 'assets';
@@ -514,3 +515,8 @@ export class SupabaseContentVersions implements ContentVersionRepository {
 
 export const supabaseInsights = (client: SupabaseClient) =>
   new SupabaseCollection<AiInsight, AiInsightInput>(client, 'ai_insights', 'as análises', sanitizeInsightInput, (input) => ({ project_id: input.projectId }));
+
+export const supabaseGroups = (client: SupabaseClient) =>
+  new SupabaseCollection<FacebookGroup, FacebookGroupInput>(client, 'facebook_groups', 'os grupos', sanitizeGroupInput, (input) => ({ project_id: input.projectId }));
+export const supabaseDistributions = (client: SupabaseClient) =>
+  new SupabaseCollection<GroupDistribution, GroupDistributionInput>(client, 'group_distributions', 'as divulgações', sanitizeDistributionInput, (input) => ({ group_id: input.groupId, date: input.date, status: input.status }));

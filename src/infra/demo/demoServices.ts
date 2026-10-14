@@ -26,6 +26,7 @@ import { sanitizeProjectInput, type Project, type ProjectInput } from '../../dom
 import { sanitizePublicationInput, type Publication, type PublicationInput } from '../../domain/social/publication';
 import { sanitizeVersionInput, type ContentVersion, type ContentVersionInput } from '../../domain/contentVersion';
 import { sanitizeInsightInput, type AiInsight, type AiInsightInput } from '../../domain/intelligence/insight';
+import { sanitizeDistributionInput, sanitizeGroupInput, type FacebookGroup, type FacebookGroupInput, type GroupDistribution, type GroupDistributionInput } from '../../domain/groups/groups';
 import { readImageSize } from '../imageSize';
 
 const store: UseStore = createStore('fabrica-carrosseis-demo', 'kv');
@@ -241,6 +242,8 @@ export class LocalBackup implements BackupService {
       calendarEntries: await readCollection<CalendarEntry>('calendarEntries'),
       projects: await readCollection<Project>('projects'),
       publications: await readCollection<Publication>('publications'),
+      facebookGroups: await readCollection<FacebookGroup>('facebookGroups'),
+      groupDistributions: await readCollection<GroupDistribution>('groupDistributions'),
       files,
     });
     await set(await scopedKey(LAST_BACKUP_KEY), now(), store);
@@ -266,6 +269,8 @@ export class LocalBackup implements BackupService {
     await writeCollection('calendarEntries', upsertById(await readCollection<CalendarEntry>('calendarEntries'), data.calendarEntries));
     await writeCollection('projects', upsertById(await readCollection<Project>('projects'), data.projects));
     await writeCollection('publications', upsertById(await readCollection<Publication>('publications'), data.publications));
+    await writeCollection('facebookGroups', upsertById(await readCollection<FacebookGroup>('facebookGroups'), data.facebookGroups));
+    await writeCollection('groupDistributions', upsertById(await readCollection<GroupDistribution>('groupDistributions'), data.groupDistributions));
     return summarize(data);
   }
 }
@@ -368,3 +373,5 @@ export class DemoContentVersions implements ContentVersionRepository {
   }
 }
 export const demoInsights = () => new DemoCollection<AiInsight, AiInsightInput>('aiInsights', 'Análise', sanitizeInsightInput);
+export const demoGroups = () => new DemoCollection<FacebookGroup, FacebookGroupInput>('facebookGroups', 'Grupo', sanitizeGroupInput);
+export const demoDistributions = () => new DemoCollection<GroupDistribution, GroupDistributionInput>('groupDistributions', 'Divulgação', sanitizeDistributionInput);

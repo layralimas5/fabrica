@@ -17,6 +17,7 @@ import type { SocialPlatform } from '../domain/social/publication';
 import type { TrackingEvent, TrackingLink, TrackingLinkInput } from '../domain/tracking/tracking';
 import type { AiInsight, AiInsightInput } from '../domain/intelligence/insight';
 import type { PublishingJob } from '../domain/publishing/job';
+import type { FacebookGroup, FacebookGroupInput, GroupDistribution, GroupDistributionInput } from '../domain/groups/groups';
 
 export interface User {
   id: string;
@@ -76,6 +77,8 @@ export interface BackupSummary {
   experiments: number;
   calendarEntries: number;
   projects: number;
+  facebookGroups: number;
+  groupDistributions: number;
   publications: number;
   /** Photos the server kept refusing; restoring the same file again sends only what is missing. */
   failedAssets?: string[];
@@ -118,6 +121,8 @@ export type ExperimentRepository = Repository<Experiment, ExperimentInput>;
 export type CalendarEntryRepository = Repository<CalendarEntry, CalendarEntryInput>;
 export type ProjectRepository = Repository<Project, ProjectInput>;
 export type InsightRepository = Repository<AiInsight, AiInsightInput>;
+export type GroupRepository = Repository<FacebookGroup, FacebookGroupInput>;
+export type DistributionRepository = Repository<GroupDistribution, GroupDistributionInput>;
 /** Posts live on the networks, from a sync or linked by hand to a content of the Fábrica. */
 export type PublicationRepository = Repository<Publication, PublicationInput>;
 
@@ -225,6 +230,8 @@ export interface Services {
   tracking: TrackingService;
   insights: InsightRepository;
   publishing: PublishingService;
+  groups: GroupRepository;
+  distributions: DistributionRepository;
   ai: AiService;
   backup: BackupService | null;
 }

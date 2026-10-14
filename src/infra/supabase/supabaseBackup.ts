@@ -4,6 +4,7 @@ import type { CalendarEntry, CalendarEntryInput } from '../../domain/calendar/ca
 import type { Experiment, ExperimentInput } from '../../domain/experiments/experiment';
 import type { Project, ProjectInput } from '../../domain/project';
 import type { Publication, PublicationInput } from '../../domain/social/publication';
+import type { FacebookGroup, FacebookGroupInput, GroupDistribution, GroupDistributionInput } from '../../domain/groups/groups';
 import { toCarouselInput } from '../../domain/carousel';
 import { toRecordInput } from '../../domain/winners/record';
 import { blobToDataUrl, buildBackup, dataUrlToBlob, readBackup, summarize } from '../backupFile';
@@ -20,6 +21,8 @@ interface SupabaseRepositories {
   calendarEntries: Repository<CalendarEntry, CalendarEntryInput>;
   projects: Repository<Project, ProjectInput>;
   publications: Repository<Publication, PublicationInput>;
+  groups: Repository<FacebookGroup, FacebookGroupInput>;
+  distributions: Repository<GroupDistribution, GroupDistributionInput>;
 }
 
 const CHUNK = 100;
@@ -37,7 +40,7 @@ export class SupabaseBackup implements BackupService {
   ) {}
 
   async exportAll(): Promise<Blob> {
-    const { accounts, presets, brandKits, assets, carousels, contentRecords, experiments, calendarEntries, projects, publications } = this.repositories;
+    const { accounts, presets, brandKits, assets, carousels, contentRecords, experiments, calendarEntries, projects, publications, groups, distributions } = this.repositories;
     const assetList = await assets.list();
     const files: Record<string, string> = {};
     for (const asset of assetList) files[asset.id] = await blobToDataUrl(await assets.fetchBlob(asset));
@@ -52,6 +55,8 @@ export class SupabaseBackup implements BackupService {
       calendarEntries: await calendarEntries.list(),
       projects: await projects.list(),
       publications: await publications.list(),
+      facebookGroups: await groups.list(),
+      groupDistributions: await distributions.list(),
       files,
     });
     const { error } = await this.client.auth.updateUser({ data: { [LAST_BACKUP_KEY]: new Date().toISOString() } });
@@ -118,6 +123,9 @@ export class SupabaseBackup implements BackupService {
         return { id, ...publicationColumns(input), data: input, created_at: createdAt };
       }),
     );
+    await this.upsert('facebook_groups', 'os grupos', data.facebookGroups.map(({ id, createdAt, updatedAt: _u, ...rest }) => ({ id, project_id: rest.projectId, data: rest, created_at: createdAt })));
+    // Tracked links are not in the backup, so restored distributions lose their link (the text keeps it).
+    await this.upsert('group_distributions', 'as divulgações', data.groupDistributions.map(({ id, createdAt, updatedAt: _u, ...rest }) => ({ id, group_id: rest.groupId, date: rest.date, status: rest.status, data: { ...rest, linkId: null }, created_at: createdAt })));
     return { ...summarize(data), assets: data.assets.length - failedAssets.length, failedAssets };
   }
 
