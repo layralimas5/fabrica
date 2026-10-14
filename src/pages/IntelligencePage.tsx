@@ -1,5 +1,7 @@
 import clsx from 'clsx';
-import { ClipboardCopy, Lightbulb, Sparkles, Wand2 } from 'lucide-react';
+import { ClipboardCopy, Layers3, Lightbulb, Sparkles, Wand2 } from 'lucide-react';
+import { BatchDialog } from '../content/BatchDialog';
+import { learningsFrom } from '../domain/batch/batch';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useAccountScope } from '../app/accountScope';
 import { useServices } from '../app/services';
@@ -40,6 +42,7 @@ export function IntelligencePage() {
   const [compareKey, setCompareKey] = useState<CompareKey>('hookType');
   const [versionTarget, setVersionTarget] = useState('');
   const [selected, setSelected] = useState<DashItem | null>(null);
+  const [batchOpen, setBatchOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -119,6 +122,9 @@ export function IntelligencePage() {
         description={`${project ? `${project.name}: o` : 'O'} que os números reais mostram, com a evidência de cada achado e testes pra fazer a seguir.`}
         action={
           <div className="flex flex-wrap items-end gap-2">
+            <Button variant="secondary" onClick={() => setBatchOpen(true)}>
+              <Layers3 className="size-4" aria-hidden /> Gerar lote com base nos resultados
+            </Button>
             <label className="flex flex-col gap-1 text-xs text-muted">
               Gerar novas versões de
               <Select value={versionTarget} onChange={(e) => setVersionTarget(e.target.value)} className="!h-9 !w-64">
@@ -338,6 +344,7 @@ export function IntelligencePage() {
       </Card>
 
       {actions.dialogs}
+      {batchOpen && <BatchDialog onClose={() => setBatchOpen(false)} learnings={learningsFrom(COMPARE_KEYS.map((key) => ({ title: COMPARE_LABELS[key], rows: compareGroups(results, key) })))} />}
       <ContentDetail
         item={selected}
         onClose={() => setSelected(null)}

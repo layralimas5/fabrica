@@ -5,10 +5,11 @@ import type { ContentOrigin, ContentRecord } from '../domain/winners/record';
 import { cleanThemes, type RemixBrand, type RemixRequest } from '../domain/winners/remix';
 import { brandContext } from './brandContext';
 
-/** What "Usar como modelo", "Criar variações" and "Família" hand to the create screen. */
+/** What "Usar como modelo", "Criar variações", "Família" and the batch generation hand to the create screen. */
 export interface CreateHandoff {
   copies: string[];
-  origin: ContentOrigin;
+  /** The winner the contents come from; null for a batch made from a briefing. */
+  origin: ContentOrigin | null;
   settings: {
     platform: Platform | null;
     format: CarouselFormat | null;
@@ -67,12 +68,12 @@ export function readHandoff(state: unknown): CreateHandoff | null {
   if (!state || typeof state !== 'object' || !('handoff' in state)) return null;
   const handoff = (state as { handoff: unknown }).handoff as Partial<CreateHandoff> | null;
   if (!handoff || !Array.isArray(handoff.copies) || !handoff.copies.every((copy) => typeof copy === 'string')) return null;
-  const origin = handoff.origin;
-  if (!origin || typeof origin.modelId !== 'string' || typeof origin.modelTitle !== 'string') return null;
+  const origin = handoff.origin ?? null;
+  if (origin !== null && (typeof origin.modelId !== 'string' || typeof origin.modelTitle !== 'string')) return null;
   const settings = handoff.settings;
   return {
     copies: handoff.copies,
-    origin: { modelId: origin.modelId, modelTitle: origin.modelTitle, kind: isOneOf(['model', 'variation', 'family'] as const, origin.kind) ? origin.kind : 'model', family: typeof origin.family === 'string' ? origin.family : null },
+    origin: origin && { modelId: origin.modelId, modelTitle: origin.modelTitle, kind: isOneOf(['model', 'variation', 'family'] as const, origin.kind) ? origin.kind : 'model', family: typeof origin.family === 'string' ? origin.family : null },
     settings: {
       platform: isOneOf(PLATFORMS, settings?.platform) ? settings.platform : null,
       format: isOneOf(CAROUSEL_FORMATS, settings?.format) ? settings.format : null,

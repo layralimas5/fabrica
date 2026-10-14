@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { CalendarDays, Check, CheckSquare, Copy, Download, Eye, Folder, FolderOpen, Link2, Radio, Search, Star, Trash2 } from 'lucide-react';
+import { CalendarDays, Check, CheckSquare, Copy, Layers3, Download, Eye, Folder, FolderOpen, Link2, Radio, Search, Star, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { renderContextFor } from '../app/renderContextFor';
@@ -10,6 +10,7 @@ import { errorMessage } from '../app/useResource';
 import { CAROUSEL_STATUSES, STATUS_TONES, duplicateCarousel, isPosted, isScheduled, statusLabel, postedStatus, STATUS_LABELS, toCarouselInput, type Carousel, type CarouselStatus } from '../domain/carousel';
 import { publicationsOf, SOCIAL_PLATFORM_LABELS } from '../domain/social/publication';
 import { LinkPublicationDialog } from '../content/LinkPublicationDialog';
+import { BatchDialog } from '../content/BatchDialog';
 import { Alert, Badge, Button, EmptyState, Input, PageHeader, Select, Spinner } from '../ui/primitives';
 import { CarouselViewer } from '../ui/CarouselViewer';
 import { CarouselCover } from '../ui/CarouselCover';
@@ -45,6 +46,7 @@ export function ProjectsPage() {
   const publications = usePublications();
   const [linking, setLinking] = useState<Carousel | null>(null);
   const [stage, setStage] = useState<Stage>('all');
+  const [batchOpen, setBatchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [brandFilter, setBrandFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<CarouselStatus | ''>('');
@@ -209,8 +211,12 @@ export function ProjectsPage() {
         title="Conteúdos"
         description="Tudo o que a Fábrica criou, por projeto e pasta: criados, agendados e publicados."
         action={
-          filtered.length > 0 && (
-            <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => setBatchOpen(true)}>
+              <Layers3 className="size-4" aria-hidden /> Gerar em lote
+            </Button>
+          {filtered.length > 0 && (
+            <>
               {!selecting && (
                 <Button variant="secondary" onClick={() => setSelecting(true)}>
                   <CheckSquare className="size-4" aria-hidden /> Selecionar
@@ -220,8 +226,9 @@ export function ProjectsPage() {
                 {!exporting && <Download className="size-4" aria-hidden />}
                 {exporting ? `Gerando ${exporting.done}/${exporting.total} slides` : `Baixar ${filtered.length} em ZIP`}
               </Button>
-            </div>
-          )
+            </>
+          )}
+          </div>
         }
       />
       {created && created > 1 && (
@@ -425,6 +432,7 @@ export function ProjectsPage() {
       </div>
 
       {winner.dialog}
+      {batchOpen && <BatchDialog onClose={() => setBatchOpen(false)} />}
       {linking && (
         <LinkPublicationDialog
           key={linking.id}

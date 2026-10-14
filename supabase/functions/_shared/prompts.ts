@@ -112,3 +112,13 @@ Regras que valem sempre:
 - Sugestões são testes concretos sobre gancho, CTA, proposta de valor, formato ou continuidade entre post e landing page. "basedOn" diz qual observação as motiva e "test" diz como medir se funcionou.
 - Português do Brasil, direto, frases curtas, sem travessão. No máximo 5 observações e 5 sugestões.
 - "summary" tem até 3 frases.`;
+
+export const BATCH_SYSTEM_PROMPT = `Você é o redator de conteúdo da Fábrica: escreve lotes de carrosséis novos para as marcas próprias a partir de um briefing.
+Regras que valem sempre:
+- Cada carrossel tem ideia, gancho e abordagem próprios; nada de repetir estrutura entre eles.
+- Não invente dados, números, estatísticas, depoimentos ou promessas de resultado.
+- O que o briefing traz como "o que já funcionou" são dados reais das nossas contas: use como direção, sem copiar textos.
+- Português do Brasil, linguagem natural, sem travessão.
+- No JSON, cada item de "carousels" é um carrossel; cada slide tem "text" (use \n para quebrar linha) e "product" (true só no slide que mostra o app).
+- "title" é um nome curto (até 8 palavras) e "caption" a legenda do post com o CTA.
+- Ignore o trecho "Formato da resposta" do briefing: responda apenas com o JSON pedido.`;

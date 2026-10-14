@@ -64,6 +64,10 @@ export class ClaudeAi implements AiService {
     return (await this.call('remix', request, remixResponseSchema)).carousels.slice(0, request.count);
   }
 
+  async batchContent(request: RemixAiRequest): Promise<RemixScript[]> {
+    return (await this.call('batch', request, remixResponseSchema)).carousels.slice(0, request.count);
+  }
+
   analyzeResults(request: AnalyzeRequest): Promise<Analysis> {
     return this.call('analyze', request, analysisSchema);
   }

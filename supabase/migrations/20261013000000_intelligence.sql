@@ -3,7 +3,7 @@
 -- O limite de uso da IA só aceitava draft/rewrite/hooks: tag, match e remix falhavam ao registrar
 -- (e não contavam no limite por hora). Agora todas as ações contam.
 alter table public.ai_usage drop constraint if exists ai_usage_action_check;
-alter table public.ai_usage add constraint ai_usage_action_check check (action in ('draft', 'rewrite', 'hooks', 'tag', 'match', 'remix', 'analyze'));
+alter table public.ai_usage add constraint ai_usage_action_check check (action in ('draft', 'rewrite', 'hooks', 'tag', 'match', 'remix', 'analyze', 'batch'));
 
 -- Análises guardadas (leitura do Claude sobre os números medidos de um projeto num período).
 create table public.ai_insights (

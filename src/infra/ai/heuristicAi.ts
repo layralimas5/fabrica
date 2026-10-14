@@ -108,6 +108,10 @@ export class HeuristicAi implements AiService {
     throw new Error('O motor local não escreve conteúdo novo. Copie o prompt pronto e cole no Claude.');
   }
 
+  async batchContent(_request: RemixAiRequest): Promise<RemixScript[]> {
+    throw new Error('O motor local não escreve conteúdo novo. Copie o prompt pronto e cole no Claude.');
+  }
+
   /** The rule-based findings are already on screen; a written reading needs a generative model. */
   async analyzeResults(_request: AnalyzeRequest): Promise<Analysis> {
     throw new Error('O motor local não escreve análises. Copie o briefing pronto e cole no Claude.');

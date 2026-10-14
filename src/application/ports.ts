@@ -209,6 +209,8 @@ export interface AiService {
   matchImages(request: MatchRequest): Promise<(string | null)[]>;
   /** New contents that reuse a winner's mechanism. Only the Claude engine writes; the local one throws. */
   remixContent(request: RemixAiRequest): Promise<RemixScript[]>;
+  /** A batch of new contents from a briefing (buildBatchPrompt). Only the Claude engine writes; the local one throws. */
+  batchContent(request: RemixAiRequest): Promise<RemixScript[]>;
   /** Reading of measured results. Only the Claude engine writes it; the local one throws and the screen offers the briefing. */
   analyzeResults(request: AnalyzeRequest): Promise<Analysis>;
 }

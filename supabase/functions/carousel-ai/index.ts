@@ -24,7 +24,7 @@ import {
   tagImageRequest,
   tagImageResponse,
 } from '../_shared/contract.ts';
-import { ANALYZE_SYSTEM_PROMPT, HOOKS_INSTRUCTIONS, MATCH_SYSTEM_PROMPT, REMIX_SYSTEM_PROMPT, REWRITE_INSTRUCTIONS, SYSTEM_PROMPT, TAG_SYSTEM_PROMPT } from '../_shared/prompts.ts';
+import { ANALYZE_SYSTEM_PROMPT, BATCH_SYSTEM_PROMPT, HOOKS_INSTRUCTIONS, MATCH_SYSTEM_PROMPT, REMIX_SYSTEM_PROMPT, REWRITE_INSTRUCTIONS, SYSTEM_PROMPT, TAG_SYSTEM_PROMPT } from '../_shared/prompts.ts';
 
 const MODEL = 'claude-opus-5-5';
 const HOURLY_LIMIT = Number(Deno.env.get('AI_HOURLY_LIMIT') ?? '120');
@@ -43,7 +43,7 @@ class HttpError extends Error {
   }
 }
 
-type Action = 'draft' | 'rewrite' | 'hooks' | 'tag' | 'match' | 'remix' | 'analyze';
+type Action = 'draft' | 'rewrite' | 'hooks' | 'tag' | 'match' | 'remix' | 'analyze' | 'batch';
 
 type UserContent =
   | string
@@ -173,6 +173,16 @@ function buildCall(action: Action, payload: unknown): CallSpec<unknown> {
         schema: REMIX_JSON_SCHEMA,
         validator: remixResponse,
         system: REMIX_SYSTEM_PROMPT,
+        userContent: `Crie exatamente ${input.count} carrossel(éis).\n<briefing>${input.prompt}</briefing>`,
+      };
+    }
+    case 'batch': {
+      const input = parse(remixRequest, payload);
+      return {
+        effort: 'high',
+        schema: REMIX_JSON_SCHEMA,
+        validator: remixResponse,
+        system: BATCH_SYSTEM_PROMPT,
         userContent: `Crie exatamente ${input.count} carrossel(éis).\n<briefing>${input.prompt}</briefing>`,
       };
     }
