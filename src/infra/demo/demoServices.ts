@@ -25,6 +25,7 @@ import { blobToDataUrl, buildBackup, dataUrlToBlob, readBackup, summarize } from
 import { sanitizeProjectInput, type Project, type ProjectInput } from '../../domain/project';
 import { sanitizePublicationInput, type Publication, type PublicationInput } from '../../domain/social/publication';
 import { sanitizeVersionInput, type ContentVersion, type ContentVersionInput } from '../../domain/contentVersion';
+import { sanitizeInsightInput, type AiInsight, type AiInsightInput } from '../../domain/intelligence/insight';
 import { readImageSize } from '../imageSize';
 
 const store: UseStore = createStore('fabrica-carrosseis-demo', 'kv');
@@ -366,3 +367,4 @@ export class DemoContentVersions implements ContentVersionRepository {
     await writeCollection('contentVersions', (await readCollection<ContentVersion>('contentVersions')).filter((version) => version.id !== id));
   }
 }
+export const demoInsights = () => new DemoCollection<AiInsight, AiInsightInput>('aiInsights', 'Análise', sanitizeInsightInput);

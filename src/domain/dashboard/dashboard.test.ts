@@ -29,6 +29,7 @@ const item = (patch: Partial<DashItem>): DashItem => ({
   thumbnailUrl: null,
   permalink: null,
   manualConversions: null,
+  facts: { hook: '', hookType: null, cta: '', theme: '' },
   ...patch,
 });
 

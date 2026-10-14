@@ -1,4 +1,4 @@
-import type { CarouselDraft, DraftRequest, HooksRequest, MatchRequest, RemixAiRequest, RewriteRequest, SlideText, TagImageRequest } from '../domain/aiContract';
+import type { Analysis, AnalyzeRequest, CarouselDraft, DraftRequest, HooksRequest, MatchRequest, RemixAiRequest, RewriteRequest, SlideText, TagImageRequest } from '../domain/aiContract';
 import type { Account, AccountInput } from '../domain/account';
 import type { Asset, AssetUpload } from '../domain/asset';
 import type { Preset, PresetInput } from '../domain/preset';
@@ -15,6 +15,7 @@ import type { SocialConfig, SocialConnection, SyncRun } from '../domain/social/c
 import type { AccountSnapshot, PostSnapshot } from '../domain/social/metrics';
 import type { SocialPlatform } from '../domain/social/publication';
 import type { TrackingEvent, TrackingLink, TrackingLinkInput } from '../domain/tracking/tracking';
+import type { AiInsight, AiInsightInput } from '../domain/intelligence/insight';
 
 export interface User {
   id: string;
@@ -115,6 +116,7 @@ export interface Repository<T, Input> {
 export type ExperimentRepository = Repository<Experiment, ExperimentInput>;
 export type CalendarEntryRepository = Repository<CalendarEntry, CalendarEntryInput>;
 export type ProjectRepository = Repository<Project, ProjectInput>;
+export type InsightRepository = Repository<AiInsight, AiInsightInput>;
 /** Posts live on the networks, from a sync or linked by hand to a content of the Fábrica. */
 export type PublicationRepository = Repository<Publication, PublicationInput>;
 
@@ -177,6 +179,8 @@ export interface AiService {
   matchImages(request: MatchRequest): Promise<(string | null)[]>;
   /** New contents that reuse a winner's mechanism. Only the Claude engine writes; the local one throws. */
   remixContent(request: RemixAiRequest): Promise<RemixScript[]>;
+  /** Reading of measured results. Only the Claude engine writes it; the local one throws and the screen offers the briefing. */
+  analyzeResults(request: AnalyzeRequest): Promise<Analysis>;
 }
 
 export interface Services {
@@ -194,6 +198,7 @@ export interface Services {
   contentVersions: ContentVersionRepository;
   social: SocialService;
   tracking: TrackingService;
+  insights: InsightRepository;
   ai: AiService;
   backup: BackupService | null;
 }

@@ -11,6 +11,7 @@ import { sanitizeEntryInput, type CalendarEntry, type CalendarEntryInput } from 
 import { sanitizeProjectInput, type Project, type ProjectInput } from '../../domain/project';
 import { sanitizePublicationInput, type Publication, type PublicationInput } from '../../domain/social/publication';
 import { sanitizeVersionInput, type ContentVersion, type ContentVersionInput } from '../../domain/contentVersion';
+import { sanitizeInsightInput, type AiInsight, type AiInsightInput } from '../../domain/intelligence/insight';
 import { readImageSize } from '../imageSize';
 
 export const BUCKET = 'assets';
@@ -510,3 +511,6 @@ export class SupabaseContentVersions implements ContentVersionRepository {
     if (error) fail('Não consegui excluir a versão', error);
   }
 }
+
+export const supabaseInsights = (client: SupabaseClient) =>
+  new SupabaseCollection<AiInsight, AiInsightInput>(client, 'ai_insights', 'as análises', sanitizeInsightInput, (input) => ({ project_id: input.projectId }));

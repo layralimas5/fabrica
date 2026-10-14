@@ -163,3 +163,32 @@ export const REMIX_JSON_SCHEMA = {
     },
   },
 };
+
+export const analyzeRequest = z.object({ briefing: z.string().min(1).max(30000) });
+export const analyzeResponse = z.object({
+  summary: z.string(),
+  observations: z.array(z.object({ text: z.string(), evidence: z.string() })),
+  suggestions: z.array(z.object({ text: z.string(), basedOn: z.string(), test: z.string() })),
+});
+
+export const ANALYZE_JSON_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['summary', 'observations', 'suggestions'],
+  properties: {
+    summary: { type: 'string' },
+    observations: {
+      type: 'array',
+      items: { type: 'object', additionalProperties: false, required: ['text', 'evidence'], properties: { text: { type: 'string' }, evidence: { type: 'string' } } },
+    },
+    suggestions: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['text', 'basedOn', 'test'],
+        properties: { text: { type: 'string' }, basedOn: { type: 'string' }, test: { type: 'string' } },
+      },
+    },
+  },
+};

@@ -5,7 +5,8 @@ import type { Project } from '../project';
 import type { SocialConnection } from '../social/connection';
 import { POST_METRIC_KEYS, type PostMetricKey, type PostMetrics, type PostSnapshot } from '../social/metrics';
 import { MEDIA_TYPE_LABELS, type MediaType, type Publication, type SocialPlatform } from '../social/publication';
-import { CONTENT_FORMAT_LABELS, type ContentFormat, type PerformanceMetrics } from '../winners/record';
+import { classifyHook } from '../winners/dna';
+import { CONTENT_FORMAT_LABELS, type ContentFormat, type ContentRecord, type HookType, type PerformanceMetrics } from '../winners/record';
 
 /**
  * One published content as the Painel sees it. Numbers come from one source only:
@@ -34,6 +35,22 @@ export interface DashItem {
   permalink: string | null;
   /** Conversions typed by hand (clicks, sign-ups), shown apart from tracked events. */
   manualConversions: { clicks: number | null; signups: number | null } | null;
+  /** What the content is (hook, CTA, theme), compared by the Inteligência. */
+  facts: ContentFacts;
+}
+
+export interface ContentFacts {
+  hook: string;
+  hookType: HookType | null;
+  cta: string;
+  theme: string;
+}
+
+const firstLine = (text: string) => text.split('\n').find((line) => line.trim())?.trim().slice(0, 300) ?? '';
+
+function factsOf(record: ContentRecord | null, caption: string): ContentFacts {
+  const hook = record?.hook || firstLine(caption);
+  return { hook, hookType: record?.hookType ?? (hook ? classifyHook(hook) : null), cta: record?.cta ?? '', theme: record?.theme ?? '' };
 }
 
 export type DashPlatform = SocialPlatform | 'outros';
@@ -105,6 +122,7 @@ export function buildDashItems({ analyticsItems, publications, snapshots, connec
       thumbnailUrl: publication.thumbnailUrl,
       permalink: publication.permalink,
       manualConversions: null,
+      facts: factsOf(content?.record ?? null, publication.caption),
     });
   }
 
@@ -135,6 +153,7 @@ export function buildDashItems({ analyticsItems, publications, snapshots, connec
       thumbnailUrl: linked?.thumbnailUrl ?? null,
       permalink: linked?.permalink ?? null,
       manualConversions: record.metrics.clicks !== null || record.metrics.signups !== null ? { clicks: record.metrics.clicks, signups: record.metrics.signups } : null,
+      facts: factsOf(record, record.caption),
     });
   }
   return items;

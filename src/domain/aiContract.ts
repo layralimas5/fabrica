@@ -136,3 +136,17 @@ export const remixResponseSchema = z.object({
     )
     .min(1),
 });
+
+export const MAX_ANALYSIS_BRIEFING_CHARS = 30000;
+
+/** The measured numbers of a project, already computed by the domain (analysisBriefing). */
+export const analyzeRequestSchema = z.object({ briefing: z.string().min(1).max(MAX_ANALYSIS_BRIEFING_CHARS) });
+export type AnalyzeRequest = z.infer<typeof analyzeRequestSchema>;
+
+/** Every observation carries the numbers it rests on; every suggestion is a test, with what it is based on. */
+export const analysisSchema = z.object({
+  summary: z.string(),
+  observations: z.array(z.object({ text: z.string(), evidence: z.string() })),
+  suggestions: z.array(z.object({ text: z.string(), basedOn: z.string(), test: z.string() })),
+});
+export type Analysis = z.infer<typeof analysisSchema>;

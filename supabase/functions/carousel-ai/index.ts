@@ -2,6 +2,9 @@ import Anthropic from 'npm:@anthropic-ai/sdk';
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import type { ZodType } from 'npm:zod@4';
 import {
+  ANALYZE_JSON_SCHEMA,
+  analyzeRequest,
+  analyzeResponse,
   DRAFT_JSON_SCHEMA,
   HOOKS_JSON_SCHEMA,
   MATCH_JSON_SCHEMA,
@@ -21,7 +24,7 @@ import {
   tagImageRequest,
   tagImageResponse,
 } from '../_shared/contract.ts';
-import { HOOKS_INSTRUCTIONS, MATCH_SYSTEM_PROMPT, REMIX_SYSTEM_PROMPT, REWRITE_INSTRUCTIONS, SYSTEM_PROMPT, TAG_SYSTEM_PROMPT } from '../_shared/prompts.ts';
+import { ANALYZE_SYSTEM_PROMPT, HOOKS_INSTRUCTIONS, MATCH_SYSTEM_PROMPT, REMIX_SYSTEM_PROMPT, REWRITE_INSTRUCTIONS, SYSTEM_PROMPT, TAG_SYSTEM_PROMPT } from '../_shared/prompts.ts';
 
 const MODEL = 'claude-opus-5-5';
 const HOURLY_LIMIT = Number(Deno.env.get('AI_HOURLY_LIMIT') ?? '120');
@@ -40,7 +43,7 @@ class HttpError extends Error {
   }
 }
 
-type Action = 'draft' | 'rewrite' | 'hooks' | 'tag' | 'match' | 'remix';
+type Action = 'draft' | 'rewrite' | 'hooks' | 'tag' | 'match' | 'remix' | 'analyze';
 
 type UserContent =
   | string
@@ -171,6 +174,16 @@ function buildCall(action: Action, payload: unknown): CallSpec<unknown> {
         validator: remixResponse,
         system: REMIX_SYSTEM_PROMPT,
         userContent: `Crie exatamente ${input.count} carrossel(éis).\n<briefing>${input.prompt}</briefing>`,
+      };
+    }
+    case 'analyze': {
+      const input = parse(analyzeRequest, payload);
+      return {
+        effort: 'medium',
+        schema: ANALYZE_JSON_SCHEMA,
+        validator: analyzeResponse,
+        system: ANALYZE_SYSTEM_PROMPT,
+        userContent: `Leia os resultados medidos e responda no JSON pedido.\n<briefing>${input.briefing}</briefing>`,
       };
     }
     default:
