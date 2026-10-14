@@ -1,5 +1,7 @@
 # Fábrica
 
+> **Fábrica 2.0:** projetos, contas conectadas por OAuth oficial, Painel com métricas reais, links rastreáveis e funil de conversão, Inteligência, fila de publicação e grupos do Facebook. Configuração, variáveis e permissões em [docs/fabrica-2.md](docs/fabrica-2.md).
+
 Onde eu aplico minhas ideias de conteúdo: cola a copy, escolhe a conta e recebe o carrossel pronto, com as fotos certas em cada slide.
 
 Fluxo: **plataforma → copy → formatação → fotos da biblioteca → slides → revisão → exportação**.

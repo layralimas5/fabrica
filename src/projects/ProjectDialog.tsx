@@ -33,7 +33,7 @@ export function ProjectDialog({ initial, editing, brands, onClose, onSave, onDel
 
   const remove = () => {
     if (!onDelete || !editing) return;
-    if (!window.confirm(`Excluir o projeto ${editing.name}? As contas e os conteúdos continuam, só deixam de estar ligados a ele.`)) return;
+    if (!window.confirm(`Excluir o projeto ${editing.name}? As contas e os conteúdos continuam, só deixam de estar ligados a ele. Os links rastreáveis e os eventos de conversão do projeto são apagados.`)) return;
     void run(onDelete);
   };
 
