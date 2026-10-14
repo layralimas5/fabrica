@@ -6,7 +6,7 @@ import {
   CALENDAR_KIND_LABELS,
   CALENDAR_KINDS,
   CALENDAR_STATUS_LABELS,
-  CALENDAR_STATUSES,
+  ENTRY_STATUSES,
   sanitizeEntryInput,
   type CalendarEntryInput,
   type CalendarItem,
@@ -23,6 +23,8 @@ export const STATUS_STYLES: Record<CalendarStatus, { bar: string; dot: string; c
   rascunho: { bar: 'border-l-faint', dot: 'bg-faint', chip: 'bg-subtle text-muted' },
   em_producao: { bar: 'border-l-amber-500', dot: 'bg-amber-500', chip: 'bg-amber-500/15 text-amber-800 dark:text-amber-200' },
   pronto: { bar: 'border-l-sky-500', dot: 'bg-sky-500', chip: 'bg-sky-500/15 text-sky-800 dark:text-sky-200' },
+  aguardando_aprovacao: { bar: 'border-l-orange-500', dot: 'bg-orange-500', chip: 'bg-orange-500/15 text-orange-800 dark:text-orange-200' },
+  falha: { bar: 'border-l-red-500', dot: 'bg-red-500', chip: 'bg-red-500/15 text-red-800 dark:text-red-200' },
   agendado: { bar: 'border-l-violet-500', dot: 'bg-violet-500', chip: 'bg-violet-500/15 text-violet-800 dark:text-violet-200' },
   publicado: { bar: 'border-l-emerald-500', dot: 'bg-emerald-500', chip: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200' },
 };
@@ -304,7 +306,7 @@ export function EntryDialog({ initial, isNew, accounts, experiments, onClose, on
         </Field>
         <Field label="Status" htmlFor="entry-status">
           <Select id="entry-status" value={draft.status} onChange={(e) => set({ status: e.target.value as CalendarStatus })}>
-            {CALENDAR_STATUSES.map((status) => (
+            {ENTRY_STATUSES.map((status) => (
               <option key={status} value={status}>
                 {CALENDAR_STATUS_LABELS[status]}
               </option>

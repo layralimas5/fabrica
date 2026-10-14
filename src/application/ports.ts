@@ -16,6 +16,7 @@ import type { AccountSnapshot, PostSnapshot } from '../domain/social/metrics';
 import type { SocialPlatform } from '../domain/social/publication';
 import type { TrackingEvent, TrackingLink, TrackingLinkInput } from '../domain/tracking/tracking';
 import type { AiInsight, AiInsightInput } from '../domain/intelligence/insight';
+import type { PublishingJob } from '../domain/publishing/job';
 
 export interface User {
   id: string;
@@ -166,6 +167,30 @@ export interface TrackingService {
   deleteEvents(projectId: string): Promise<void>;
 }
 
+export interface NewJob {
+  connectionId: string;
+  carouselId: string;
+  /** ISO date-time. */
+  scheduledAt: string;
+  caption: string;
+  title: string;
+}
+
+/**
+ * Queue of posts to publish through the official APIs. A job is born waiting for approval; approving uploads the
+ * rendered slides and schedules it; only the server publishes, with retries and a log of the result.
+ */
+export interface PublishingService {
+  readonly available: boolean;
+  listJobs(): Promise<PublishingJob[]>;
+  createJob(input: NewJob): Promise<PublishingJob>;
+  approve(job: PublishingJob, images: Blob[]): Promise<PublishingJob>;
+  cancel(jobId: string): Promise<PublishingJob>;
+  retry(jobId: string): Promise<PublishingJob>;
+  /** Asks the worker to publish the user's jobs that are already due, without waiting for the schedule. */
+  processNow(): Promise<{ processed: number }>;
+}
+
 export interface AiService {
   readonly engine: 'claude' | 'heuristic';
   draftCarousel(request: DraftRequest): Promise<CarouselDraft>;
@@ -199,6 +224,7 @@ export interface Services {
   social: SocialService;
   tracking: TrackingService;
   insights: InsightRepository;
+  publishing: PublishingService;
   ai: AiService;
   backup: BackupService | null;
 }

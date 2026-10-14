@@ -1,5 +1,5 @@
 {
   "compilerOptions": { "target": "ES2022", "lib": ["ES2023", "DOM", "DOM.Iterable"], "module": "ESNext", "moduleResolution": "bundler", "strict": true, "noEmit": true, "allowImportingTsExtensions": true, "skipLibCheck": true, "noUnusedLocals": true, "noUnusedParameters": true, "types": [] },
-  "include": ["deno.d.ts", "../functions/social-oauth/*.ts", "../functions/social-sync/*.ts", "../functions/track/*.ts", "../functions/_shared/social/*.ts", "../functions/_shared/tracking/*.ts", "../functions/_shared/crypto.ts", "../functions/_shared/http.ts"],
+  "include": ["deno.d.ts", "../functions/social-oauth/*.ts", "../functions/social-sync/*.ts", "../functions/track/*.ts", "../functions/publish-worker/*.ts", "../functions/_shared/publishing/*.ts", "../functions/_shared/social/*.ts", "../functions/_shared/tracking/*.ts", "../functions/_shared/crypto.ts", "../functions/_shared/http.ts"],
   "exclude": ["../functions/**/*.test.ts"]
 }

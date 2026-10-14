@@ -2,8 +2,10 @@ import { isIsoDate } from '../domain/schedule';
 import { accountLabel, identityOf, isActiveAccount, type Account } from '../domain/account';
 import { CAROUSEL_FORMATS, formatSizeLabel, PLATFORM_LABELS } from '../domain/carousel';
 import { shadeOf } from '../domain/shade';
-import { ArrowLeft, BarChart3, Check, CloudOff, Eye, FolderDown, History, Loader2, Star, Wand2 } from 'lucide-react';
+import { ArrowLeft, BarChart3, Check, CloudOff, Eye, FolderDown, History, Loader2, Send, Star, Wand2 } from 'lucide-react';
 import { VersionsDialog } from '../editor/VersionsDialog';
+import { PublishDialog } from '../publishing/PublishDialog';
+import { usePublishing } from '../publishing/usePublishing';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAccounts, useAssets, useBrandKits, useCarousels, useContentRecords } from '../app/data';
@@ -68,6 +70,8 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
   const [previewOpen, setPreviewOpen] = useState(false);
   const [folderOpen, setFolderOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const queue = usePublishing();
   const allCarousels = useCarousels();
   const records = useContentRecords();
   const navigate = useNavigate();
@@ -168,6 +172,9 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
           </Select>
           <Button variant="secondary" onClick={() => setPreviewOpen(true)}>
             <Eye className="size-4" aria-hidden /> Ver prévia
+          </Button>
+          <Button variant="secondary" onClick={() => setPublishOpen(true)}>
+            <Send className="size-4" aria-hidden /> Publicar
           </Button>
           <Button variant="secondary" onClick={() => setVersionsOpen(true)}>
             <History className="size-4" aria-hidden /> Versões
@@ -290,6 +297,18 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
       />
       {winner.dialog}
       {metrics.dialog}
+      {publishOpen && (
+        <PublishDialog
+          carousel={carousel}
+          context={context}
+          connections={queue.connections.data}
+          jobs={queue.jobs.data}
+          publishing={queue.publishing}
+          onJob={queue.upsertJob}
+          onMarkPosted={() => editor.setStatus('published')}
+          onClose={() => setPublishOpen(false)}
+        />
+      )}
       {versionsOpen && <VersionsDialog carousel={carousel} onClose={() => setVersionsOpen(false)} onRestore={editor.restore} />}
       <SaveToFolderDialog
         open={folderOpen}

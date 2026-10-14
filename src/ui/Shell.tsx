@@ -5,6 +5,7 @@ import { BackupReminder } from './BackupReminder';
 import { AccountSwitcher } from './AccountSwitcher';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useServices } from '../app/services';
+import { useFailedPublications } from '../publishing/useFailedPublications';
 import { Badge, Button } from './primitives';
 
 interface NavItem {
@@ -59,6 +60,7 @@ export function Shell() {
 function ShellLayout() {
   const navigate = useNavigate();
   const { auth, ai } = useServices();
+  const failed = useFailedPublications();
 
   return (
     <div className="min-h-dvh bg-canvas lg:grid lg:grid-cols-[240px_minmax(0,1fr)]">
@@ -100,6 +102,12 @@ function ShellLayout() {
                 >
                   <Icon className="size-4" aria-hidden />
                   {label}
+                  {to === '/calendario' && failed > 0 && (
+                    <span className="ml-auto rounded-full bg-red-600 px-1.5 text-[10px] font-semibold text-white" title={`${failed} publicação(ões) com falha`}>
+                      {failed}
+                      <span className="sr-only"> publicações com falha</span>
+                    </span>
+                  )}
                 </NavLink>
               ))}
             </div>
