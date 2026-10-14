@@ -637,7 +637,7 @@ export function CreatePage() {
       else if (result.experimentIds.length === 1) navigate(`/testes/${result.experimentIds[0]}`);
       else if (result.experimentIds.length > 1) navigate('/testes', { state: { created: result.carousels.length } });
       else if (result.carousels.length === 1) navigate(`/carrossel/${result.carousels[0].id}`);
-      else navigate('/projetos', { state: { created: result.carousels.length } });
+      else navigate('/conteudos', { state: { created: result.carousels.length } });
     } catch (cause) {
       setError(errorMessage(cause));
       setGenerating(false);

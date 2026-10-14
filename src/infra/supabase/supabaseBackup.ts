@@ -2,10 +2,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AccountRepository, AssetRepository, BackupService, BackupSummary, BrandKitRepository, CarouselRepository, ContentRecordRepository, PresetRepository, Repository } from '../../application/ports';
 import type { CalendarEntry, CalendarEntryInput } from '../../domain/calendar/calendar';
 import type { Experiment, ExperimentInput } from '../../domain/experiments/experiment';
+import type { Project, ProjectInput } from '../../domain/project';
+import type { Publication, PublicationInput } from '../../domain/social/publication';
 import { toCarouselInput } from '../../domain/carousel';
 import { toRecordInput } from '../../domain/winners/record';
 import { blobToDataUrl, buildBackup, dataUrlToBlob, readBackup, summarize } from '../backupFile';
-import { BUCKET, carouselToRow, fail, recordToRow } from './supabaseServices';
+import { BUCKET, carouselToRow, fail, publicationColumns, recordToRow } from './supabaseServices';
 
 interface SupabaseRepositories {
   accounts: AccountRepository;
@@ -16,6 +18,8 @@ interface SupabaseRepositories {
   contentRecords: ContentRecordRepository;
   experiments: Repository<Experiment, ExperimentInput>;
   calendarEntries: Repository<CalendarEntry, CalendarEntryInput>;
+  projects: Repository<Project, ProjectInput>;
+  publications: Repository<Publication, PublicationInput>;
 }
 
 const CHUNK = 100;
@@ -33,7 +37,7 @@ export class SupabaseBackup implements BackupService {
   ) {}
 
   async exportAll(): Promise<Blob> {
-    const { accounts, presets, brandKits, assets, carousels, contentRecords, experiments, calendarEntries } = this.repositories;
+    const { accounts, presets, brandKits, assets, carousels, contentRecords, experiments, calendarEntries, projects, publications } = this.repositories;
     const assetList = await assets.list();
     const files: Record<string, string> = {};
     for (const asset of assetList) files[asset.id] = await blobToDataUrl(await assets.fetchBlob(asset));
@@ -46,6 +50,8 @@ export class SupabaseBackup implements BackupService {
       contentRecords: await contentRecords.list(),
       experiments: await experiments.list(),
       calendarEntries: await calendarEntries.list(),
+      projects: await projects.list(),
+      publications: await publications.list(),
       files,
     });
     const { error } = await this.client.auth.updateUser({ data: { [LAST_BACKUP_KEY]: new Date().toISOString() } });
@@ -67,6 +73,7 @@ export class SupabaseBackup implements BackupService {
     if (!auth.user) throw new Error('Sessão expirada. Entra de novo.');
     const userId = auth.user.id;
 
+    await this.upsert('projects', 'os projetos', data.projects.map(({ id, createdAt, updatedAt: _u, ...rest }) => ({ id, name: rest.name, tracking_key: rest.trackingKey, data: rest, created_at: createdAt })));
     await this.upsert('accounts', 'as contas', data.accounts.map(({ id, name, createdAt, updatedAt: _u, ...rest }) => ({ id, name, data: rest, created_at: createdAt })));
     await this.upsert('brand_kits', 'as marcas', data.brandKits.map(({ id, name, createdAt, updatedAt: _u, ...rest }) => ({ id, name, data: rest, created_at: createdAt })));
     await this.upsert('presets', 'as predefinições', data.presets.map((preset) => ({ id: preset.id, name: preset.name, data: preset.settings, created_at: preset.createdAt })));
@@ -101,6 +108,16 @@ export class SupabaseBackup implements BackupService {
     await this.upsert('content_records', 'os resultados', recordRows);
     await this.upsert('experiments', 'os experimentos', data.experiments.map(({ id, createdAt, updatedAt: _u, ...rest }) => ({ id, data: rest, created_at: createdAt })));
     await this.upsert('calendar_entries', 'o calendário', data.calendarEntries.map(({ id, createdAt, updatedAt: _u, ...rest }) => ({ id, date: rest.date, data: rest, created_at: createdAt })));
+    // Connections are not in the backup (their tokens never leave the server): the next sync links the posts again.
+    const recordIds = new Set(recordRows.map((row) => row.id));
+    await this.upsert(
+      'publications',
+      'as publicações',
+      data.publications.map(({ id, createdAt, updatedAt: _u, ...rest }) => {
+        const input = { ...rest, connectionId: null, carouselId: rest.carouselId && carouselIds.has(rest.carouselId) ? rest.carouselId : null, recordId: rest.recordId && recordIds.has(rest.recordId) ? rest.recordId : null };
+        return { id, ...publicationColumns(input), data: input, created_at: createdAt };
+      }),
+    );
     return { ...summarize(data), assets: data.assets.length - failedAssets.length, failedAssets };
   }
 

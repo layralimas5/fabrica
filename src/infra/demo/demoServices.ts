@@ -8,6 +8,7 @@ import type {
   BrandKitRepository,
   CarouselRepository,
   ContentRecordRepository,
+  ContentVersionRepository,
   Repository,
   PresetRepository,
   User,
@@ -21,6 +22,9 @@ import { normalizeRecord, sanitizeRecordInput, type ContentRecord, type ContentR
 import { sanitizeExperimentInput, type Experiment, type ExperimentInput } from '../../domain/experiments/experiment';
 import { sanitizeEntryInput, type CalendarEntry, type CalendarEntryInput } from '../../domain/calendar/calendar';
 import { blobToDataUrl, buildBackup, dataUrlToBlob, readBackup, summarize } from '../backupFile';
+import { sanitizeProjectInput, type Project, type ProjectInput } from '../../domain/project';
+import { sanitizePublicationInput, type Publication, type PublicationInput } from '../../domain/social/publication';
+import { sanitizeVersionInput, type ContentVersion, type ContentVersionInput } from '../../domain/contentVersion';
 import { readImageSize } from '../imageSize';
 
 const store: UseStore = createStore('fabrica-carrosseis-demo', 'kv');
@@ -234,6 +238,8 @@ export class LocalBackup implements BackupService {
       contentRecords: await readCollection<ContentRecord>('contentRecords'),
       experiments: await readCollection<Experiment>('experiments'),
       calendarEntries: await readCollection<CalendarEntry>('calendarEntries'),
+      projects: await readCollection<Project>('projects'),
+      publications: await readCollection<Publication>('publications'),
       files,
     });
     await set(await scopedKey(LAST_BACKUP_KEY), now(), store);
@@ -257,6 +263,8 @@ export class LocalBackup implements BackupService {
     await writeCollection('contentRecords', upsertById(await readCollection<ContentRecord>('contentRecords'), data.contentRecords));
     await writeCollection('experiments', upsertById(await readCollection<Experiment>('experiments'), data.experiments));
     await writeCollection('calendarEntries', upsertById(await readCollection<CalendarEntry>('calendarEntries'), data.calendarEntries));
+    await writeCollection('projects', upsertById(await readCollection<Project>('projects'), data.projects));
+    await writeCollection('publications', upsertById(await readCollection<Publication>('publications'), data.publications));
     return summarize(data);
   }
 }
@@ -339,3 +347,22 @@ class DemoCollection<T extends { id: string; createdAt: string; updatedAt: strin
 
 export const demoExperiments = () => new DemoCollection<Experiment, ExperimentInput>('experiments', 'Experimento', sanitizeExperimentInput);
 export const demoCalendarEntries = () => new DemoCollection<CalendarEntry, CalendarEntryInput>('calendarEntries', 'Conteúdo do calendário', sanitizeEntryInput);
+export const demoProjects = () => new DemoCollection<Project, ProjectInput>('projects', 'Projeto', sanitizeProjectInput);
+export const demoPublications = () => new DemoCollection<Publication, PublicationInput>('publications', 'Publicação', sanitizePublicationInput);
+
+export class DemoContentVersions implements ContentVersionRepository {
+  async listFor(carouselId: string): Promise<ContentVersion[]> {
+    const versions = await readCollection<ContentVersion>('contentVersions');
+    return versions.filter((version) => version.carouselId === carouselId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async create(input: ContentVersionInput): Promise<ContentVersion> {
+    const version: ContentVersion = { ...sanitizeVersionInput(input), id: crypto.randomUUID(), createdAt: now(), updatedAt: now() };
+    await writeCollection('contentVersions', [version, ...(await readCollection<ContentVersion>('contentVersions'))]);
+    return version;
+  }
+
+  async remove(id: string): Promise<void> {
+    await writeCollection('contentVersions', (await readCollection<ContentVersion>('contentVersions')).filter((version) => version.id !== id));
+  }
+}

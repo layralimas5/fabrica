@@ -8,6 +8,9 @@ import type { ContentRecord, ContentRecordInput } from '../domain/winners/record
 import type { Experiment, ExperimentInput } from '../domain/experiments/experiment';
 import type { CalendarEntry, CalendarEntryInput } from '../domain/calendar/calendar';
 import type { RemixScript } from '../domain/winners/remix';
+import type { Project, ProjectInput } from '../domain/project';
+import type { Publication, PublicationInput } from '../domain/social/publication';
+import type { ContentVersion, ContentVersionInput } from '../domain/contentVersion';
 
 export interface User {
   id: string;
@@ -66,6 +69,8 @@ export interface BackupSummary {
   contentRecords: number;
   experiments: number;
   calendarEntries: number;
+  projects: number;
+  publications: number;
   /** Photos the server kept refusing; restoring the same file again sends only what is missing. */
   failedAssets?: string[];
 }
@@ -105,6 +110,16 @@ export interface Repository<T, Input> {
 
 export type ExperimentRepository = Repository<Experiment, ExperimentInput>;
 export type CalendarEntryRepository = Repository<CalendarEntry, CalendarEntryInput>;
+export type ProjectRepository = Repository<Project, ProjectInput>;
+/** Posts live on the networks, from a sync or linked by hand to a content of the Fábrica. */
+export type PublicationRepository = Repository<Publication, PublicationInput>;
+
+/** Saved copies of a carousel. A version never changes after it is saved. */
+export interface ContentVersionRepository {
+  listFor(carouselId: string): Promise<ContentVersion[]>;
+  create(input: ContentVersionInput): Promise<ContentVersion>;
+  remove(id: string): Promise<void>;
+}
 
 export interface AiService {
   readonly engine: 'claude' | 'heuristic';
@@ -131,6 +146,9 @@ export interface Services {
   contentRecords: ContentRecordRepository;
   experiments: ExperimentRepository;
   calendarEntries: CalendarEntryRepository;
+  projects: ProjectRepository;
+  publications: PublicationRepository;
+  contentVersions: ContentVersionRepository;
   ai: AiService;
   backup: BackupService | null;
 }

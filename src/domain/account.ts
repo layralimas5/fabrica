@@ -45,6 +45,11 @@ export function normalizeAccountDefaults(raw: Partial<AccountDefaults> | null | 
 
 export type AccountInput = Omit<Account, 'id' | 'createdAt' | 'updatedAt'>;
 
+export function toAccountInput(account: Account): AccountInput {
+  const { id: _id, createdAt: _c, updatedAt: _u, ...input } = account;
+  return input;
+}
+
 export const ACCOUNT_STATUSES = ['active', 'paused'] as const;
 export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];
 export const ACCOUNT_STATUS_LABELS: Record<AccountStatus, string> = { active: 'Ativa', paused: 'Pausada' };

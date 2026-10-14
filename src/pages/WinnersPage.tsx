@@ -83,7 +83,7 @@ export function WinnersPage() {
           description="Abra um carrossel que já foi publicado e toque em ⭐ Marcar como vencedor. Conteúdo feito fora da Fábrica (UGC, POV, vídeo) entra por “Conteúdo de fora”."
           action={
             <div className="flex flex-wrap justify-center gap-2">
-              <Link to="/projetos" className="inline-flex h-10 items-center rounded-xl bg-ink px-3.5 text-sm font-medium text-canvas hover:bg-ink/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2">
+              <Link to="/conteudos" className="inline-flex h-10 items-center rounded-xl bg-ink px-3.5 text-sm font-medium text-canvas hover:bg-ink/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2">
                 Ir para Projetos
               </Link>
               <Button variant="secondary" onClick={actions.addExternal}>

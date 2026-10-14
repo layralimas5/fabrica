@@ -18,6 +18,7 @@ const CalendarPage = lazy(() => import('./pages/CalendarPage').then((m) => ({ de
 const WinnersPage = lazy(() => import('./pages/WinnersPage').then((m) => ({ default: m.WinnersPage })));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage').then((m) => ({ default: m.AnalyticsPage })));
 const WinnerDetailPage = lazy(() => import('./pages/WinnerDetailPage').then((m) => ({ default: m.WinnerDetailPage })));
+const BrandProjectsPage = lazy(() => import('./pages/BrandProjectsPage').then((m) => ({ default: m.BrandProjectsPage })));
 const AccountsPage = lazy(() => import('./pages/AccountsPage').then((m) => ({ default: m.AccountsPage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 
@@ -45,7 +46,8 @@ export default function App({ services }: { services: Services }) {
               <Route path="/criar" element={<CreatePage />} />
               <Route path="/videos" element={<VideosPage />} />
               <Route path="/carrossel/:id" element={<EditorPage />} />
-              <Route path="/projetos" element={<ProjectsPage />} />
+              <Route path="/conteudos" element={<ProjectsPage />} />
+              <Route path="/projetos" element={<BrandProjectsPage />} />
               <Route path="/calendario" element={<CalendarPage />} />
               <Route path="/agenda" element={<Navigate to="/calendario?visao=dia" replace />} />
               <Route path="/vencedores" element={<WinnersPage />} />

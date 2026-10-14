@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { Services } from '../application/ports';
 import { ClaudeAi } from './ai/claudeAi';
 import { HeuristicAi } from './ai/heuristicAi';
-import { DemoAccounts, DemoAssets, DemoAuth, DemoBrandKits, DemoCarousels, DemoContentRecords, DemoPresets, demoCalendarEntries, demoExperiments, LocalBackup } from './demo/demoServices';
+import { DemoAccounts, DemoAssets, DemoAuth, DemoBrandKits, DemoCarousels, DemoContentRecords, DemoContentVersions, DemoPresets, demoCalendarEntries, demoExperiments, demoProjects, demoPublications, LocalBackup } from './demo/demoServices';
 import {
   SupabaseAccounts,
   SupabaseAssets,
@@ -11,6 +11,9 @@ import {
   supabaseCalendarEntries,
   SupabaseCarousels,
   SupabaseContentRecords,
+  SupabaseContentVersions,
+  supabaseProjects,
+  supabasePublications,
   supabaseExperiments,
   SupabasePresets,
 } from './supabase/supabaseServices';
@@ -35,6 +38,9 @@ export function createServices(): Services {
       contentRecords: new DemoContentRecords(),
       experiments: demoExperiments(),
       calendarEntries: demoCalendarEntries(),
+      projects: demoProjects(),
+      publications: demoPublications(),
+      contentVersions: new DemoContentVersions(),
       ai: new HeuristicAi(),
       backup: new LocalBackup(),
     };
@@ -51,10 +57,13 @@ export function createServices(): Services {
     contentRecords: new SupabaseContentRecords(client),
     experiments: supabaseExperiments(client),
     calendarEntries: supabaseCalendarEntries(client),
+    projects: supabaseProjects(client),
+    publications: supabasePublications(client),
   };
   return {
     auth: new SupabaseAuth(client),
     ...repositories,
+    contentVersions: new SupabaseContentVersions(client),
     ai: useHeuristic ? new HeuristicAi() : new ClaudeAi(client),
     backup: new SupabaseBackup(client, repositories),
   };

@@ -13,6 +13,7 @@ import {
   MAX_ACCOUNT_NOTES,
   MAX_ACCOUNT_PROJECT,
   normalizeHandle,
+  toAccountInput,
   UPCOMING_PLATFORMS,
   type Account,
   type AccountInput,
@@ -76,7 +77,7 @@ export function AccountsPage() {
                 <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {items.map((account) => (
                     <li key={account.id}>
-                      <AccountCard account={account} brand={brands.data.find((kit) => kit.id === account.brandKitId)} onClick={() => setEditing({ id: account.id, input: toInput(account), createdAt: account.createdAt })} />
+                      <AccountCard account={account} brand={brands.data.find((kit) => kit.id === account.brandKitId)} onClick={() => setEditing({ id: account.id, input: toAccountInput(account), createdAt: account.createdAt })} />
                     </li>
                   ))}
                 </ul>
@@ -86,14 +87,9 @@ export function AccountsPage() {
         </div>
       )}
 
-      {editing && <AccountEditor key={editing.id ?? 'new'} isNew={!editing.id} createdAt={editing.createdAt} initial={editing.input} brands={brands.data} onClose={() => setEditing(null)} onSave={save} onDelete={remove} />}
+      {editing && <AccountEditor key={editing.id ?? 'new'} isNew={!editing.id} createdAt={editing.createdAt} initial={editing.input} brands={brands.data} onClose={() => setEditing(null)} onSave={save} onDelete={remove} projectNames={scope.projects.map((project) => project.name)} />}
     </div>
   );
-}
-
-function toInput(account: Account): AccountInput {
-  const { id: _id, createdAt: _c, updatedAt: _u, ...input } = account;
-  return input;
 }
 
 function Avatar({ name, src, size = 'md' }: { name: string; src: string | null; size?: 'md' | 'lg' }) {
@@ -136,9 +132,10 @@ interface AccountEditorProps {
   onClose: () => void;
   onSave: (input: AccountInput) => Promise<void>;
   onDelete: () => Promise<void>;
+  projectNames: string[];
 }
 
-function AccountEditor({ isNew, createdAt, initial, brands, onClose, onSave, onDelete }: AccountEditorProps) {
+function AccountEditor({ isNew, createdAt, initial, brands, onClose, onSave, onDelete, projectNames }: AccountEditorProps) {
   const [draft, setDraft] = useState(initial);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -236,7 +233,12 @@ function AccountEditor({ isNew, createdAt, initial, brands, onClose, onSave, onD
             <Input id="acc-name" value={draft.name} onChange={(e) => patch('name', e.target.value)} maxLength={MAX_ACCOUNT_NAME} placeholder="Ella Refina" />
           </Field>
           <Field label="Projeto" htmlFor="acc-project" hint="Ex.: Momentumm, Layra Lima. Vira o projeto padrão do que essa conta cria.">
-            <Input id="acc-project" value={draft.project} onChange={(e) => patch('project', e.target.value)} maxLength={MAX_ACCOUNT_PROJECT} placeholder="Momentumm" />
+            <Input id="acc-project" list="acc-project-options" value={draft.project} onChange={(e) => patch('project', e.target.value)} maxLength={MAX_ACCOUNT_PROJECT} placeholder="Momentumm" />
+            <datalist id="acc-project-options">
+              {projectNames.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
           </Field>
           <Field label="Status" htmlFor="acc-status" hint="Pausada some dos seletores, mas o histórico fica no Analytics.">
             <Select id="acc-status" value={draft.status} onChange={(e) => patch('status', e.target.value as AccountInput['status'])}>

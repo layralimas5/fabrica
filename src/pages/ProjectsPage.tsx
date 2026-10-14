@@ -1,13 +1,15 @@
 import clsx from 'clsx';
-import { CalendarDays, Check, CheckSquare, Download, Eye, Folder, FolderOpen, Search, Star, Trash2 } from 'lucide-react';
+import { CalendarDays, Check, CheckSquare, Copy, Download, Eye, Folder, FolderOpen, Link2, Radio, Search, Star, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { renderContextFor } from '../app/renderContextFor';
-import { useAccounts, useAssets, useBrandKits, useCarousels } from '../app/data';
+import { useAccounts, useAssets, useBrandKits, useCarousels, usePublications } from '../app/data';
 import { useServices } from '../app/services';
 import type { RenderContext } from '../app/slideRendering';
 import { errorMessage } from '../app/useResource';
-import { CAROUSEL_STATUSES, STATUS_TONES, isPosted, statusLabel, postedStatus, STATUS_LABELS, toCarouselInput, type Carousel, type CarouselStatus } from '../domain/carousel';
+import { CAROUSEL_STATUSES, STATUS_TONES, duplicateCarousel, isPosted, isScheduled, statusLabel, postedStatus, STATUS_LABELS, toCarouselInput, type Carousel, type CarouselStatus } from '../domain/carousel';
+import { publicationsOf, SOCIAL_PLATFORM_LABELS } from '../domain/social/publication';
+import { LinkPublicationDialog } from '../content/LinkPublicationDialog';
 import { Alert, Badge, Button, EmptyState, Input, PageHeader, Select, Spinner } from '../ui/primitives';
 import { CarouselViewer } from '../ui/CarouselViewer';
 import { CarouselCover } from '../ui/CarouselCover';
@@ -20,12 +22,29 @@ import { SelectionBar } from '../projects/SelectionBar';
 
 const STATUS_TONE = STATUS_TONES;
 
+/** Where a content is in its life: made, waiting for its day, or already live. */
+const STAGES = [
+  { id: 'all', label: 'Todos' },
+  { id: 'created', label: 'Criados' },
+  { id: 'scheduled', label: 'Agendados' },
+  { id: 'published', label: 'Publicados' },
+] as const;
+type Stage = (typeof STAGES)[number]['id'];
+
+function stageOf(carousel: Carousel): Exclude<Stage, 'all'> {
+  if (isPosted(carousel)) return 'published';
+  return isScheduled(carousel) ? 'scheduled' : 'created';
+}
+
 export function ProjectsPage() {
   const services = useServices();
   const carousels = useCarousels();
   const brands = useBrandKits();
   const assets = useAssets();
   const accounts = useAccounts();
+  const publications = usePublications();
+  const [linking, setLinking] = useState<Carousel | null>(null);
+  const [stage, setStage] = useState<Stage>('all');
   const [query, setQuery] = useState('');
   const [brandFilter, setBrandFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<CarouselStatus | ''>('');
@@ -53,20 +72,31 @@ export function ProjectsPage() {
     const search = query.trim().toLowerCase();
     return carousels.data.filter(
       (carousel) =>
-        scope.matches(carousel.source.accountId) &&
+        scope.matchesContent({ accountId: carousel.source.accountId, project: carousel.project }) &&
+        (stage === 'all' || stageOf(carousel) === stage) &&
         (!search || carousel.title.toLowerCase().includes(search)) &&
         (!brandFilter || carousel.brandKitId === brandFilter) &&
         (!statusFilter || carousel.status === statusFilter) &&
         (place.project === null || carousel.project === place.project) &&
         (place.folder === null || carousel.folder === place.folder),
     );
-  }, [carousels.data, query, brandFilter, statusFilter, place, scope]);
+  }, [carousels.data, query, brandFilter, statusFilter, place, scope, stage]);
 
   const remove = async (carousel: Carousel) => {
     if (!window.confirm(`Excluir "${carousel.title}"? Não dá pra desfazer.`)) return;
     try {
       await services.carousels.remove(carousel.id);
       carousels.setData((current) => current.filter((item) => item.id !== carousel.id));
+    } catch (cause) {
+      setError(errorMessage(cause));
+    }
+  };
+
+  const duplicate = async (carousel: Carousel) => {
+    setError(null);
+    try {
+      const copy = await services.carousels.create(duplicateCarousel(carousel));
+      carousels.setData((current) => [copy, ...current]);
     } catch (cause) {
       setError(errorMessage(cause));
     }
@@ -176,8 +206,8 @@ export function ProjectsPage() {
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
-        title="Projetos"
-        description="Seus carrosséis, organizados por projeto e pasta."
+        title="Conteúdos"
+        description="Tudo o que a Fábrica criou, por projeto e pasta: criados, agendados e publicados."
         action={
           filtered.length > 0 && (
             <div className="flex flex-wrap gap-2">
@@ -199,6 +229,23 @@ export function ProjectsPage() {
           <Alert tone="success">{created} carrosséis criados. Use "Baixar em ZIP" pra levar todos de uma vez, cada um na sua pasta com a legenda.</Alert>
         </div>
       )}
+
+      <div role="group" aria-label="Etapa" className="mb-4 flex flex-wrap gap-1.5">
+        {STAGES.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            aria-pressed={stage === item.id}
+            onClick={() => setStage(item.id)}
+            className={clsx(
+              'h-8 rounded-full px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+              stage === item.id ? 'bg-ink text-canvas' : 'bg-subtle text-muted hover:text-ink',
+            )}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
 
       <div className="mb-6 grid gap-3 sm:grid-cols-[minmax(0,1fr)_200px_180px]">
         <div className="relative">
@@ -279,6 +326,7 @@ export function ProjectsPage() {
         <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map((carousel) => {
             const brand = brandForCarousel(carousel, brands.data, accounts.data);
+            const live = publicationsOf(publications.data, { carouselId: carousel.id });
             return (
               <li
                 key={carousel.id}
@@ -298,6 +346,12 @@ export function ProjectsPage() {
                     <div className="mt-3 flex flex-wrap items-center gap-1.5">
                       {carousel.status !== 'published' && <Badge tone={STATUS_TONE[carousel.status]}>{statusLabel(carousel)}</Badge>}
                       {winner.isWinner(carousel) && <Badge tone="warning">⭐ Vencedor</Badge>}
+                      {live.map((publication) => (
+                        <Badge key={publication.id} tone="success">
+                          <Radio className="mr-1 size-3" aria-hidden />
+                          No ar · {SOCIAL_PLATFORM_LABELS[publication.platform]}
+                        </Badge>
+                      ))}
                       {carousel.scheduledFor && (
                         <Badge>
                           <CalendarDays className="mr-1 size-3" aria-hidden />
@@ -349,6 +403,12 @@ export function ProjectsPage() {
                   >
                     <Star className={winner.isWinner(carousel) ? 'size-3.5 fill-amber-400 text-amber-500' : 'size-3.5'} aria-hidden />
                   </Button>
+                  <Button variant="secondary" size="sm" aria-label={`Vincular publicação de ${carousel.title}`} title="Vincular publicação" onClick={() => setLinking(carousel)}>
+                    <Link2 className="size-3.5" aria-hidden />
+                  </Button>
+                  <Button variant="secondary" size="sm" aria-label={`Duplicar ${carousel.title}`} title="Duplicar" onClick={() => void duplicate(carousel)}>
+                    <Copy className="size-3.5" aria-hidden />
+                  </Button>
                   <Button variant="secondary" size="sm" aria-label={`Ver prévia de ${carousel.title}`} onClick={() => setPreviewing(carousel)}>
                     <Eye className="size-3.5" aria-hidden />
                   </Button>
@@ -365,6 +425,15 @@ export function ProjectsPage() {
       </div>
 
       {winner.dialog}
+      {linking && (
+        <LinkPublicationDialog
+          key={linking.id}
+          target={{ carouselId: linking.id, recordId: null, title: linking.title, platform: accounts.data.find((account) => account.id === linking.source.accountId)?.platform ?? 'instagram' }}
+          publications={publications.data}
+          onClose={() => setLinking(null)}
+          onChange={publications.setData}
+        />
+      )}
       {previewing && previewContext && <CarouselViewer open onClose={() => setPreviewing(null)} context={previewContext} carousel={previewing} />}
     </div>
   );

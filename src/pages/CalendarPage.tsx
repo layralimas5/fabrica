@@ -406,7 +406,7 @@ export function CalendarPage() {
           {unscheduled > 0 && (
             <p className="text-xs text-muted">
               {unscheduled} {unscheduled === 1 ? 'carrossel sem data' : 'carrosséis sem data'} não aparecem aqui. Dá pra dar uma data no editor de cada um ou em{' '}
-              <Link to="/projetos" className="font-medium text-ink underline underline-offset-4">
+              <Link to="/conteudos" className="font-medium text-ink underline underline-offset-4">
                 Projetos
               </Link>
               .

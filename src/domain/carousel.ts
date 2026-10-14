@@ -345,3 +345,17 @@ export function normalizeCarousel(carousel: Carousel): Carousel {
     slides: carousel.slides.map((slide) => ({ ...slide, style: { ...DEFAULT_SLIDE_STYLE, ...slide.style }, card: normalizeCard(slide.card) })),
   };
 }
+
+/** A fresh copy to work on: new slide ids, back to draft, not scheduled, no results and no test of its own. */
+export function duplicateCarousel(carousel: Carousel): CarouselInput {
+  return {
+    ...toCarouselInput(carousel),
+    title: `${carousel.title} (cópia)`.slice(0, 200),
+    status: 'draft',
+    scheduledFor: null,
+    metrics: null,
+    experiment: null,
+    source: { ...carousel.source, scheduledTime: null },
+    slides: carousel.slides.map(duplicateSlide),
+  };
+}

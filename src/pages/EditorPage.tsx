@@ -2,7 +2,8 @@ import { isIsoDate } from '../domain/schedule';
 import { accountLabel, identityOf, isActiveAccount, type Account } from '../domain/account';
 import { CAROUSEL_FORMATS, formatSizeLabel, PLATFORM_LABELS } from '../domain/carousel';
 import { shadeOf } from '../domain/shade';
-import { ArrowLeft, BarChart3, Check, CloudOff, Eye, FolderDown, Loader2, Star, Wand2 } from 'lucide-react';
+import { ArrowLeft, BarChart3, Check, CloudOff, Eye, FolderDown, History, Loader2, Star, Wand2 } from 'lucide-react';
+import { VersionsDialog } from '../editor/VersionsDialog';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAccounts, useAssets, useBrandKits, useCarousels, useContentRecords } from '../app/data';
@@ -48,7 +49,7 @@ export function EditorPage() {
 
   if (error) return <Alert>{error}</Alert>;
   if (carousel === undefined || brands.loading || assets.loading || accounts.loading) return <Spinner label="Abrindo o carrossel" />;
-  if (carousel === null) return <EmptyState title="Carrossel não encontrado" description="Ele pode ter sido excluído." action={<Link to="/projetos" className="text-sm text-accent underline">Ver projetos</Link>} />;
+  if (carousel === null) return <EmptyState title="Carrossel não encontrado" description="Ele pode ter sido excluído." action={<Link to="/conteudos" className="text-sm text-accent underline">Ver conteúdos</Link>} />;
 
   const brand = brandForCarousel(carousel, brands.data, accounts.data);
   if (!brand) return <Alert>Nenhum Brand Kit cadastrado. Crie uma marca pra editar esse carrossel.</Alert>;
@@ -66,6 +67,7 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
   const [hooksOpen, setHooksOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [folderOpen, setFolderOpen] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
   const allCarousels = useCarousels();
   const records = useContentRecords();
   const navigate = useNavigate();
@@ -121,7 +123,7 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
   return (
     <div className="mx-auto max-w-7xl">
       <header className="mb-6 flex flex-wrap items-center gap-3">
-        <Link to="/projetos" aria-label="Voltar para projetos" className="grid size-10 place-items-center rounded-xl text-muted hover:bg-subtle hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+        <Link to="/conteudos" aria-label="Voltar para conteúdos" className="grid size-10 place-items-center rounded-xl text-muted hover:bg-subtle hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
           <ArrowLeft className="size-4" aria-hidden />
         </Link>
         <label htmlFor="carousel-title" className="sr-only">
@@ -166,6 +168,9 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
           </Select>
           <Button variant="secondary" onClick={() => setPreviewOpen(true)}>
             <Eye className="size-4" aria-hidden /> Ver prévia
+          </Button>
+          <Button variant="secondary" onClick={() => setVersionsOpen(true)}>
+            <History className="size-4" aria-hidden /> Versões
           </Button>
           <Button variant="secondary" onClick={() => setHooksOpen(true)}>
             <Wand2 className="size-4" aria-hidden /> Novos ganchos
@@ -285,6 +290,7 @@ function Editor({ initial, brand, assets, accounts }: { initial: Carousel; brand
       />
       {winner.dialog}
       {metrics.dialog}
+      {versionsOpen && <VersionsDialog carousel={carousel} onClose={() => setVersionsOpen(false)} onRestore={editor.restore} />}
       <SaveToFolderDialog
         open={folderOpen}
         onClose={() => setFolderOpen(false)}
