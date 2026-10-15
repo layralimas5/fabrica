@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { CAROUSEL_STATUSES, STATUS_LABELS, type CarouselStatus } from '../domain/carousel';
 import { Button, Dialog, Field, Input, Select } from '../ui/primitives';
 
-/** Winner goes through the star, which also records the content in Modelos Vencedores. */
+/** Winner goes through the star, which also records the content as a model for the Painel. */
 const BULK_STATUSES = CAROUSEL_STATUSES.filter((status) => status !== 'winner');
 
 export interface PlaceOption {
