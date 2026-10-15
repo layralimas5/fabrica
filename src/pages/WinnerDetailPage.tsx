@@ -74,7 +74,7 @@ export function WinnerDetailPage() {
       <EmptyState
         title="Conteúdo não encontrado"
         description="Ele pode ter sido excluído."
-        action={<Link to="/vencedores" className="text-sm font-medium text-accent underline-offset-4 hover:underline">Ver vencedores</Link>}
+        action={<Link to="/painel" className="text-sm font-medium text-accent underline-offset-4 hover:underline">Ver o Painel</Link>}
       />
     );
   }
@@ -92,8 +92,8 @@ export function WinnerDetailPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <Link to="/vencedores" className="mb-6 inline-flex items-center gap-1.5 rounded-lg text-sm text-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
-        <ArrowLeft className="size-4" aria-hidden /> Modelos Vencedores
+      <Link to="/painel" className="mb-6 inline-flex items-center gap-1.5 rounded-lg text-sm text-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+        <ArrowLeft className="size-4" aria-hidden /> Painel
       </Link>
 
       <header className="mb-8 grid gap-6 sm:grid-cols-[180px_minmax(0,1fr)]">
