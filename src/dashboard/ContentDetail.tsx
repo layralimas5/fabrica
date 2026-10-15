@@ -1,4 +1,4 @@
-import { ExternalLink, PenLine } from 'lucide-react';
+import { ExternalLink, PenLine, Sparkles, Wand2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { LineChart } from '../charts/LineChart';
@@ -11,6 +11,7 @@ import { DASH_PLATFORM_LABELS, itemEngagement, type DashItem } from '../domain/d
 import { timeAgo } from '../domain/social/connection';
 import { METRIC_MEANING, POST_METRIC_KEYS, POST_METRIC_LABELS } from '../domain/social/metrics';
 import { Drawer } from '../ui/Drawer';
+import { Button } from '../ui/primitives';
 import { ContentThumb, SourceBadge } from './parts';
 
 interface Props {
@@ -22,9 +23,12 @@ interface Props {
   accounts: Account[];
   /** Tracked links and conversions of this content (filled by the tracking module). */
   conversions?: ReactNode;
+  /** Reuses what made this post work in new content: one from it as a model, or a set of variations. */
+  onReapply?: (mode: 'model' | 'variations') => void;
+  reapplying?: boolean;
 }
 
-export function ContentDetail({ item, onClose, carousels, brands, assets, accounts, conversions }: Props) {
+export function ContentDetail({ item, onClose, carousels, brands, assets, accounts, conversions, onReapply, reapplying = false }: Props) {
   if (!item) return null;
   const engagement = itemEngagement(item.metrics);
   const viewsHistory = item.history.filter((entry) => entry.metrics.views !== undefined);
@@ -72,6 +76,21 @@ export function ContentDetail({ item, onClose, carousels, brands, assets, accoun
             </Link>
           )}
         </div>
+
+        {onReapply && (
+          <section className="rounded-2xl border border-line p-4">
+            <h3 className="text-sm font-semibold text-ink">Reaplicar o que funcionou</h3>
+            <p className="mt-1 text-xs text-muted">Leva a estrutura deste post (gancho, ritmo, CTA) para um conteúdo novo, sem copiar o texto.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button variant="primary" size="sm" loading={reapplying} onClick={() => onReapply('model')}>
+                <Sparkles className="size-3.5" aria-hidden /> Usar como modelo
+              </Button>
+              <Button variant="secondary" size="sm" disabled={reapplying} onClick={() => onReapply('variations')}>
+                <Wand2 className="size-3.5" aria-hidden /> Gerar variações
+              </Button>
+            </div>
+          </section>
+        )}
 
         {item.caption && (
           <section>

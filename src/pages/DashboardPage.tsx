@@ -3,6 +3,7 @@ import { RefreshCw } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAccountScope } from '../app/accountScope';
+import { recordForContent } from '../application/recordForContent';
 import { useServices } from '../app/services';
 import { errorMessage } from '../app/useResource';
 import { BarList } from '../charts/BarList';
@@ -20,6 +21,8 @@ import { POST_METRIC_LABELS, type PostMetricKey } from '../domain/social/metrics
 import { Alert, Button, EmptyState, Input, PageHeader, Select, Spinner } from '../ui/primitives';
 import { ContentConversions } from '../tracking/ContentConversions';
 import { useTracking } from '../tracking/useTracking';
+import { useWinnerActions } from '../winners/useWinnerActions';
+import { useWinnerLibrary } from '../winners/useWinnerLibrary';
 import { change as changeOf } from '../domain/dashboard/dashboard';
 import { countStage, eventsInRange, measuredStagesOf, type TrackingEventName } from '../domain/tracking/tracking';
 
@@ -51,6 +54,11 @@ export function DashboardPage() {
   const scope = useAccountScope();
   const data = useDashboardData(scope.projects);
   const tracking = useTracking();
+  const services = useServices();
+  const library = useWinnerLibrary();
+  const actions = useWinnerActions(library);
+  const [reapplying, setReapplying] = useState(false);
+  const [reapplyError, setReapplyError] = useState<string | null>(null);
   const today = todayIso();
   const [filters, setFilters] = useState<Omit<DashFilters, 'project'>>({ platform: 'all', accountKey: null, period: '30', from: '', to: '' });
   const [seriesMetric, setSeriesMetric] = useState<PostMetricKey>('views');
@@ -58,6 +66,20 @@ export function DashboardPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const full: DashFilters = { ...filters, project: scope.project?.name ?? null };
+
+  const reapply = async (item: DashItem, mode: 'model' | 'variations') => {
+    setReapplying(true);
+    setReapplyError(null);
+    try {
+      const { record, created } = await recordForContent(services, item, { records: library.records.data, carousels: data.carousels.data, accounts: data.accounts.data, publications: data.publications.data });
+      if (created) library.records.setData((current) => [record, ...current]);
+      actions.run(mode, record);
+    } catch (cause) {
+      setReapplyError(errorMessage(cause));
+    } finally {
+      setReapplying(false);
+    }
+  };
 
   const scopedConnections = useMemo(
     () => data.social.connections.filter((connection) => !scope.project || connection.projectId === scope.project.id || (connection.accountId && scope.matches(connection.accountId))),
@@ -242,8 +264,18 @@ export function DashboardPage() {
         brands={data.brands.data}
         assets={data.assets.data}
         accounts={data.accounts.data}
-        conversions={selected && <ContentConversions item={selected} links={tracking.links.data} events={tracking.events.data} shortLinkBase={tracking.tracking.shortLinkBase} />}
+        conversions={
+          selected && (
+            <>
+              {reapplyError && <Alert>{reapplyError}</Alert>}
+              <ContentConversions item={selected} links={tracking.links.data} events={tracking.events.data} shortLinkBase={tracking.tracking.shortLinkBase} />
+            </>
+          )
+        }
+        reapplying={reapplying}
+        onReapply={(mode) => selected && void reapply(selected, mode)}
       />
+      {actions.dialogs}
     </div>
   );
 }

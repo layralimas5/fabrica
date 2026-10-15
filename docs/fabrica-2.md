@@ -24,7 +24,7 @@ Tudo o que já existia continua igual; os módulos novos se ligam a ele.
 - **Clique não é visita.** Clique = link curto aberto por uma pessoa (prévias de WhatsApp/Instagram/Facebook não contam). Visita = snippet carregado na landing page.
 - **Pessoas no funil:** a mesma pessoa conta uma vez por etapa quando deu consentimento; eventos anônimos contam um a um. A "maior perda" compara só etapas de pessoas (visualização → clique é taxa de clique, outra unidade).
 - **Nada é publicado sem aprovação explícita.** O agendamento nasce "Aguardando aprovação"; aprovar gera as imagens e entra na fila; só o servidor publica.
-- **TikTok:** publicação assistida (imagens, legenda, atalho). A Direct Post API exige auditoria do TikTok e não está ligada.
+- **TikTok:** na hora agendada, o carrossel vai para os **rascunhos** da conta (Content Posting API, modo upload); a dona abre o app, escolhe a música e publica. O post direto exige auditoria do TikTok e não está ligado. O TikTok limita os rascunhos pendentes por conta: se estourar, a fila espera 1 hora e tenta de novo.
 - **Grupos do Facebook:** nada publica nem lê métricas (a Groups API foi descontinuada).
 - **A IA só lê o que foi medido.** O briefing da Inteligência leva só os números da tela; o prompt proíbe inventar dados, benchmarks e previsões.
 
@@ -97,7 +97,7 @@ Ativar `pg_cron` e `pg_net` em Database > Extensions e rodar `supabase/cron.sql`
 
 - **Instagram:** criar app do tipo Empresa na Meta, adicionar o produto Instagram > "API com Login do Instagram", cadastrar a URL de retorno e as permissões `instagram_business_basic`, `instagram_business_manage_insights` e `instagram_business_content_publish`. A conta precisa ser **profissional** (empresa ou criador). Em modo de desenvolvimento, só as contas adicionadas como testadoras conectam; para o modo ativo, as permissões passam pela revisão da Meta.
 - **Páginas do Facebook:** no mesmo app, Login do Facebook para Empresas com `pages_show_list`, `pages_read_engagement`, `read_insights` e `pages_manage_posts`. Quem conecta precisa administrar a página.
-- **TikTok:** app no TikTok for Developers com Login Kit (Web) e Display API, escopos `user.info.basic`, `user.info.profile`, `user.info.stats` e `video.list`, e a URL de retorno. Em sandbox, só contas de teste conectam; fora dele, o TikTok precisa aprovar o app.
+- **TikTok:** app no TikTok for Developers com Login Kit (Web), Display API e Content Posting API, escopos `user.info.basic`, `user.info.profile`, `user.info.stats`, `video.list` e `video.upload`, e a URL de retorno. Em sandbox, só contas em Target users conectam; fora dele, o TikTok precisa aprovar o app. O site `https://fabrica-s.netlify.app/` precisa estar verificado (prefixo de URL) no app: o TikTok só baixa imagens de site verificado, e as imagens aprovadas saem por `/m/*` (proxy para o link assinado do Storage, em `public/_redirects`).
 
 Nenhuma integração foi testada contra as APIs reais nesta entrega: faltam as credenciais e aprovações acima. O código foi testado com respostas simuladas de cada API (`npm test`) e as telas, no navegador, em modo local.
 
