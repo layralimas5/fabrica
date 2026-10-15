@@ -1,4 +1,6 @@
 /api/tts  /.netlify/functions/tts  200!
 # Links rastreáveis: o clique é registrado na função track do Supabase, que redireciona para a landing page.
 /l/*  https://rvizhshxcrfhdgfpennu.supabase.co/functions/v1/track/go/:splat  200!
+# Imagens aprovadas para o TikTok: ele só baixa de site verificado, então o link assinado do Storage passa por aqui (o token vai junto).
+/m/*  https://rvizhshxcrfhdgfpennu.supabase.co/storage/v1/object/sign/publish-media/:splat  200!
 /*  /index.html  200

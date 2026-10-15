@@ -3,7 +3,7 @@ import { useState } from 'react';
 import type { PublishingService } from '../application/ports';
 import { errorMessage } from '../app/useResource';
 import type { Carousel } from '../domain/carousel';
-import { JOB_STATUS_INFO, type PublishingJob } from '../domain/publishing/job';
+import { jobStatusInfo, type PublishingJob } from '../domain/publishing/job';
 import type { SocialConnection } from '../domain/social/connection';
 import { SOCIAL_PLATFORM_LABELS } from '../domain/social/publication';
 import { Badge, Button } from '../ui/primitives';
@@ -59,6 +59,7 @@ export function QueuePanel({ jobs, connections, carousels, publishing, onOpen, o
           {open.map((job) => {
             const carousel = carousels.find((item) => item.id === job.carouselId);
             const connection = connections.find((item) => item.id === job.connectionId);
+            const status = jobStatusInfo(job.status, connection?.platform);
             return (
               <li key={job.id}>
                 <button
@@ -69,7 +70,7 @@ export function QueuePanel({ jobs, connections, carousels, publishing, onOpen, o
                 >
                   <span className="flex items-center justify-between gap-2">
                     <span className="truncate text-sm text-ink">{carousel?.title ?? job.title ?? 'Carrossel removido'}</span>
-                    <Badge tone={JOB_STATUS_INFO[job.status].tone}>{JOB_STATUS_INFO[job.status].label}</Badge>
+                    <Badge tone={status.tone}>{status.label}</Badge>
                   </span>
                   <span className="text-[11px] text-faint">
                     {new Date(job.scheduledAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} · {connection ? `@${connection.username} · ${SOCIAL_PLATFORM_LABELS[connection.platform]}` : 'conta removida'}

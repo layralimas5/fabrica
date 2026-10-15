@@ -2,9 +2,9 @@ import type { Carousel, CarouselFormat } from '../carousel';
 import type { SocialConnection } from '../social/connection';
 
 /**
- * Automatic publishing through the official APIs. Only Instagram (content publishing) and Facebook pages are
- * offered; TikTok goes through assisted publishing (export, copy, open the app) until a Direct Post integration
- * is approved by TikTok for this app.
+ * Automatic publishing through the official APIs: Instagram (content publishing) and Facebook pages get the post
+ * itself; TikTok gets the carousel in the account's drafts (upload mode), since posting directly needs a TikTok
+ * audit this app does not have. The owner finishes the TikTok post in the app.
  */
 
 export const JOB_STATUSES = ['awaiting_approval', 'scheduled', 'publishing', 'published', 'failed', 'cancelled'] as const;
@@ -43,16 +43,29 @@ export const MAX_ATTEMPTS = 3;
 
 /** Proportions the Instagram feed accepts for images (between 4:5 and 1.91:1). */
 const INSTAGRAM_FEED_FORMATS: CarouselFormat[] = ['4:5', '1:1'];
-const PUBLISH_SCOPES: Record<'instagram' | 'facebook', string> = { instagram: 'instagram_business_content_publish', facebook: 'pages_manage_posts' };
+const PUBLISH_SCOPES: Record<SocialConnection['platform'], string> = { instagram: 'instagram_business_content_publish', facebook: 'pages_manage_posts', tiktok: 'video.upload' };
 
-export function canAutoPublish(connection: Pick<SocialConnection, 'platform'>): connection is Pick<SocialConnection, 'platform'> & { platform: 'instagram' | 'facebook' } {
-  return connection.platform === 'instagram' || connection.platform === 'facebook';
+/** Every connected network takes part in the queue; TikTok as drafts (see sendsToDrafts). */
+export function canAutoPublish(connection: Pick<SocialConnection, 'platform'>): boolean {
+  return connection.platform in PUBLISH_SCOPES;
+}
+
+/** TikTok receives the carousel in the drafts: the owner adds the music and posts it in the app. */
+export function sendsToDrafts(platform: SocialConnection['platform'] | undefined): boolean {
+  return platform === 'tiktok';
+}
+
+/** "Publicado" means live for Instagram and Facebook, but only "in the drafts" for TikTok. */
+export function jobStatusInfo(status: JobStatus, platform: SocialConnection['platform'] | undefined): { label: string; tone: 'neutral' | 'accent' | 'success' | 'warning' } {
+  if (sendsToDrafts(platform) && status === 'published') return { label: 'Nos rascunhos do TikTok', tone: 'success' };
+  if (sendsToDrafts(platform) && status === 'publishing') return { label: 'Enviando aos rascunhos', tone: 'accent' };
+  return JOB_STATUS_INFO[status];
 }
 
 /** Everything that would make the network refuse the post, checked before the job is even created. */
 export function publishProblems(carousel: Pick<Carousel, 'format' | 'slides' | 'caption'>, connection: Pick<SocialConnection, 'platform' | 'status' | 'scopes'>, scheduledAt: Date, now: Date): string[] {
   const problems: string[] = [];
-  if (!canAutoPublish(connection)) problems.push('O TikTok não tem publicação automática liberada para esta integração: use a publicação assistida.');
+  if (!canAutoPublish(connection)) problems.push('Essa rede não tem publicação pela fila: use a publicação assistida.');
   else {
     if (connection.status !== 'connected') problems.push('A conta não está conectada. Reconecta antes de agendar.');
     const scope = PUBLISH_SCOPES[connection.platform];
