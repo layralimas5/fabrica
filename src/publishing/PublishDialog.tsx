@@ -5,7 +5,7 @@ import type { PublishingService } from '../application/ports';
 import type { RenderContext } from '../app/slideRendering';
 import { errorMessage } from '../app/useResource';
 import type { Carousel } from '../domain/carousel';
-import { activeJobFor, canAutoPublish, JOB_STATUS_INFO, publishProblems, saoPauloDate, type PublishingJob } from '../domain/publishing/job';
+import { activeJobFor, canAutoPublish, jobStatusInfo, publishProblems, saoPauloDate, sendsToDrafts, type PublishingJob } from '../domain/publishing/job';
 import { todayIso } from '../domain/schedule';
 import type { SocialConnection } from '../domain/social/connection';
 import { SOCIAL_PLATFORM_LABELS } from '../domain/social/publication';
@@ -31,7 +31,7 @@ const NETWORK_UPLOAD: Record<'tiktok' | 'instagram' | 'facebook', string> = {
 
 /**
  * Two explicit steps for automatic publishing: schedule (waits for approval), then approve (renders the slides and
- * hands them to the queue). Networks without an approved publishing API get assisted publishing instead.
+ * hands them to the queue). TikTok gets the carousel in the drafts; assisted publishing stays for anything else.
  */
 export function PublishDialog({ carousel, context, connections, jobs, publishing, onJob, onMarkPosted, onClose }: Props) {
   const capable = useMemo(() => connections.filter(canAutoPublish), [connections]);
@@ -48,6 +48,8 @@ export function PublishDialog({ carousel, context, connections, jobs, publishing
   const when = saoPauloDate(day, time || '00:00');
   const problems = connection ? publishProblems(carousel, connection, when, new Date()) : ['Escolhe a conta que vai publicar.'];
   const jobConnection = active ? connections.find((item) => item.id === active.connectionId) : undefined;
+  const activeStatus = active ? jobStatusInfo(active.status, jobConnection?.platform) : null;
+  const toDrafts = sendsToDrafts(active ? jobConnection?.platform : connection?.platform);
 
   const run = async (key: string, action: () => Promise<void>) => {
     setBusy(key);
@@ -108,13 +110,13 @@ export function PublishDialog({ carousel, context, connections, jobs, publishing
         <div className="flex flex-col gap-4">
           {!publishing.available && <Alert tone="info">Publicação automática precisa do modo com login (Supabase), da função publish-worker e de uma conta conectada.</Alert>}
           {publishing.available && capable.length === 0 && (
-            <Alert tone="info">Nenhuma conta do Instagram ou página do Facebook conectada com permissão de publicar. Conecte em Contas conectadas. O TikTok fica na publicação assistida.</Alert>
+            <Alert tone="info">Nenhuma conta conectada com permissão de publicar. Conecte em Contas conectadas.</Alert>
           )}
 
           {active ? (
             <section className="rounded-2xl border border-line p-4">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge tone={JOB_STATUS_INFO[active.status].tone}>{JOB_STATUS_INFO[active.status].label}</Badge>
+                {activeStatus && <Badge tone={activeStatus.tone}>{activeStatus.label}</Badge>}
                 <span className="text-sm text-ink">
                   {jobConnection ? `@${jobConnection.username} · ${SOCIAL_PLATFORM_LABELS[jobConnection.platform]}` : 'Conta removida'} · {new Date(active.scheduledAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
                 </span>
@@ -127,8 +129,13 @@ export function PublishDialog({ carousel, context, connections, jobs, publishing
               )}
               {active.status === 'awaiting_approval' && (
                 <p className="mt-3 text-sm text-muted">
-                  Ao aprovar, a Fábrica gera as {carousel.slides.length} imagens como estão agora e publica sozinha no horário marcado, com a legenda atual. Dá pra cancelar até a hora.
+                  {toDrafts
+                    ? `Ao aprovar, a Fábrica gera as ${carousel.slides.length} imagens como estão agora e, no horário marcado, envia o carrossel com a legenda para os rascunhos do TikTok. Você recebe o aviso no app, escolhe a música e publica. Dá pra cancelar até a hora.`
+                    : `Ao aprovar, a Fábrica gera as ${carousel.slides.length} imagens como estão agora e publica sozinha no horário marcado, com a legenda atual. Dá pra cancelar até a hora.`}
                 </p>
+              )}
+              {active.status === 'published' && toDrafts && (
+                <p className="mt-3 text-sm text-muted">Está nos rascunhos do TikTok. Abra o app, escolha a música e toque em Publicar. Depois de publicado, a sincronização traz os números.</p>
               )}
               <div className="mt-4 flex flex-wrap gap-2">
                 {active.status === 'awaiting_approval' && (
@@ -179,6 +186,7 @@ export function PublishDialog({ carousel, context, connections, jobs, publishing
                   <Button variant="primary" disabled={problems.length > 0} loading={busy === 'schedule'} onClick={() => void schedule()}>
                     <Send className="size-4" aria-hidden /> Agendar (fica aguardando sua aprovação)
                   </Button>
+                  {toDrafts && <p className="mt-2 text-xs text-muted">No TikTok, o carrossel vai para os rascunhos da conta na hora marcada. A música e o toque final em Publicar ficam com você no app.</p>}
                 </div>
               </>
             )
@@ -187,7 +195,7 @@ export function PublishDialog({ carousel, context, connections, jobs, publishing
       ) : (
         <div className="flex flex-col gap-4 text-sm">
           <p className="text-muted">
-            Você publica pelo app da rede. A Fábrica prepara tudo: as imagens em JPG, a legenda e o atalho. O TikTok fica sempre aqui: a publicação direta pela API exige auditoria do TikTok que esta integração não tem.
+            Você publica pelo app da rede. A Fábrica prepara tudo: as imagens em JPG, a legenda e o atalho.
           </p>
           <ol className="flex list-decimal flex-col gap-3 pl-5 marker:text-faint">
             <li>

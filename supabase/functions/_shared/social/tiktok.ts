@@ -2,11 +2,12 @@ import { expiryFrom, query } from './meta.ts';
 import { ProviderError, type FetchFn, type PostMetrics, type Provider, type ProviderAccount, type ProviderEnv, type ProviderPost, type RateUsage, type TokenSet } from './types.ts';
 
 /**
- * TikTok Login Kit + Display API: the profile and the videos of the authorized account with their public counts.
+ * TikTok Login Kit + Display API: the profile and the videos of the authorized account with their public counts,
+ * plus video.upload (Content Posting API) to send scheduled carousels to the account's drafts.
  * The app must be approved by TikTok with these scopes before anyone outside the sandbox can connect.
  * https://developers.tiktok.com/doc/display-api-overview
  */
-export const TIKTOK_SCOPES = ['user.info.basic', 'user.info.profile', 'user.info.stats', 'video.list'];
+export const TIKTOK_SCOPES = ['user.info.basic', 'user.info.profile', 'user.info.stats', 'video.list', 'video.upload'];
 
 const API = 'https://open.tiktokapis.com/v2';
 /** Access tokens last 24 hours: every sync refreshes when less than 2 hours are left. */

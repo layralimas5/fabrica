@@ -80,7 +80,7 @@ export const PLATFORM_SETUP_INFO: Record<SocialPlatform, { title: string; reads:
   tiktok: {
     title: 'TikTok (Display API)',
     reads: 'Perfil, seguidores e vídeos com visualizações, curtidas, comentários e compartilhamentos. A Display API não informa alcance nem salvamentos.',
-    requires: 'App no TikTok for Developers com Login Kit e os escopos user.info.basic, user.info.profile, user.info.stats e video.list aprovados. Em sandbox, só contas de teste conectam.',
+    requires: 'App no TikTok for Developers com Login Kit, Display API e Content Posting API, com os escopos user.info.basic, user.info.profile, user.info.stats, video.list e video.upload (rascunhos agendados) aprovados. Em sandbox, só contas de teste conectam.',
     docs: 'https://developers.tiktok.com/doc/display-api-overview',
   },
 };

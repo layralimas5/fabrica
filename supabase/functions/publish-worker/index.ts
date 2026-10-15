@@ -2,12 +2,15 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { importKey, safeEqual } from '../_shared/crypto.ts';
 import { corsHeaders, HttpError, json, logError, readJson, requireUser, serviceClient } from '../_shared/http.ts';
 import { afterFailure, publishFacebookPage, publishInstagram, type Checkpoint } from '../_shared/publishing/publish.ts';
+import { sendTikTokDraft, verifiedMediaUrl, type TikTokCheckpoint } from '../_shared/publishing/tiktokDraft.ts';
 import { normalizePermalink, titleFromCaption } from '../_shared/social/permalink.ts';
-import { loadTokenSet } from '../_shared/social/supabaseStore.ts';
-import { ProviderError } from '../_shared/social/types.ts';
+import { createProvider } from '../_shared/social/providers.ts';
+import { loadTokenSet, saveTokenSet } from '../_shared/social/supabaseStore.ts';
+import { ProviderError, type TokenSet } from '../_shared/social/types.ts';
 
 /**
- * Publishes approved jobs that are due.
+ * Publishes approved jobs that are due. Instagram and Facebook pages get the post itself; TikTok gets the
+ * carousel in the account's drafts (upload mode), and the owner finishes it in the app.
  *   POST with x-cron-secret          → every user's due jobs (scheduled every few minutes by pg_cron)
  *   POST {action:'run-mine'} + JWT   → the user's own due jobs, now
  * A job is claimed atomically (scheduled → publishing), so two runs never publish the same post.
@@ -27,7 +30,7 @@ interface JobRow {
   attempts: number;
   scheduled_at: string;
   approved_at: string | null;
-  data: { caption?: string; media?: string[]; title?: string; checkpoint?: Checkpoint };
+  data: { caption?: string; media?: string[]; title?: string; checkpoint?: Checkpoint & TikTokCheckpoint };
 }
 
 Deno.serve(async (request) => {
@@ -81,7 +84,6 @@ async function publishJob(db: SupabaseClient, job: JobRow): Promise<void> {
     if (!job.approved_at) throw new ProviderError('permission', 'Job sem aprovação: nada foi publicado.');
     const { data: connection } = await db.from('social_connections').select('id, platform, external_id, status').eq('id', job.connection_id).eq('user_id', job.user_id).maybeSingle();
     if (!connection || connection.status !== 'connected') throw new ProviderError('auth', 'A conta não está conectada. Reconecta e aprova de novo.');
-    if (connection.platform !== 'instagram' && connection.platform !== 'facebook') throw new ProviderError('permission', 'Essa rede não tem publicação automática liberada.');
 
     const media = job.data.media ?? [];
     if (media.length < 1 || media.length > 10) throw new ProviderError('permission', 'A publicação precisa de 1 a 10 imagens aprovadas.');
@@ -92,17 +94,31 @@ async function publishJob(db: SupabaseClient, job: JobRow): Promise<void> {
       urls.push(signed.signedUrl);
     }
 
-    const tokens = await loadTokenSet(db, await importKey(Deno.env.get('TOKEN_ENCRYPTION_KEY')), connection.id);
-    const target = { platform: connection.platform, accountId: connection.external_id, accessToken: tokens.accessToken } as const;
+    const key = await importKey(Deno.env.get('TOKEN_ENCRYPTION_KEY'));
     const caption = job.data.caption ?? '';
-    const deps = {
-      env,
-      fetchFn: fetch,
-      saveCheckpoint: async (checkpoint: Checkpoint) => {
-        const { error } = await db.from('publishing_jobs').update({ data: { ...job.data, checkpoint } }).eq('id', job.id);
-        if (error) throw new Error(`checkpoint: ${error.message}`);
-      },
+    const saveCheckpoint = async (checkpoint: Checkpoint & TikTokCheckpoint) => {
+      const { error } = await db.from('publishing_jobs').update({ data: { ...job.data, checkpoint } }).eq('id', job.id);
+      if (error) throw new Error(`checkpoint: ${error.message}`);
     };
+
+    if (connection.platform === 'tiktok') {
+      const appUrl = Deno.env.get('APP_URL');
+      if (!appUrl) throw new ProviderError('permission', 'Falta o segredo APP_URL: o TikTok só baixa imagens do site verificado.');
+      const tokens = await freshTikTokTokens(db, key, connection.id);
+      const publishId = await sendTikTokDraft(
+        { accessToken: tokens.accessToken, imageUrls: urls.map((url) => verifiedMediaUrl(url, appUrl)), title: job.data.title || titleFromCaption(caption), caption },
+        job.data.checkpoint ?? {},
+        { fetchFn: fetch, saveCheckpoint },
+      );
+      // In the drafts, not live: the carousel stays as it is until the owner posts it and the sync finds the post.
+      await db.from('publishing_jobs').update({ status: 'published', attempts, external_id: publishId, permalink: null, last_error: null, next_attempt_at: null }).eq('id', job.id);
+      await removeMedia(db, media);
+      return;
+    }
+
+    const tokens = await loadTokenSet(db, key, connection.id);
+    const target = { platform: connection.platform, accountId: connection.external_id, accessToken: tokens.accessToken } as const;
+    const deps = { env, fetchFn: fetch, saveCheckpoint };
     const result =
       target.platform === 'instagram'
         ? await publishInstagram(target, urls, caption, job.data.checkpoint ?? {}, deps)
@@ -110,9 +126,7 @@ async function publishJob(db: SupabaseClient, job: JobRow): Promise<void> {
 
     await db.from('publishing_jobs').update({ status: 'published', attempts, external_id: result.externalId, permalink: result.permalink, last_error: null, next_attempt_at: null }).eq('id', job.id);
     await recordPublication(db, job, connection.platform, result.externalId, result.permalink);
-    // The approved images are only needed until the network has them.
-    const { error: removeError } = await db.storage.from('publish-media').remove(media);
-    if (removeError) logError('remove published media', removeError);
+    await removeMedia(db, media);
   } catch (error) {
     logError('publish job', error);
     const decision = afterFailure(error, attempts, MAX_ATTEMPTS);
@@ -128,6 +142,21 @@ async function publishJob(db: SupabaseClient, job: JobRow): Promise<void> {
       .eq('id', job.id);
     if (decision.status === 'failed' && decision.reconnect) await db.from('social_connections').update({ status: 'expired', last_error: message }).eq('id', job.connection_id);
   }
+}
+
+/** The approved images are only needed until the network has them. */
+async function removeMedia(db: SupabaseClient, media: string[]): Promise<void> {
+  const { error } = await db.storage.from('publish-media').remove(media);
+  if (error) logError('remove published media', error);
+}
+
+/** TikTok access tokens last 24 hours: refreshed here too, since the next sync may be hours away. */
+async function freshTikTokTokens(db: SupabaseClient, key: CryptoKey, connectionId: string): Promise<TokenSet> {
+  const tokens = await loadTokenSet(db, key, connectionId);
+  const refreshed = await createProvider('tiktok', env, fetch).refresh(tokens, new Date());
+  if (!refreshed) return tokens;
+  await saveTokenSet(db, key, connectionId, refreshed);
+  return refreshed;
 }
 
 /** The new post enters the Painel linked to its carousel; the next sync fills in its numbers. */
