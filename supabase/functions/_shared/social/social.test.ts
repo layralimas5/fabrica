@@ -37,6 +37,13 @@ describe('Instagram mapping', () => {
     expect(url.searchParams.get('state')).toBe('st4te');
   });
 
+  it('asks TikTok to always show the consent screen, so another account can be connected', () => {
+    const provider = createTikTokProvider(env({ TIKTOK_CLIENT_KEY: 'key', TIKTOK_CLIENT_SECRET: 's' }), async () => reply({}));
+    const url = new URL(provider.authorizeUrl('st4te', 'https://x.supabase.co/functions/v1/social-oauth/callback/tiktok'));
+    expect(url.searchParams.get('disable_auto_auth')).toBe('1');
+    expect(url.searchParams.get('scope')).toContain('video.list');
+  });
+
   it('exchanges the code (dropping the #_ suffix) for a long-lived token and reads the account', async () => {
     const calls: string[] = [];
     const fetchFn: FetchFn = async (input, init) => {
