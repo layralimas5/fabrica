@@ -68,6 +68,7 @@ export function ConnectionsPage() {
     });
 
   const visible = connections.filter((connection) => !scope.project || connection.projectId === scope.project.id);
+  const hiddenCount = connections.length - visible.length;
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -104,11 +105,21 @@ export function ConnectionsPage() {
         <h2 id="connected-title" className="mb-3 text-xs font-semibold uppercase tracking-wider text-faint">
           Conectadas
         </h2>
+        {!loading && hiddenCount > 0 && scope.project && (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-subtle px-4 py-3 text-sm text-muted">
+            <span>
+              Mostrando só as de {scope.project.name}. {hiddenCount === 1 ? 'Outra conta está' : `Outras ${hiddenCount} contas estão`} em outros projetos ou sem projeto.
+            </span>
+            <Button variant="secondary" size="sm" onClick={() => scope.setProject(null)}>
+              Ver todas
+            </Button>
+          </div>
+        )}
         {loading ? (
           <Spinner />
         ) : visible.length === 0 ? (
           <EmptyState
-            title="Nenhuma conta conectada ainda"
+            title={hiddenCount > 0 ? `Nenhuma conta conectada em ${scope.project?.name ?? 'neste projeto'}` : 'Nenhuma conta conectada ainda'}
             description={social.available ? 'Conecta uma conta acima. As métricas só aparecem no Painel depois da primeira sincronização.' : 'No modo local não há conexões. As métricas lançadas à mão continuam no Analytics.'}
           />
         ) : (
