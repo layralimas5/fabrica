@@ -2,6 +2,9 @@ import Anthropic from 'npm:@anthropic-ai/sdk';
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import type { ZodType } from 'npm:zod@4';
 import {
+  ANALYZE_JSON_SCHEMA,
+  analyzeRequest,
+  analyzeResponse,
   DRAFT_JSON_SCHEMA,
   HOOKS_JSON_SCHEMA,
   MATCH_JSON_SCHEMA,
@@ -21,16 +24,17 @@ import {
   tagImageRequest,
   tagImageResponse,
 } from '../_shared/contract.ts';
-import { HOOKS_INSTRUCTIONS, MATCH_SYSTEM_PROMPT, REMIX_SYSTEM_PROMPT, REWRITE_INSTRUCTIONS, SYSTEM_PROMPT, TAG_SYSTEM_PROMPT } from '../_shared/prompts.ts';
+import { ANALYZE_SYSTEM_PROMPT, BATCH_SYSTEM_PROMPT, HOOKS_INSTRUCTIONS, MATCH_SYSTEM_PROMPT, REMIX_SYSTEM_PROMPT, REWRITE_INSTRUCTIONS, SYSTEM_PROMPT, TAG_SYSTEM_PROMPT } from '../_shared/prompts.ts';
 
 const MODEL = 'claude-opus-5-5';
 const HOURLY_LIMIT = Number(Deno.env.get('AI_HOURLY_LIMIT') ?? '120');
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': Deno.env.get('ALLOWED_ORIGIN') ?? '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+/** ALLOWED_ORIGIN can list several sites ("https://app,http://localhost:5320"): the header carries the one that asked. */
+function corsFor(origin: string | null): Record<string, string> {
+  const allowed = (Deno.env.get('ALLOWED_ORIGIN') ?? '*').split(',').map((item) => item.trim());
+  const value = allowed.includes('*') ? '*' : origin && allowed.includes(origin) ? origin : allowed[0];
+  return { 'Access-Control-Allow-Origin': value, 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS', Vary: 'Origin' };
+}
 
 const anthropic = new Anthropic();
 
@@ -40,7 +44,7 @@ class HttpError extends Error {
   }
 }
 
-type Action = 'draft' | 'rewrite' | 'hooks' | 'tag' | 'match' | 'remix';
+type Action = 'draft' | 'rewrite' | 'hooks' | 'tag' | 'match' | 'remix' | 'analyze' | 'batch';
 
 type UserContent =
   | string
@@ -56,7 +60,13 @@ interface CallSpec<T> {
 }
 
 Deno.serve(async (request) => {
-  if (request.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
+  const response = await handle(request);
+  for (const [name, value] of Object.entries(corsFor(request.headers.get('Origin')))) response.headers.set(name, value);
+  return response;
+});
+
+async function handle(request: Request): Promise<Response> {
+  if (request.method === 'OPTIONS') return new Response('ok');
   if (request.method !== 'POST') return json({ error: 'Método não permitido.' }, 405);
 
   try {
@@ -83,7 +93,7 @@ Deno.serve(async (request) => {
     console.error('unexpected error', error);
     return json({ error: 'Erro inesperado.' }, 500);
   }
-});
+}
 
 function userClient(request: Request): SupabaseClient {
   const authorization = request.headers.get('Authorization');
@@ -173,6 +183,26 @@ function buildCall(action: Action, payload: unknown): CallSpec<unknown> {
         userContent: `Crie exatamente ${input.count} carrossel(éis).\n<briefing>${input.prompt}</briefing>`,
       };
     }
+    case 'batch': {
+      const input = parse(remixRequest, payload);
+      return {
+        effort: 'high',
+        schema: REMIX_JSON_SCHEMA,
+        validator: remixResponse,
+        system: BATCH_SYSTEM_PROMPT,
+        userContent: `Crie exatamente ${input.count} carrossel(éis).\n<briefing>${input.prompt}</briefing>`,
+      };
+    }
+    case 'analyze': {
+      const input = parse(analyzeRequest, payload);
+      return {
+        effort: 'medium',
+        schema: ANALYZE_JSON_SCHEMA,
+        validator: analyzeResponse,
+        system: ANALYZE_SYSTEM_PROMPT,
+        userContent: `Leia os resultados medidos e responda no JSON pedido.\n<briefing>${input.briefing}</briefing>`,
+      };
+    }
     default:
       throw new HttpError(400, 'Ação desconhecida.');
   }
@@ -216,5 +246,5 @@ async function callClaude<T>(spec: CallSpec<T>): Promise<T> {
 }
 
 function json(body: unknown, status: number): Response {
-  return new Response(JSON.stringify(body), { status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }

@@ -8,6 +8,6 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss(), ttsDevServer({ supabaseUrl: env.VITE_SUPABASE_URL, supabaseAnonKey: env.VITE_SUPABASE_ANON_KEY })],
     server: { port: 5320, strictPort: true },
-    test: { environment: 'node', include: ['src/**/*.test.ts'] },
+    test: { environment: 'node', include: ['src/**/*.test.ts', 'supabase/functions/_shared/**/*.test.ts'] },
   };
 });

@@ -1,5 +1,5 @@
 import type { SupabaseClient, User as SupabaseUser } from '@supabase/supabase-js';
-import type { AccountRepository, AssetRepository, AuthService, BrandKitRepository, CarouselRepository, ContentRecordRepository, PresetRepository, Repository, User } from '../../application/ports';
+import type { AccountRepository, AssetRepository, AuthService, BrandKitRepository, CarouselRepository, ContentRecordRepository, ContentVersionRepository, PresetRepository, Repository, User } from '../../application/ports';
 import { normalizeSettings, type CreateSettings, type Preset, type PresetInput } from '../../domain/preset';
 import { normalizeAccount, type Account, type AccountInput } from '../../domain/account';
 import type { Asset, AssetUpload } from '../../domain/asset';
@@ -8,6 +8,11 @@ import { normalizeCarousel, type Carousel, type CarouselInput } from '../../doma
 import { normalizeRecord, sanitizeRecordInput, type ContentRecord, type ContentRecordInput } from '../../domain/winners/record';
 import { sanitizeExperimentInput, type Experiment, type ExperimentInput } from '../../domain/experiments/experiment';
 import { sanitizeEntryInput, type CalendarEntry, type CalendarEntryInput } from '../../domain/calendar/calendar';
+import { sanitizeProjectInput, type Project, type ProjectInput } from '../../domain/project';
+import { sanitizePublicationInput, type Publication, type PublicationInput } from '../../domain/social/publication';
+import { sanitizeVersionInput, type ContentVersion, type ContentVersionInput } from '../../domain/contentVersion';
+import { sanitizeInsightInput, type AiInsight, type AiInsightInput } from '../../domain/intelligence/insight';
+import { sanitizeDistributionInput, sanitizeGroupInput, type FacebookGroup, type FacebookGroupInput, type GroupDistribution, type GroupDistributionInput } from '../../domain/groups/groups';
 import { readImageSize } from '../imageSize';
 
 export const BUCKET = 'assets';
@@ -453,3 +458,65 @@ export const supabaseExperiments = (client: SupabaseClient) =>
   new SupabaseCollection<Experiment, ExperimentInput>(client, 'experiments', 'os experimentos', sanitizeExperimentInput);
 export const supabaseCalendarEntries = (client: SupabaseClient) =>
   new SupabaseCollection<CalendarEntry, CalendarEntryInput>(client, 'calendar_entries', 'o calendário', sanitizeEntryInput, (input) => ({ date: input.date }));
+
+export const supabaseProjects = (client: SupabaseClient) =>
+  new SupabaseCollection<Project, ProjectInput>(client, 'projects', 'os projetos', sanitizeProjectInput, (input) => ({ name: input.name, tracking_key: input.trackingKey }));
+
+export const publicationColumns = (input: PublicationInput) => ({
+  platform: input.platform,
+  external_id: input.externalId,
+  permalink: input.permalink,
+  connection_id: input.connectionId,
+  carousel_id: input.carouselId,
+  record_id: input.recordId,
+  published_at: input.publishedAt,
+  source: input.source,
+});
+
+export const supabasePublications = (client: SupabaseClient) =>
+  new SupabaseCollection<Publication, PublicationInput>(client, 'publications', 'as publicações', sanitizePublicationInput, publicationColumns);
+
+interface VersionRow {
+  id: string;
+  carousel_id: string;
+  data: Omit<ContentVersionInput, 'carouselId'>;
+  created_at: string;
+  updated_at: string;
+}
+
+const rowToVersion = (row: VersionRow): ContentVersion => ({
+  ...sanitizeVersionInput({ ...row.data, carouselId: row.carousel_id }),
+  id: row.id,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+
+export class SupabaseContentVersions implements ContentVersionRepository {
+  constructor(private readonly client: SupabaseClient) {}
+
+  async listFor(carouselId: string): Promise<ContentVersion[]> {
+    const { data, error } = await this.client.from('content_versions').select('*').eq('carousel_id', carouselId).order('created_at', { ascending: false });
+    if (error) fail('Não consegui carregar as versões', error);
+    return (data as VersionRow[]).map(rowToVersion);
+  }
+
+  async create(input: ContentVersionInput): Promise<ContentVersion> {
+    const { carouselId, ...data } = sanitizeVersionInput(input);
+    const { data: row, error } = await this.client.from('content_versions').insert({ carousel_id: carouselId, data }).select().single();
+    if (error) fail('Não consegui salvar a versão', error);
+    return rowToVersion(row as VersionRow);
+  }
+
+  async remove(id: string): Promise<void> {
+    const { error } = await this.client.from('content_versions').delete().eq('id', id);
+    if (error) fail('Não consegui excluir a versão', error);
+  }
+}
+
+export const supabaseInsights = (client: SupabaseClient) =>
+  new SupabaseCollection<AiInsight, AiInsightInput>(client, 'ai_insights', 'as análises', sanitizeInsightInput, (input) => ({ project_id: input.projectId }));
+
+export const supabaseGroups = (client: SupabaseClient) =>
+  new SupabaseCollection<FacebookGroup, FacebookGroupInput>(client, 'facebook_groups', 'os grupos', sanitizeGroupInput, (input) => ({ project_id: input.projectId }));
+export const supabaseDistributions = (client: SupabaseClient) =>
+  new SupabaseCollection<GroupDistribution, GroupDistributionInput>(client, 'group_distributions', 'as divulgações', sanitizeDistributionInput, (input) => ({ group_id: input.groupId, date: input.date, status: input.status }));

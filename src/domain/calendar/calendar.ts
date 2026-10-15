@@ -12,14 +12,28 @@ export const CALENDAR_KINDS = ['carrossel', 'video', 'ugc', 'reels', 'outros'] a
 export type CalendarKind = (typeof CALENDAR_KINDS)[number];
 export const CALENDAR_KIND_LABELS: Record<CalendarKind, string> = { carrossel: 'Carrossel', video: 'Vídeo', ugc: 'UGC', reels: 'Reels', outros: 'Outros' };
 
-export const CALENDAR_STATUSES = ['rascunho', 'em_producao', 'pronto', 'agendado', 'publicado'] as const;
+export const CALENDAR_STATUSES = ['rascunho', 'em_producao', 'pronto', 'aguardando_aprovacao', 'agendado', 'publicado', 'falha'] as const;
 export type CalendarStatus = (typeof CALENDAR_STATUSES)[number];
 export const CALENDAR_STATUS_LABELS: Record<CalendarStatus, string> = {
   rascunho: 'Rascunho',
   em_producao: 'Em produção',
   pronto: 'Pronto',
+  aguardando_aprovacao: 'Aguardando aprovação',
   agendado: 'Agendado',
   publicado: 'Publicado',
+  falha: 'Falha',
+};
+/** Statuses typed by hand on a planned entry; approval and failure only come from the publishing queue. */
+export const ENTRY_STATUSES = ['rascunho', 'em_producao', 'pronto', 'agendado', 'publicado'] as const satisfies readonly CalendarStatus[];
+
+/** Status of the publishing queue that wins over the carousel's own status on the calendar. */
+export type QueueStatus = 'awaiting_approval' | 'scheduled' | 'publishing' | 'published' | 'failed';
+const QUEUE_TO_CALENDAR: Record<QueueStatus, CalendarStatus> = {
+  awaiting_approval: 'aguardando_aprovacao',
+  scheduled: 'agendado',
+  publishing: 'agendado',
+  published: 'publicado',
+  failed: 'falha',
 };
 
 /** A planned content that is not (yet) a Fábrica carousel. */
@@ -67,7 +81,7 @@ export function sanitizeEntryInput(raw: Partial<CalendarEntryInput>): CalendarEn
     objective: OBJECTIVES.includes(raw.objective as Objective) ? (raw.objective as Objective) : null,
     date: typeof raw.date === 'string' && ISO_DAY.test(raw.date) ? raw.date : new Date().toISOString().slice(0, 10),
     time: normalizeTime(raw.time),
-    status: oneOf(CALENDAR_STATUSES, raw.status, 'rascunho'),
+    status: oneOf(ENTRY_STATUSES, raw.status, 'rascunho'),
     experimentId: typeof raw.experimentId === 'string' && raw.experimentId ? raw.experimentId : null,
     variant: text(raw.variant, 60),
     notes: text(raw.notes, 1000),
@@ -106,7 +120,13 @@ export function carouselCalendarStatus(carousel: Carousel): CalendarStatus {
 }
 
 /** Carousels with a day (posted ones use their publication day) plus the entries. Archived ones stay out. */
-export function calendarItems(carousels: Carousel[], entries: CalendarEntry[], records: ContentRecord[], platformOf: (accountId: string | null) => Platform | null): CalendarItem[] {
+export function calendarItems(
+  carousels: Carousel[],
+  entries: CalendarEntry[],
+  records: ContentRecord[],
+  platformOf: (accountId: string | null) => Platform | null,
+  queueStatusOf: (carouselId: string) => QueueStatus | null = () => null,
+): CalendarItem[] {
   const publishedDay = new Map(records.filter((record) => record.carouselId && record.publishedAt).map((record) => [record.carouselId as string, record.publishedAt as string]));
   const fromCarousels = carousels.flatMap((carousel): CalendarItem[] => {
     if (carousel.status === 'archived') return [];
@@ -123,7 +143,10 @@ export function calendarItems(carousels: Carousel[], entries: CalendarEntry[], r
         kind: 'carrossel',
         category: categoryOf(carousel.source),
         theme: carousel.source.theme ?? '',
-        status: carouselCalendarStatus(carousel),
+        status: (() => {
+          const queued = queueStatusOf(carousel.id);
+          return queued ? QUEUE_TO_CALENDAR[queued] : carouselCalendarStatus(carousel);
+        })(),
         experimentId: carousel.experiment?.id ?? null,
         carousel,
         entry: null,

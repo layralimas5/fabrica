@@ -7,6 +7,9 @@ import type { Carousel } from '../domain/carousel';
 import type { Experiment } from '../domain/experiments/experiment';
 import type { Preset } from '../domain/preset';
 import { normalizeRecord, type ContentRecord } from '../domain/winners/record';
+import { sanitizeProjectInput, type Project } from '../domain/project';
+import { sanitizePublicationInput, type Publication } from '../domain/social/publication';
+import { sanitizeDistributionInput, sanitizeGroupInput, type FacebookGroup, type GroupDistribution } from '../domain/groups/groups';
 
 /**
  * The backup file shared by both modes: a backup made in the browser restores on Supabase and the other way
@@ -25,11 +28,16 @@ export interface BackupData {
   contentRecords: ContentRecord[];
   experiments: Experiment[];
   calendarEntries: CalendarEntry[];
+  projects: Project[];
+  /** Posts linked to contents. Synced numbers are not in the backup: the next sync reads them again. */
+  publications: Publication[];
+  facebookGroups: FacebookGroup[];
+  groupDistributions: GroupDistribution[];
   /** Image files by asset id, as data URLs. */
   files: Record<string, string>;
 }
 
-interface BackupFile extends Omit<BackupData, 'presets' | 'contentRecords' | 'experiments' | 'calendarEntries'> {
+interface BackupFile extends Omit<BackupData, 'presets' | 'contentRecords' | 'experiments' | 'calendarEntries' | 'projects' | 'publications' | 'facebookGroups' | 'groupDistributions'> {
   app: typeof BACKUP_APP;
   version: number;
   exportedAt: string;
@@ -40,6 +48,11 @@ interface BackupFile extends Omit<BackupData, 'presets' | 'contentRecords' | 'ex
   /** Missing in backups made before experiments and the calendar existed. */
   experiments?: Experiment[];
   calendarEntries?: CalendarEntry[];
+  /** Missing in backups made before the Fábrica 2.0. */
+  projects?: Project[];
+  publications?: Publication[];
+  facebookGroups?: FacebookGroup[];
+  groupDistributions?: GroupDistribution[];
 }
 
 export function blobToDataUrl(blob: Blob): Promise<string> {
@@ -84,6 +97,10 @@ export async function readBackup(file: Blob): Promise<BackupData> {
     contentRecords: (parsed.contentRecords ?? []).map(normalizeRecord),
     experiments: parsed.experiments ?? [],
     calendarEntries: parsed.calendarEntries ?? [],
+    projects: (parsed.projects ?? []).map((project) => ({ ...project, ...sanitizeProjectInput(project) })),
+    publications: (parsed.publications ?? []).map((publication) => ({ ...publication, ...sanitizePublicationInput(publication) })),
+    facebookGroups: (parsed.facebookGroups ?? []).map((group) => ({ ...group, ...sanitizeGroupInput(group) })),
+    groupDistributions: (parsed.groupDistributions ?? []).map((item) => ({ ...item, ...sanitizeDistributionInput(item) })),
     files: parsed.files,
   };
 }
@@ -98,5 +115,9 @@ export function summarize(data: BackupData): BackupSummary {
     contentRecords: data.contentRecords.length,
     experiments: data.experiments.length,
     calendarEntries: data.calendarEntries.length,
+    projects: data.projects.length,
+    publications: data.publications.length,
+    facebookGroups: data.facebookGroups.length,
+    groupDistributions: data.groupDistributions.length,
   };
 }

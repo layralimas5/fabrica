@@ -6,6 +6,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "typecheck": "tsc",
+    "typecheck:functions": "tsc -p supabase/typecheck/tsconfig.json",
     "test": "vitest run"
   },
   "type": "module",

@@ -1,4 +1,4 @@
-import type { CarouselDraft, DraftRequest, HooksRequest, MatchRequest, RemixAiRequest, RewriteRequest, SlideText, TagImageRequest } from '../domain/aiContract';
+import type { Analysis, AnalyzeRequest, CarouselDraft, DraftRequest, HooksRequest, MatchRequest, RemixAiRequest, RewriteRequest, SlideText, TagImageRequest } from '../domain/aiContract';
 import type { Account, AccountInput } from '../domain/account';
 import type { Asset, AssetUpload } from '../domain/asset';
 import type { Preset, PresetInput } from '../domain/preset';
@@ -8,6 +8,16 @@ import type { ContentRecord, ContentRecordInput } from '../domain/winners/record
 import type { Experiment, ExperimentInput } from '../domain/experiments/experiment';
 import type { CalendarEntry, CalendarEntryInput } from '../domain/calendar/calendar';
 import type { RemixScript } from '../domain/winners/remix';
+import type { Project, ProjectInput } from '../domain/project';
+import type { Publication, PublicationInput } from '../domain/social/publication';
+import type { ContentVersion, ContentVersionInput } from '../domain/contentVersion';
+import type { SocialConfig, SocialConnection, SyncRun } from '../domain/social/connection';
+import type { AccountSnapshot, PostSnapshot } from '../domain/social/metrics';
+import type { SocialPlatform } from '../domain/social/publication';
+import type { TrackingEvent, TrackingLink, TrackingLinkInput } from '../domain/tracking/tracking';
+import type { AiInsight, AiInsightInput } from '../domain/intelligence/insight';
+import type { PublishingJob } from '../domain/publishing/job';
+import type { FacebookGroup, FacebookGroupInput, GroupDistribution, GroupDistributionInput } from '../domain/groups/groups';
 
 export interface User {
   id: string;
@@ -66,6 +76,10 @@ export interface BackupSummary {
   contentRecords: number;
   experiments: number;
   calendarEntries: number;
+  projects: number;
+  facebookGroups: number;
+  groupDistributions: number;
+  publications: number;
   /** Photos the server kept refusing; restoring the same file again sends only what is missing. */
   failedAssets?: string[];
 }
@@ -105,6 +119,82 @@ export interface Repository<T, Input> {
 
 export type ExperimentRepository = Repository<Experiment, ExperimentInput>;
 export type CalendarEntryRepository = Repository<CalendarEntry, CalendarEntryInput>;
+export type ProjectRepository = Repository<Project, ProjectInput>;
+export type InsightRepository = Repository<AiInsight, AiInsightInput>;
+export type GroupRepository = Repository<FacebookGroup, FacebookGroupInput>;
+export type DistributionRepository = Repository<GroupDistribution, GroupDistributionInput>;
+/** Posts live on the networks, from a sync or linked by hand to a content of the Fábrica. */
+export type PublicationRepository = Repository<Publication, PublicationInput>;
+
+/** Saved copies of a carousel. A version never changes after it is saved. */
+export interface ContentVersionRepository {
+  listFor(carouselId: string): Promise<ContentVersion[]>;
+  create(input: ContentVersionInput): Promise<ContentVersion>;
+  remove(id: string): Promise<void>;
+}
+
+/**
+ * Accounts connected through the official logins of the networks, and what their syncs read.
+ * Needs the Supabase mode: in local mode `available` is false and every call explains why.
+ */
+export interface SocialService {
+  readonly available: boolean;
+  config(): Promise<SocialConfig>;
+  listConnections(): Promise<SocialConnection[]>;
+  /** URL of the network's authorization screen. */
+  startConnection(platform: SocialPlatform, projectId: string | null): Promise<string>;
+  disconnect(connectionId: string, deleteData: boolean): Promise<void>;
+  sync(connectionId: string): Promise<{ status: SyncRun['status']; publications: number; error: string | null }>;
+  updateLinks(connectionId: string, links: { accountId: string | null; projectId: string | null }): Promise<void>;
+  listRuns(limit: number): Promise<SyncRun[]>;
+  postSnapshots(sinceDay: string): Promise<PostSnapshot[]>;
+  accountSnapshots(sinceDay: string): Promise<AccountSnapshot[]>;
+}
+
+/**
+ * Tracked links (both modes) and the events of the landing pages and apps (Supabase mode only: events arrive
+ * at the server function `track`, never in the browser that is reading them).
+ */
+export interface TrackingService {
+  /** False in local mode: short links and events need the server. */
+  readonly available: boolean;
+  /** Base of the short links (/l/<slug>), the Fábrica's own address. */
+  readonly shortLinkBase: string;
+  /** URL the snippet sends events to, or null in local mode. */
+  readonly endpoint: string | null;
+  listLinks(): Promise<TrackingLink[]>;
+  createLink(input: TrackingLinkInput): Promise<TrackingLink>;
+  removeLink(id: string): Promise<void>;
+  listEvents(sinceDay: string): Promise<TrackingEvent[]>;
+  /** New server secret of a project, returned once (only its hash is stored). */
+  rotateSecret(projectId: string): Promise<string>;
+  /** Deletes every event of a project (data deletion request). */
+  deleteEvents(projectId: string): Promise<void>;
+}
+
+export interface NewJob {
+  connectionId: string;
+  carouselId: string;
+  /** ISO date-time. */
+  scheduledAt: string;
+  caption: string;
+  title: string;
+}
+
+/**
+ * Queue of posts to publish through the official APIs. A job is born waiting for approval; approving uploads the
+ * rendered slides and schedules it; only the server publishes, with retries and a log of the result.
+ */
+export interface PublishingService {
+  readonly available: boolean;
+  listJobs(): Promise<PublishingJob[]>;
+  createJob(input: NewJob): Promise<PublishingJob>;
+  approve(job: PublishingJob, images: Blob[]): Promise<PublishingJob>;
+  cancel(jobId: string): Promise<PublishingJob>;
+  retry(jobId: string): Promise<PublishingJob>;
+  /** Asks the worker to publish the user's jobs that are already due, without waiting for the schedule. */
+  processNow(): Promise<{ processed: number }>;
+}
 
 export interface AiService {
   readonly engine: 'claude' | 'heuristic';
@@ -119,6 +209,10 @@ export interface AiService {
   matchImages(request: MatchRequest): Promise<(string | null)[]>;
   /** New contents that reuse a winner's mechanism. Only the Claude engine writes; the local one throws. */
   remixContent(request: RemixAiRequest): Promise<RemixScript[]>;
+  /** A batch of new contents from a briefing (buildBatchPrompt). Only the Claude engine writes; the local one throws. */
+  batchContent(request: RemixAiRequest): Promise<RemixScript[]>;
+  /** Reading of measured results. Only the Claude engine writes it; the local one throws and the screen offers the briefing. */
+  analyzeResults(request: AnalyzeRequest): Promise<Analysis>;
 }
 
 export interface Services {
@@ -131,6 +225,15 @@ export interface Services {
   contentRecords: ContentRecordRepository;
   experiments: ExperimentRepository;
   calendarEntries: CalendarEntryRepository;
+  projects: ProjectRepository;
+  publications: PublicationRepository;
+  contentVersions: ContentVersionRepository;
+  social: SocialService;
+  tracking: TrackingService;
+  insights: InsightRepository;
+  publishing: PublishingService;
+  groups: GroupRepository;
+  distributions: DistributionRepository;
   ai: AiService;
   backup: BackupService | null;
 }

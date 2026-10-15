@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { Services } from '../application/ports';
 import { ClaudeAi } from './ai/claudeAi';
 import { HeuristicAi } from './ai/heuristicAi';
-import { DemoAccounts, DemoAssets, DemoAuth, DemoBrandKits, DemoCarousels, DemoContentRecords, DemoPresets, demoCalendarEntries, demoExperiments, LocalBackup } from './demo/demoServices';
+import { DemoAccounts, DemoAssets, DemoAuth, DemoBrandKits, DemoCarousels, DemoContentRecords, DemoContentVersions, DemoPresets, demoCalendarEntries, demoExperiments, demoDistributions, demoGroups, demoInsights, demoProjects, demoPublications, LocalBackup } from './demo/demoServices';
 import {
   SupabaseAccounts,
   SupabaseAssets,
@@ -11,10 +11,25 @@ import {
   supabaseCalendarEntries,
   SupabaseCarousels,
   SupabaseContentRecords,
+  SupabaseContentVersions,
+  supabaseDistributions,
+  supabaseGroups,
+  supabaseInsights,
+  supabaseProjects,
+  supabasePublications,
   supabaseExperiments,
   SupabasePresets,
 } from './supabase/supabaseServices';
 import { SupabaseBackup } from './supabase/supabaseBackup';
+import { SupabaseSocial } from './supabase/supabaseSocial';
+import { UnavailableSocial } from './demo/unavailableSocial';
+import { LocalTracking } from './demo/localTracking';
+import { SupabaseTracking } from './supabase/supabaseTracking';
+import { SupabasePublishing } from './supabase/supabasePublishing';
+import { UnavailablePublishing } from './demo/unavailablePublishing';
+
+/** Address of the Fábrica itself, base of the short links /l/<slug>. */
+const appUrl = (import.meta.env.VITE_APP_URL as string | undefined) || window.location.origin;
 
 /**
  * Composition root. With VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY the app runs on Supabase and Claude;
@@ -35,6 +50,15 @@ export function createServices(): Services {
       contentRecords: new DemoContentRecords(),
       experiments: demoExperiments(),
       calendarEntries: demoCalendarEntries(),
+      projects: demoProjects(),
+      publications: demoPublications(),
+      contentVersions: new DemoContentVersions(),
+      social: new UnavailableSocial(),
+      tracking: new LocalTracking(appUrl),
+      insights: demoInsights(),
+      publishing: new UnavailablePublishing(),
+      groups: demoGroups(),
+      distributions: demoDistributions(),
       ai: new HeuristicAi(),
       backup: new LocalBackup(),
     };
@@ -51,10 +75,19 @@ export function createServices(): Services {
     contentRecords: new SupabaseContentRecords(client),
     experiments: supabaseExperiments(client),
     calendarEntries: supabaseCalendarEntries(client),
+    projects: supabaseProjects(client),
+    publications: supabasePublications(client),
+    groups: supabaseGroups(client),
+    distributions: supabaseDistributions(client),
   };
   return {
     auth: new SupabaseAuth(client),
     ...repositories,
+    contentVersions: new SupabaseContentVersions(client),
+    social: new SupabaseSocial(client),
+    tracking: new SupabaseTracking(client, url, appUrl),
+    insights: supabaseInsights(client),
+    publishing: new SupabasePublishing(client),
     ai: useHeuristic ? new HeuristicAi() : new ClaudeAi(client),
     backup: new SupabaseBackup(client, repositories),
   };

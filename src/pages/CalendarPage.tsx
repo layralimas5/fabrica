@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { AlertTriangle, CheckCheck, ChevronLeft, ChevronRight, Download, ExternalLink, FlaskConical, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, CheckCheck, ChevronLeft, ChevronRight, Download, ExternalLink, FlaskConical, Plus, Send, Trash2 } from 'lucide-react';
 import { useMemo, useState, type DragEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAccountScope } from '../app/accountScope';
@@ -19,7 +19,9 @@ import {
   CALENDAR_KINDS,
   CALENDAR_STATUS_LABELS,
   CALENDAR_STATUSES,
+  ENTRY_STATUSES,
   calendarItems,
+  type QueueStatus,
   distribution,
   emptyEntry,
   EMPTY_CALENDAR_FILTERS,
@@ -46,6 +48,10 @@ import { emptyRecordInput, formatMetric, PERFORMANCE_LABELS, type ContentRecordI
 import { Drawer } from '../ui/Drawer';
 import { Alert, Button, Field, Input, PageHeader, Select, Spinner } from '../ui/primitives';
 import { PendingMeasurementsNotice } from '../experiments/PendingMeasurements';
+import { activeJobFor } from '../domain/publishing/job';
+import { PublishDialog } from '../publishing/PublishDialog';
+import { QueuePanel } from '../publishing/QueuePanel';
+import { usePublishing } from '../publishing/usePublishing';
 import { useAddMetrics } from '../winners/useAddMetrics';
 import { WinnerFormDialog } from '../winners/WinnerFormDialog';
 
@@ -56,7 +62,7 @@ const WEEKDAY_SHORT = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const MONTH_VISIBLE = 3;
 
 /** Calendar status → stored carousel status. "Agendado" is a ready carousel with a time. */
-const CAROUSEL_STATUS_FOR: Record<CalendarStatus, CarouselStatus> = { rascunho: 'draft', em_producao: 'editing', pronto: 'ready', agendado: 'ready', publicado: 'published' };
+const CAROUSEL_STATUS_FOR: Record<CalendarStatus, CarouselStatus> = { rascunho: 'draft', em_producao: 'editing', pronto: 'ready', aguardando_aprovacao: 'ready', agendado: 'ready', publicado: 'published', falha: 'ready' };
 const DEFAULT_TIME = '09:00';
 
 export function CalendarPage() {
@@ -70,6 +76,8 @@ export function CalendarPage() {
   const brands = useBrandKits();
   const assets = useAssets();
   const { goal, setGoal } = useWeeklyGoal();
+  const queue = usePublishing();
+  const [publishingCarousel, setPublishingCarousel] = useState<Carousel | null>(null);
   const { settings: similarity } = useSimilaritySettings();
   const metrics = useAddMetrics((saved) => records.setData((current) => [saved, ...current.filter((item) => item.id !== saved.id)]));
   const [params, setParams] = useSearchParams();
@@ -87,11 +95,21 @@ export function CalendarPage() {
   const accountOf = (accountId: string | null) => scope.accounts.find((account) => account.id === accountId);
   const experiments = useMemo(() => allExperiments(experimentsData.data, carousels.data), [experimentsData.data, carousels.data]);
   const items = useMemo(
-    () => calendarItems(carousels.data, entries.data, records.data, (accountId) => scope.accounts.find((account) => account.id === accountId)?.platform ?? null),
-    [carousels.data, entries.data, records.data, scope.accounts],
+    () =>
+      calendarItems(
+        carousels.data,
+        entries.data,
+        records.data,
+        (accountId) => scope.accounts.find((account) => account.id === accountId)?.platform ?? null,
+        (carouselId) => (activeJobFor(queue.jobs.data, carouselId)?.status as QueueStatus | undefined) ?? null,
+      ),
+    [carousels.data, entries.data, records.data, scope.accounts, queue.jobs.data],
   );
   const full: CalendarFilters = { ...filters, accountId: scope.current?.id ?? null };
-  const filtered = useMemo(() => filterCalendar(items, full), [items, full.accountId, full.platform, full.status, full.kind, full.category]); // eslint-disable-line react-hooks/exhaustive-deps
+  const filtered = useMemo(
+    () => filterCalendar(items, full).filter((item) => scope.matchesContent({ accountId: item.accountId, project: item.carousel?.project ?? null })),
+    [items, full.accountId, full.platform, full.status, full.kind, full.category, scope], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   const week = weekDays(anchor);
   const month = monthGrid(anchor);
@@ -406,7 +424,7 @@ export function CalendarPage() {
           {unscheduled > 0 && (
             <p className="text-xs text-muted">
               {unscheduled} {unscheduled === 1 ? 'carrossel sem data' : 'carrosséis sem data'} não aparecem aqui. Dá pra dar uma data no editor de cada um ou em{' '}
-              <Link to="/projetos" className="font-medium text-ink underline underline-offset-4">
+              <Link to="/conteudos" className="font-medium text-ink underline underline-offset-4">
                 Projetos
               </Link>
               .
@@ -415,6 +433,7 @@ export function CalendarPage() {
         </div>
 
         <aside className="grid gap-4 md:grid-cols-2 2xl:flex 2xl:flex-col">
+          <QueuePanel jobs={queue.jobs.data} connections={queue.connections.data} carousels={carousels.data} publishing={queue.publishing} onOpen={setPublishingCarousel} onReload={queue.jobs.reload} />
           <PlanningPanel plan={plan} tests={weekTests} onGoal={setGoal} />
           <DistributionPanel rows={distribution(inRange)} />
           <div className="flex flex-wrap gap-2 text-[11px] text-muted">
@@ -451,8 +470,27 @@ export function CalendarPage() {
           onGenerate={() => open.entry && navigate('/criar', { state: { plan: planFromEntry(toEntryInput(open.entry), open.entry.id) } })}
           onMetrics={() => open.carousel && metrics.open(open.carousel)}
           onRegister={() => open.entry && (setRegistering(open.entry), setOpenKey(null))}
+          onPublish={() => open.carousel && (setPublishingCarousel(open.carousel), setOpenKey(null))}
         />
       )}
+
+      {publishingCarousel && (() => {
+        const brand = brandForCarousel(publishingCarousel, brands.data, scope.accounts);
+        if (!brand) return null;
+        const projectConnections = queue.connections.data.filter((connection) => !scope.project || connection.projectId === scope.project.id || connection.accountId === publishingCarousel.source.accountId);
+        return (
+          <PublishDialog
+            carousel={publishingCarousel}
+            context={renderContextFor(publishingCarousel, brand, assets.data, services.assets, scope.accounts)}
+            connections={projectConnections}
+            jobs={queue.jobs.data}
+            publishing={queue.publishing}
+            onJob={queue.upsertJob}
+            onMarkPosted={() => void attempt(() => saveCarousel(publishingCarousel, { status: 'published' }))}
+            onClose={() => setPublishingCarousel(null)}
+          />
+        );
+      })()}
 
       {editing && (
         <EntryDialog
@@ -545,12 +583,13 @@ interface ItemDrawerProps {
   onGenerate: () => void;
   onMetrics: () => void;
   onRegister: () => void;
+  onPublish: () => void;
 }
 
 const DRAWER_METRICS: PerformanceKey[] = ['views', 'likes', 'shares', 'saves', 'comments', 'follows'];
 
 /** Everything about one content of the calendar, editable where it makes sense. */
-function ItemDrawer({ item, accountName, experimentName, similar, record, onClose, onCarousel, onEntry, onEditEntry, onDeleteEntry, onGenerate, onMetrics, onRegister }: ItemDrawerProps) {
+function ItemDrawer({ item, accountName, experimentName, similar, record, onClose, onCarousel, onEntry, onEditEntry, onDeleteEntry, onGenerate, onMetrics, onRegister, onPublish }: ItemDrawerProps) {
   const carousel = item.carousel;
   const metrics = record?.metrics ?? (carousel ? carouselPerformance(carousel.metrics) : null);
   const changeStatus = (status: CalendarStatus) => {
@@ -566,9 +605,14 @@ function ItemDrawer({ item, accountName, experimentName, similar, record, onClos
       onClose={onClose}
       footer={
         carousel ? (
+          <>
+          <Button variant="secondary" onClick={onPublish}>
+            <Send className="size-4" aria-hidden /> Publicar
+          </Button>
           <Link to={`/carrossel/${carousel.id}`} className="inline-flex h-10 items-center gap-2 rounded-xl bg-ink px-3.5 text-sm font-medium text-canvas hover:bg-ink/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2">
             <ExternalLink className="size-4" aria-hidden /> Abrir conteúdo completo
           </Link>
+          </>
         ) : (
           <>
             <Button variant="danger" className="mr-auto" onClick={onDeleteEntry}>
@@ -628,8 +672,9 @@ function ItemDrawer({ item, accountName, experimentName, similar, record, onClos
           </Field>
           <Field label="Status" htmlFor="drawer-status">
             <Select id="drawer-status" value={item.status} onChange={(e) => changeStatus(e.target.value as CalendarStatus)}>
-              {CALENDAR_STATUSES.map((status) => (
-                <option key={status} value={status}>
+              {/* Approval and failure come from the publishing queue: shown, never picked by hand. */}
+              {[...ENTRY_STATUSES, ...(ENTRY_STATUSES.some((status) => status === item.status) ? [] : [item.status])].map((status) => (
+                <option key={status} value={status} disabled={!ENTRY_STATUSES.some((entry) => entry === status)}>
                   {CALENDAR_STATUS_LABELS[status]}
                 </option>
               ))}

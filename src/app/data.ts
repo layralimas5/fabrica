@@ -7,6 +7,8 @@ import type { Carousel } from '../domain/carousel';
 import type { ContentRecord } from '../domain/winners/record';
 import type { Experiment } from '../domain/experiments/experiment';
 import type { CalendarEntry } from '../domain/calendar/calendar';
+import type { Project } from '../domain/project';
+import type { Publication } from '../domain/social/publication';
 import { useServices } from './services';
 import { useResource } from './useResource';
 
@@ -48,4 +50,14 @@ export function useExperiments() {
 export function useCalendarEntries() {
   const { calendarEntries } = useServices();
   return useResource<CalendarEntry[]>(useCallback(() => calendarEntries.list(), [calendarEntries]), []);
+}
+
+export function useProjects() {
+  const { projects } = useServices();
+  return useResource<Project[]>(useCallback(() => projects.list(), [projects]), []);
+}
+
+export function usePublications() {
+  const { publications } = useServices();
+  return useResource<Publication[]>(useCallback(() => publications.list(), [publications]), []);
 }

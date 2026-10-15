@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CarouselRepository } from '../application/ports';
 import { blankSlide, duplicateSlide, moveItem, type Carousel, type CarouselFormat, type CarouselStatus, type Slide, type SlideStyle } from '../domain/carousel';
 import { MAX_COPY_SLIDES } from '../domain/content';
+import { restoreVersion, type ContentVersion } from '../domain/contentVersion';
 import { errorMessage } from '../app/useResource';
 
 const AUTOSAVE_DELAY = 700;
@@ -131,12 +132,19 @@ export function useCarouselEditor(repo: CarouselRepository, initial: Carousel) {
   const setTitle = useCallback((title: string) => mutate((current) => ({ ...current, title })), [mutate]);
   const setCaption = useCallback((caption: string) => mutate((current) => ({ ...current, caption })), [mutate]);
   const setFormat = useCallback((format: CarouselFormat) => mutate((current) => ({ ...current, format })), [mutate]);
+  const restore = useCallback(
+    (version: ContentVersion) => {
+      mutate((current) => restoreVersion(current, version));
+      setSelectedId(version.snapshot.slides[0]?.id ?? latest.current.slides[0]?.id ?? '');
+    },
+    [mutate],
+  );
   const setStatus = useCallback((status: CarouselStatus) => {
     dirty.current = true;
     setCarousel((current) => ({ ...current, status }));
   }, []);
 
-  return { carousel, selectedId, setSelectedId, saveState, saveError, updateSlide, setTextStyleForAll, setShade, setAccount, setPlan, setLabels, setExperiment, setSchedule, addSlide, duplicate, removeSlide, reorder, move, setTitle, setCaption, setFormat, setStatus };
+  return { carousel, selectedId, setSelectedId, saveState, saveError, updateSlide, setTextStyleForAll, setShade, setAccount, setPlan, setLabels, setExperiment, setSchedule, addSlide, duplicate, removeSlide, reorder, move, setTitle, setCaption, setFormat, setStatus, restore };
 }
 
 export type CarouselEditor = ReturnType<typeof useCarouselEditor>;

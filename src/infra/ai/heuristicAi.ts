@@ -1,5 +1,5 @@
 import type { AiService } from '../../application/ports';
-import type { CarouselDraft, DraftRequest, HooksRequest, MatchRequest, ProductContext, RemixAiRequest, RewriteRequest, SlideDraft, SlideText, TagImageRequest } from '../../domain/aiContract';
+import type { Analysis, AnalyzeRequest, CarouselDraft, DraftRequest, HooksRequest, MatchRequest, ProductContext, RemixAiRequest, RewriteRequest, SlideDraft, SlideText, TagImageRequest } from '../../domain/aiContract';
 import type { RemixScript } from '../../domain/winners/remix';
 import { isAssetKind } from '../../domain/asset';
 import { matchImages, type MatchableAsset } from '../../domain/imageMatching';
@@ -106,6 +106,15 @@ export class HeuristicAi implements AiService {
   /** Writing new content needs a generative model; the screen offers the ready prompt instead. */
   async remixContent(_request: RemixAiRequest): Promise<RemixScript[]> {
     throw new Error('O motor local não escreve conteúdo novo. Copie o prompt pronto e cole no Claude.');
+  }
+
+  async batchContent(_request: RemixAiRequest): Promise<RemixScript[]> {
+    throw new Error('O motor local não escreve conteúdo novo. Copie o prompt pronto e cole no Claude.');
+  }
+
+  /** The rule-based findings are already on screen; a written reading needs a generative model. */
+  async analyzeResults(_request: AnalyzeRequest): Promise<Analysis> {
+    throw new Error('O motor local não escreve análises. Copie o briefing pronto e cole no Claude.');
   }
 }
 
