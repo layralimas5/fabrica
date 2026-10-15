@@ -138,8 +138,9 @@ export function createTikTokProvider(env: ProviderEnv, fetchFn: FetchFn, now: ()
     requiredSecrets: ['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET'],
     scopes: TIKTOK_SCOPES,
 
+    // disable_auto_auth: always show the consent screen, so a second account can be connected instead of silently reusing the session.
     authorizeUrl(state, redirectUri) {
-      return `https://www.tiktok.com/v2/auth/authorize/?${query({ client_key: clientKey, response_type: 'code', scope: TIKTOK_SCOPES.join(','), redirect_uri: redirectUri, state })}`;
+      return `https://www.tiktok.com/v2/auth/authorize/?${query({ client_key: clientKey, response_type: 'code', scope: TIKTOK_SCOPES.join(','), redirect_uri: redirectUri, state, disable_auto_auth: 1 })}`;
     },
 
     async exchangeCode(code, redirectUri) {
