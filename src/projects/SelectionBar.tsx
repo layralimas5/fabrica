@@ -1,4 +1,4 @@
-import { Check, Download, FolderInput, Trash2, X } from 'lucide-react';
+import { CalendarClock, Check, Download, FolderInput, Trash2, X } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { CAROUSEL_STATUSES, STATUS_LABELS, type CarouselStatus } from '../domain/carousel';
 import { Button, Dialog, Field, Input, Select } from '../ui/primitives';
@@ -24,10 +24,12 @@ interface SelectionBarProps {
   onMove: (project: string, folder: string) => void;
   onDownload: () => void;
   onRemove: () => void;
+  /** Absent when publishing is not available (local mode). */
+  onSchedule?: () => void;
 }
 
-/** Actions for the carousels picked in Projetos: post, status, move, download and delete in one go. */
-export function SelectionBar({ selectedCount, visibleCount, busy, places, onSelectAll, onClear, onExit, onMarkPosted, onSetStatus, onMove, onDownload, onRemove }: SelectionBarProps) {
+/** Actions for the carousels picked in Conteúdos: schedule, post, status, move, download and delete in one go. */
+export function SelectionBar({ selectedCount, visibleCount, busy, places, onSelectAll, onClear, onExit, onMarkPosted, onSetStatus, onMove, onDownload, onRemove, onSchedule }: SelectionBarProps) {
   const [moving, setMoving] = useState(false);
   const none = selectedCount === 0;
   const allPicked = selectedCount >= visibleCount;
@@ -48,7 +50,12 @@ export function SelectionBar({ selectedCount, visibleCount, busy, places, onSele
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="primary" loading={busy} disabled={none} onClick={() => onMarkPosted(true)}>
+        {onSchedule && (
+          <Button size="sm" variant="primary" disabled={none || busy} onClick={onSchedule}>
+            <CalendarClock className="size-4" aria-hidden /> Agendar
+          </Button>
+        )}
+        <Button size="sm" variant={onSchedule ? 'secondary' : 'primary'} loading={busy} disabled={none} onClick={() => onMarkPosted(true)}>
           {!busy && <Check className="size-4" aria-hidden />} Marcar como postado
         </Button>
         <Button size="sm" variant="secondary" disabled={none || busy} onClick={() => onMarkPosted(false)}>
