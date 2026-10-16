@@ -20,6 +20,8 @@ import { brandForCarousel } from '../domain/brandKit';
 import { useMarkWinner } from '../winners/useMarkWinner';
 import { useAccountScope } from '../app/accountScope';
 import { SelectionBar } from '../projects/SelectionBar';
+import { BatchScheduleDialog } from '../publishing/BatchScheduleDialog';
+import { usePublishing } from '../publishing/usePublishing';
 
 const STATUS_TONE = STATUS_TONES;
 
@@ -67,6 +69,8 @@ export function ProjectsPage() {
   /** Selection mode: pick many carousels and act on all of them at once. */
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const queue = usePublishing();
+  const [scheduling, setScheduling] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const created = (useLocation().state as { created?: number } | null)?.created;
 
@@ -293,6 +297,18 @@ export function ProjectsPage() {
           onMove={(project, folder) => void moveSelected(project, folder)}
           onDownload={() => void exportCarousels(selectedCarousels())}
           onRemove={() => void removeSelected()}
+          onSchedule={queue.publishing.available ? () => setScheduling(true) : undefined}
+        />
+      )}
+      {scheduling && (
+        <BatchScheduleDialog
+          carousels={selectedCarousels()}
+          contextOf={contextOf}
+          connections={queue.connections.data}
+          jobs={queue.jobs.data}
+          publishing={queue.publishing}
+          onJob={queue.upsertJob}
+          onClose={() => setScheduling(false)}
         />
       )}
 
