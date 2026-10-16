@@ -120,7 +120,7 @@ export function ConnectionsPage() {
         ) : visible.length === 0 ? (
           <EmptyState
             title={hiddenCount > 0 ? `Nenhuma conta conectada em ${scope.project?.name ?? 'neste projeto'}` : 'Nenhuma conta conectada ainda'}
-            description={social.available ? 'Conecta uma conta acima. As métricas só aparecem no Painel depois da primeira sincronização.' : 'No modo local não há conexões. As métricas lançadas à mão continuam no Analytics.'}
+            description={social.available ? 'Conecta uma conta acima. As métricas só aparecem no Painel depois da primeira sincronização.' : 'No modo local não há conexões. As métricas lançadas à mão continuam no Painel.'}
           />
         ) : (
           <ul className="flex flex-col gap-3">

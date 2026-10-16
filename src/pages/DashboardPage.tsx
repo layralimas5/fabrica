@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { RefreshCw } from 'lucide-react';
+import { Pin, RefreshCw } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAccountScope } from '../app/accountScope';
@@ -12,6 +12,9 @@ import { ContentDetail } from '../dashboard/ContentDetail';
 import { Card, ContentThumb, KpiCard, SourceBadge } from '../dashboard/parts';
 import { useDashboardData } from '../dashboard/useDashboardData';
 import { accountLabel } from '../domain/account';
+import { MOMENTUM_INFO } from '../domain/analytics/growth';
+import { risingPosts } from '../domain/dashboard/rising';
+import { emptyRecordInput } from '../domain/winners/record';
 import { buildDashboard, compactNumber, dailySeries, DASH_PERIOD_LABELS, DASH_PERIODS, percent, rankBy, type DashFilters, type DashPeriod } from '../domain/dashboard/dashboard';
 import { DASH_PLATFORM_LABELS, itemEngagement, type DashItem, type DashPlatform } from '../domain/dashboard/items';
 import { sameProject } from '../domain/project';
@@ -21,7 +24,9 @@ import { POST_METRIC_LABELS, type PostMetricKey } from '../domain/social/metrics
 import { Alert, Button, EmptyState, Input, PageHeader, Select, Spinner } from '../ui/primitives';
 import { ContentConversions } from '../tracking/ContentConversions';
 import { useTracking } from '../tracking/useTracking';
+import { useAddMetrics } from '../winners/useAddMetrics';
 import { useWinnerActions } from '../winners/useWinnerActions';
+import { WinnerFormDialog } from '../winners/WinnerFormDialog';
 import { useWinnerLibrary } from '../winners/useWinnerLibrary';
 import { change as changeOf } from '../domain/dashboard/dashboard';
 import { countStage, eventsInRange, measuredStagesOf, type TrackingEventName } from '../domain/tracking/tracking';
@@ -57,6 +62,11 @@ export function DashboardPage() {
   const services = useServices();
   const library = useWinnerLibrary();
   const actions = useWinnerActions(library);
+  const metrics = useAddMetrics((saved) => {
+    library.records.setData((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
+    void data.reload();
+  });
+  const [registering, setRegistering] = useState(false);
   const [reapplying, setReapplying] = useState(false);
   const [reapplyError, setReapplyError] = useState<string | null>(null);
   const today = todayIso();
@@ -119,7 +129,14 @@ export function DashboardPage() {
       <PageHeader
         title="Painel"
         description={`${scope.project ? `${scope.project.name}: d` : 'D'}esempenho real dos posts publicados, com a fonte de cada número.`}
-        action={<SyncButton connections={scopedConnections} syncing={syncing} setSyncing={setSyncing} onDone={(message) => { setSyncMessage(message); void data.reload(); }} />}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" onClick={() => setRegistering(true)} title="Post de uma conta não conectada, ou feito fora da Fábrica: entra aqui com os números lançados à mão.">
+              <Pin className="size-4" aria-hidden /> Registrar post
+            </Button>
+            <SyncButton connections={scopedConnections} syncing={syncing} setSyncing={setSyncing} onDone={(message) => { setSyncMessage(message); void data.reload(); }} />
+          </div>
+        }
       />
 
       <div className="mb-5 flex flex-col gap-3">
@@ -206,8 +223,12 @@ export function DashboardPage() {
         <div className="mt-8">
           <EmptyState
             title="Nenhum post publicado nesse período"
-            description="Marca os carrosséis como postados, registra os posts de fora no Analytics ou conecta as contas pra sincronizar."
-            action={<Link to="/conteudos" className="text-sm font-medium text-accent underline-offset-4 hover:underline">Ver conteúdos</Link>}
+            description="Conecta as contas pra sincronizar, ou registra à mão o post de uma conta que ainda não está conectada."
+            action={
+              <Button variant="primary" onClick={() => setRegistering(true)}>
+                <Pin className="size-4" aria-hidden /> Registrar post
+              </Button>
+            }
           />
         </div>
       ) : (
@@ -236,6 +257,10 @@ export function DashboardPage() {
               <Ranking title="Mais visualizações" entries={rankBy(summary.items, 'views')} format={compactNumber} onOpen={setSelected} thumb={thumb} empty="Nenhum post com visualizações." />
             </Card>
           </div>
+
+          <Card title="Em alta nos últimos 7 dias" className="mt-6">
+            <RisingList entries={risingPosts(summary.items, today).slice(0, 5)} onOpen={setSelected} thumb={thumb} />
+          </Card>
 
           <div className="mt-6 grid gap-6 md:grid-cols-2">
             <Card title="Comparação por rede">
@@ -276,6 +301,21 @@ export function DashboardPage() {
         onReapply={(mode) => selected && void reapply(selected, mode)}
       />
       {actions.dialogs}
+      {metrics.dialog}
+      <WinnerFormDialog
+        open={registering}
+        mode="posted"
+        onClose={() => setRegistering(false)}
+        initial={{ ...emptyRecordInput(), winner: false, accountId: scope.current?.id ?? null, platform: scope.current?.platform ?? 'instagram', publishedAt: today }}
+        recordId={null}
+        accounts={data.accounts.data}
+        library={library.records.data}
+        onSaved={(saved) => {
+          library.records.setData((current) => [saved, ...current]);
+          setRegistering(false);
+          metrics.openRecord(saved);
+        }}
+      />
     </div>
   );
 }
@@ -345,6 +385,34 @@ function Ranking({ title, entries, format, onOpen, thumb, empty }: { title: stri
         </ol>
       )}
     </div>
+  );
+}
+
+function RisingList({ entries, onOpen, thumb }: { entries: ReturnType<typeof risingPosts>; onOpen: (item: DashItem) => void; thumb: (item: DashItem, className?: string) => ReactNode }) {
+  if (entries.length === 0) {
+    return <p className="text-sm text-muted">Nenhum post ganhou visualizações nos últimos 7 dias. Com as contas sincronizando todo dia, quem está subindo aparece aqui.</p>;
+  }
+  return (
+    <ol className="flex flex-col gap-1">
+      {entries.map(({ item, gained, viewsPerDay, momentum }, index) => (
+        <li key={item.key}>
+          <button type="button" onClick={() => onOpen(item)} className="flex w-full items-center gap-3 rounded-lg p-1.5 text-left hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+            <span className="w-4 text-xs tabular-nums text-faint">{index + 1}</span>
+            {thumb(item, 'size-9')}
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm text-ink">{item.title}</span>
+              <span className="block text-[11px] text-faint" title={momentum === 'early' ? 'Com mais uma leitura dá pra saber se ainda está crescendo.' : MOMENTUM_INFO[momentum].detail}>
+                {DASH_PLATFORM_LABELS[item.platform]} · {momentum === 'early' ? 'Poucas leituras ainda' : MOMENTUM_INFO[momentum].label}
+              </span>
+            </span>
+            <span className="text-right">
+              <span className="block text-sm font-medium tabular-nums text-ink">+{compactNumber(gained)}</span>
+              <span className="block text-[11px] tabular-nums text-faint">{compactNumber(Math.round(viewsPerDay))}/dia</span>
+            </span>
+          </button>
+        </li>
+      ))}
+    </ol>
   );
 }
 
