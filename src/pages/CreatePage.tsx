@@ -152,7 +152,7 @@ export function CreatePage() {
   const [copies, setCopies] = useState<string[]>(() => (handoff?.copies.length ? handoff.copies.slice(0, MAX_COPIES) : ['']));
   /** Objective and type of each copy box; null fields follow the batch defaults of step 3. */
   const [copySettings, setCopySettings] = useState<CopySetting[]>([]);
-  /** "Usar dados do Analytics" and how much of the batch keeps testing. Remembered in this browser. */
+  /** "Usar dados do Painel" and how much of the batch keeps testing. Remembered in this browser. */
   const [useAnalytics, setUseAnalytics] = useState(() => readStored(ANALYTICS_STORAGE_KEY, ['on', 'off'] as const, 'off') === 'on');
   const [exploration, setExploration] = useState<ExplorationLevel>(() => readStored(EXPLORATION_STORAGE_KEY, EXPLORATION_LEVELS, 'balanced'));
   const [brandId, setBrandId] = useState('');
@@ -781,7 +781,7 @@ export function CreatePage() {
                 </Field>
               ) : (
                 <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
-                  Cadastre uma conta do {PLATFORM_LABELS[platform]} pra criar: todo carrossel pertence a uma conta, e é assim que o Analytics compara cada uma.
+                  Cadastre uma conta do {PLATFORM_LABELS[platform]} pra criar: todo carrossel pertence a uma conta, e é assim que o Painel separa os números de cada uma.
                 </p>
               )}
               <Link to="/contas" className="text-xs font-medium text-muted underline underline-offset-4 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">

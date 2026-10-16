@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { parseScript } from '../script';
 import { analyzeDna, classifyHook } from './dna';
 import { applyFilters, EMPTY_FILTERS, periodRange, sortRecords } from './filters';
-import { generateInsights } from './insights';
 import { emptyPerformance, emptyRecordInput, sanitizeRecordInput, type ContentRecord, type PerformanceMetrics } from './record';
 import { buildRemixPrompt, defaultRemixRequest, remixProblem, scriptsToCopies } from './remix';
 import { baselineFor, baselineOf, buildBaselines, performanceScore, PRESET_WEIGHTS, scoreBand, suggestWinnerTypes } from './score';
@@ -178,19 +177,6 @@ describe('filters and sorting', () => {
     const byViews = sortRecords(library, 'views', () => null).map((item) => item.id);
     expect(byViews[0]).toBe(library[1].id);
     expect(byViews[3]).toBe(library[3].id);
-  });
-});
-
-describe('generateInsights', () => {
-  it('says nothing without enough data', () => {
-    expect(generateInsights([record({ hookType: 'confronto', metrics: { views: 1000, saves: 100 } })], () => '')).toEqual([]);
-  });
-
-  it('finds a pattern backed by at least 3 contents on each side', () => {
-    const confronto = [1, 2, 3].map(() => record({ hookType: 'confronto', metrics: { views: 1000, saves: 120 } }));
-    const others = [1, 2, 3].map(() => record({ hookType: 'curiosidade', metrics: { views: 1000, saves: 40 } }));
-    const insights = generateInsights([...confronto, ...others], () => '');
-    expect(insights.some((insight) => insight.text === 'Ganchos de confronto têm 3x mais salvamentos por visualização que os outros ganchos.')).toBe(true);
   });
 });
 

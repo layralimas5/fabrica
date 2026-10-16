@@ -46,7 +46,7 @@ interface WinnerFormDialogProps {
   /** Records already saved: theme suggestions and the comparison base for winner types. */
   library: ContentRecord[];
   title?: string;
-  /** "posted": a post already live, registered to be followed in Analytics; its numbers come next, in "Nova medição". */
+  /** "posted": a post already live, registered to be followed in the Painel; its numbers come next, in "Nova medição". */
   mode?: 'winner' | 'posted';
   onSaved: (record: ContentRecord) => void;
 }

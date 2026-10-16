@@ -106,7 +106,7 @@ export function SourceBadge({ source }: { source: DashItem['source'] }) {
         'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium',
         source === 'api' ? 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300' : 'bg-subtle text-muted',
       )}
-      title={source === 'api' ? 'Números lidos da API oficial na última sincronização' : 'Números lançados à mão no Analytics'}
+      title={source === 'api' ? 'Números lidos da API oficial na última sincronização' : 'Números lançados à mão (Registrar post ou Adicionar métricas)'}
     >
       {source === 'api' ? 'API' : 'Manual'}
     </span>

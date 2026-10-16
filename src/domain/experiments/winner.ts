@@ -49,7 +49,7 @@ export function winnerPlan(experiment: Experiment, leaders: DimensionLeader[]): 
     } else if (leader !== 'Controle' && leader !== 'Variação') {
       // Older tests named their versions freely ("Contrarian"): the name itself is the lesson.
       lessons.push(`${dimension.label}: ${leader} teve mais ${metric}${against}${sure}.`);
-      changes.push(`Aprendizado nas sugestões do Analytics: ${leader}`);
+      changes.push(`Aprendizado nas sugestões do Painel: ${leader}`);
     } else {
       const side = leader === 'Controle' ? 'control' : 'variation';
       for (const variable of variablesOf(experiment)) {
@@ -60,7 +60,7 @@ export function winnerPlan(experiment: Experiment, leaders: DimensionLeader[]): 
         const name = TEST_VARIABLE_LABELS[variable];
         lessons.push(winning ? `${name}: "${winning}" teve mais ${metric}${losing ? ` que "${losing}"` : ''}${sure}.` : `${name}: a ${leader} teve mais ${metric}${sure}.`);
       }
-      changes.push(`Aprendizado nas sugestões do Analytics: ${leader} de ${dimension.label}`);
+      changes.push(`Aprendizado nas sugestões do Painel: ${leader} de ${dimension.label}`);
     }
   }
   if (changes.length > 0 && (defaults.postingTime || defaults.visualStyle)) defaults.source = experiment.name;

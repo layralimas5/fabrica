@@ -50,7 +50,7 @@ export function AccountsPage() {
     <div className="mx-auto max-w-5xl">
       <PageHeader
         title="Contas"
-        description="Os perfis que você produz. Cada carrossel pertence a uma conta, e o Analytics compara cada conta com ela mesma."
+        description="Os perfis que você produz. Cada carrossel pertence a uma conta, e o Painel mostra os números de cada conta."
         action={
           <Button variant="primary" onClick={() => setEditing({ id: null, input: emptyAccount('instagram') })}>
             <Plus className="size-4" aria-hidden /> Nova conta
@@ -240,7 +240,7 @@ function AccountEditor({ isNew, createdAt, initial, brands, onClose, onSave, onD
               ))}
             </datalist>
           </Field>
-          <Field label="Status" htmlFor="acc-status" hint="Pausada some dos seletores, mas o histórico fica no Analytics.">
+          <Field label="Status" htmlFor="acc-status" hint="Pausada some dos seletores, mas o histórico fica no Painel.">
             <Select id="acc-status" value={draft.status} onChange={(e) => patch('status', e.target.value as AccountInput['status'])}>
               {ACCOUNT_STATUSES.map((status) => (
                 <option key={status} value={status}>

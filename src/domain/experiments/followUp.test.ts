@@ -62,7 +62,7 @@ describe('aplicar o vencedor', () => {
     expect(plan.defaults).toEqual({ postingTime: '19:00', visualStyle: 'tiktok', source: 'Teste de Horário #01' });
     expect(plan.learning).toContain('Gancho: "Frase contrarian" teve mais salvamentos que "Lista de dicas"');
     expect(plan.learning).toContain('Horário: 19:00 teve mais salvamentos (contra 08:00), confiança: alta.');
-    expect(plan.changes).toEqual(['Aprendizado nas sugestões do Analytics: Variação de Gancho', 'Modelo de slide padrão da conta: TikTok (foto + texto)', 'Horário padrão da conta: 19:00']);
+    expect(plan.changes).toEqual(['Aprendizado nas sugestões do Painel: Variação de Gancho', 'Modelo de slide padrão da conta: TikTok (foto + texto)', 'Horário padrão da conta: 19:00']);
   });
 
   it('a copy-only test changes no default', () => {
