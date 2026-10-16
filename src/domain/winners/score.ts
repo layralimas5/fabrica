@@ -1,4 +1,4 @@
-import { PERFORMANCE_KEYS, WINNER_TYPE_METRICS, WINNER_TYPES, type PerformanceKey, type PerformanceMetrics, type WinnerType } from './record';
+import { WINNER_TYPE_METRICS, WINNER_TYPES, type PerformanceMetrics, type WinnerType } from './record';
 
 /**
  * Performance Score: 0–100, comparing a content with the other contents of the same account.
@@ -10,27 +10,10 @@ import { PERFORMANCE_KEYS, WINNER_TYPE_METRICS, WINNER_TYPES, type PerformanceKe
 export const SCORE_COMPONENTS = ['shareRate', 'saveRate', 'conversionRate', 'followRate', 'engagementRate', 'commentRate', 'clickRate', 'viewsRelative'] as const;
 export type ScoreComponent = (typeof SCORE_COMPONENTS)[number];
 
-export const SCORE_COMPONENT_LABELS: Record<ScoreComponent, string> = {
-  shareRate: 'Taxa de compartilhamento',
-  saveRate: 'Taxa de salvamento',
-  conversionRate: 'Taxa de conversão',
-  followRate: 'Taxa de seguidores',
-  engagementRate: 'Taxa de engajamento',
-  commentRate: 'Taxa de comentários',
-  clickRate: 'Taxa de cliques',
-  viewsRelative: 'Visualizações vs média da conta',
-};
-
 export type ScoreWeights = Record<ScoreComponent, number>;
 
 export const SCORE_PROFILES = ['equilibrado', 'alcance', 'conversao', 'personalizado'] as const;
 export type ScoreProfile = (typeof SCORE_PROFILES)[number];
-export const SCORE_PROFILE_LABELS: Record<ScoreProfile, string> = {
-  equilibrado: 'Equilibrado',
-  alcance: 'Awareness (alcance)',
-  conversao: 'Conversão',
-  personalizado: 'Personalizado',
-};
 
 /** Equilibrado follows the priority: shares, saves, conversions, followers, engagement. */
 export const PRESET_WEIGHTS: Record<Exclude<ScoreProfile, 'personalizado'>, ScoreWeights> = {
@@ -195,6 +178,3 @@ export function suggestWinnerTypes(metrics: PerformanceMetrics, others: Performa
     return value >= STANDOUT * median(comparison);
   });
 }
-
-/** Keys that measure attention, to show beside the score. */
-export const ATTENTION_KEYS: PerformanceKey[] = PERFORMANCE_KEYS.filter((key) => ['views', 'likes', 'comments', 'shares', 'saves', 'follows'].includes(key));

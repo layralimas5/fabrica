@@ -14,11 +14,6 @@ export interface AnalyticsItem {
   derived: boolean;
 }
 
-/** "id:<account>" for registered accounts, the same key the winners library groups by. */
-export function carouselAccountKey(carousel: Pick<Carousel, 'source'>): string | null {
-  return carousel.source.accountId ? `id:${carousel.source.accountId}` : null;
-}
-
 export function analyticsItems(carousels: Carousel[], records: ContentRecord[], accounts: Account[]): AnalyticsItem[] {
   const byCarousel = new Map(records.filter((record) => record.carouselId).map((record) => [record.carouselId as string, record]));
   const items: AnalyticsItem[] = carousels.map((carousel) => {

@@ -1,6 +1,4 @@
-import { addDays } from '../schedule';
-import { emptyPerformance, hasAnyMetric, PERFORMANCE_KEYS, type ContentRecord, type MetricSnapshot, type PerformanceKey, type PerformanceMetrics } from '../winners/record';
-import type { AnalyticsItem } from './items';
+import { hasAnyMetric, PERFORMANCE_KEYS, type ContentRecord, type MetricSnapshot, type PerformanceKey, type PerformanceMetrics } from '../winners/record';
 
 /**
  * How a post keeps moving after it is published, from the numbers typed on different days.
@@ -91,75 +89,4 @@ export function momentumOf(record: ContentRecord): Momentum | null {
   const lastPace = lastGain / Math.max(1, daysBetween(before.day, last.day));
   const earlierPace = ((before.metrics.views ?? 0) - (first.metrics.views ?? 0)) / Math.max(1, daysBetween(first.day, before.day));
   return lastPace >= earlierPace * GROWING_PACE ? 'growing' : 'slowing';
-}
-
-export interface GrowthEntry {
-  item: AnalyticsItem;
-  from: string;
-  to: string;
-  days: number;
-  gained: Record<PerformanceKey, number | null>;
-  viewsPerDay: number;
-  momentum: Momentum | null;
-}
-
-/**
- * Who gained the most views in the last `windowDays`: from the last measurement before the window
- * (or the posting day) to the latest one. Only posts measured inside the window take part.
- */
-export function growthRanking(items: AnalyticsItem[], today: string, windowDays = 7): GrowthEntry[] {
-  const start = addDays(today, -windowDays);
-  const entries: GrowthEntry[] = [];
-  for (const item of items) {
-    const points = pointsOf(item.record).filter((point) => point.metrics.views !== null);
-    const latest = points[points.length - 1];
-    if (!latest || latest.zero || latest.day < start) continue;
-    const baseline = [...points].reverse().find((point) => point.day <= start) ?? points[0];
-    if (baseline === latest) continue;
-    const gained = Object.fromEntries(PERFORMANCE_KEYS.map((key) => [key, gain(latest.metrics[key], baseline.metrics[key])])) as Record<PerformanceKey, number | null>;
-    const days = Math.max(1, daysBetween(baseline.day, latest.day));
-    entries.push({ item, from: baseline.day, to: latest.day, days, gained, viewsPerDay: (gained.views ?? 0) / days, momentum: momentumOf(item.record) });
-  }
-  return entries.sort((a, b) => (b.gained.views ?? 0) - (a.gained.views ?? 0));
-}
-
-export const AGE_MARKS = [1, 3, 7, 14, 30] as const;
-export type AgeMark = (typeof AGE_MARKS)[number];
-
-/**
- * The numbers a post had when it was `ageDays` old: exact when measured that day, otherwise read on the line
- * between the measurements around it. Null when it was never measured that late, since guessing ahead would be unfair.
- */
-export function metricsAtAge(record: ContentRecord, ageDays: number): { metrics: PerformanceMetrics; estimated: boolean } | null {
-  if (!record.publishedAt) return null;
-  const target = addDays(record.publishedAt, ageDays);
-  const points = pointsOf(record);
-  const exact = points.find((point) => point.day === target && !point.zero);
-  if (exact) return { metrics: exact.metrics, estimated: false };
-  const afterIndex = points.findIndex((point) => point.day > target);
-  if (afterIndex <= 0) return null;
-  const [before, after] = [points[afterIndex - 1], points[afterIndex]];
-  const share = daysBetween(before.day, target) / daysBetween(before.day, after.day);
-  const metrics = emptyPerformance();
-  for (const key of PERFORMANCE_KEYS) {
-    const [from, to] = [before.metrics[key], after.metrics[key]];
-    metrics[key] = from === null || to === null ? null : Math.round(from + (to - from) * share);
-  }
-  return { metrics, estimated: true };
-}
-
-export interface AgeEntry {
-  item: AnalyticsItem;
-  metrics: PerformanceMetrics;
-  estimated: boolean;
-}
-
-/** Every post at the same age, so a post from yesterday is not compared with one from last month. */
-export function ageRanking(items: AnalyticsItem[], ageDays: number): AgeEntry[] {
-  return items
-    .flatMap((item) => {
-      const atAge = metricsAtAge(item.record, ageDays);
-      return atAge?.metrics.views ? [{ item, ...atAge }] : [];
-    })
-    .sort((a, b) => (b.metrics.views ?? 0) - (a.metrics.views ?? 0));
 }

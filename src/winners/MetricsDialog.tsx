@@ -107,7 +107,7 @@ export function MetricsDialog({ carousel, existing, account, productName, onClos
     >
       <form id="metrics-form" onSubmit={submit} className="flex flex-col gap-4">
         <p className="text-sm text-muted">
-          Coloque os números como estão no app no dia da medição. Cada data vira um ponto no histórico, e o Analytics compara o quanto o post cresceu entre elas.
+          Coloque os números como estão no app no dia da medição. Cada data vira um ponto no histórico, e o Painel compara o quanto o post cresceu entre elas.
         </p>
         <div className="grid grid-cols-2 gap-3 sm:max-w-md">
           <Field label="Medido em" htmlFor="metrics-day" hint={editingDay ? 'Já tem medição nesse dia: salvar substitui.' : undefined}>

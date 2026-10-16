@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emptyPerformance, emptyRecordInput, sanitizeRecordInput, withMeasurement, withoutMeasurement, type ContentRecord, type PerformanceMetrics } from '../winners/record';
-import { ageRanking, growthRanking, measurementSteps, metricsAtAge, momentumOf } from './growth';
-import type { AnalyticsItem } from './items';
+import { measurementSteps, momentumOf } from './growth';
 
 const numbers = (values: Partial<PerformanceMetrics>): PerformanceMetrics => ({ ...emptyPerformance(), ...values });
 
@@ -12,7 +11,6 @@ function record(publishedAt: string | null, history: [string, Partial<Performanc
   for (const [day, values] of history) input = withMeasurement(input, day, numbers(values));
   return { ...input, id: `r${sequence}`, createdAt: '2026-09-01T10:00:00.000Z', updatedAt: '2026-09-01T10:00:00.000Z' };
 }
-const item = (content: ContentRecord): AnalyticsItem => ({ record: content, carousel: null, derived: false });
 
 describe('metrics history', () => {
   it('keeps one measurement per day and the latest day as the current numbers', () => {
@@ -48,26 +46,5 @@ describe('growth', () => {
     expect(momentumOf(record('2026-09-01', [['2026-09-02', { views: 1000 }], ['2026-09-12', { views: 1100 }]]))).toBe('slowing');
     expect(momentumOf(record('2026-09-01', [['2026-09-02', { views: 1000 }], ['2026-09-09', { views: 1010 }]]))).toBe('stable');
     expect(momentumOf(record('2026-09-01', [['2026-09-02', { views: 1000 }]]))).toBe('early');
-  });
-
-  it('ranks what grew the most inside the window', () => {
-    const fast = record('2026-09-20', [['2026-09-25', { views: 1000 }], ['2026-10-02', { views: 5000 }]]);
-    const slow = record('2026-09-20', [['2026-09-25', { views: 3000 }], ['2026-10-02', { views: 3500 }]]);
-    const old = record('2026-08-01', [['2026-08-10', { views: 9000 }]]);
-    const ranking = growthRanking([slow, fast, old].map(item), '2026-10-03');
-    expect(ranking.map((entry) => [entry.item.record.id, entry.gained.views])).toEqual([
-      [fast.id, 4000],
-      [slow.id, 500],
-    ]);
-  });
-
-  it('compares posts at the same age, reading between measurements', () => {
-    const content = record('2026-09-01', [['2026-09-05', { views: 400 }], ['2026-09-11', { views: 1000 }]]);
-    expect(metricsAtAge(content, 4)).toEqual({ metrics: numbers({ views: 400 }), estimated: false });
-    expect(metricsAtAge(content, 7)?.metrics.views).toBe(700);
-    expect(metricsAtAge(content, 2)?.metrics.views).toBe(200);
-    expect(metricsAtAge(content, 14)).toBeNull();
-    const young = record('2026-09-28', [['2026-09-30', { views: 5000 }]]);
-    expect(ageRanking([item(content), item(young)], 7).map((entry) => entry.item.record.id)).toEqual([content.id]);
   });
 });

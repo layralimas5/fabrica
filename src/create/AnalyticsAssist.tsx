@@ -31,7 +31,7 @@ interface AnalyticsAssistProps {
   disabled: boolean;
 }
 
-/** "Usar dados do Analytics": scale what works without stopping new tests. */
+/** "Usar dados do Painel": scale what works without stopping new tests. */
 export function AnalyticsAssist({ enabled, onEnabled, level, onLevel, recommendations, accountName, disabled }: AnalyticsAssistProps) {
   const known = hasRecommendations(recommendations);
   const facts = [
@@ -49,7 +49,7 @@ export function AnalyticsAssist({ enabled, onEnabled, level, onLevel, recommenda
         <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]" checked={enabled} onChange={(e) => onEnabled(e.target.checked)} disabled={disabled} />
         <span>
           <span className="flex items-center gap-1.5 font-medium">
-            <BarChart3 className="size-4 text-accent" aria-hidden /> Usar dados do Analytics
+            <BarChart3 className="size-4 text-accent" aria-hidden /> Usar dados do Painel
           </span>
           <span className="block text-xs text-faint">
             Aplica nas copys o que performa acima da média {accountName ? `da conta ${accountName}` : 'das suas contas'}, sem parar de testar coisas novas.

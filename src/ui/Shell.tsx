@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { BarChart3, Brain, Filter, Megaphone, LayoutDashboard, CalendarDays, Clapperboard, FlaskConical, FolderKanban, Images, Layers, Palette, PanelLeftClose, PanelLeftOpen, PlugZap, Plus, Settings, Sparkles, UsersRound, type LucideIcon } from 'lucide-react';
+import { Brain, Filter, Megaphone, LayoutDashboard, CalendarDays, Clapperboard, FlaskConical, FolderKanban, Images, Layers, Palette, PanelLeftClose, PanelLeftOpen, PlugZap, Plus, Settings, Sparkles, UsersRound, type LucideIcon } from 'lucide-react';
 import { AccountScopeProvider } from '../app/accountScope';
 import { BackupReminder } from './BackupReminder';
 import { AccountSwitcher } from './AccountSwitcher';
@@ -32,7 +32,6 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { to: '/painel', label: 'Painel', icon: LayoutDashboard },
       { to: '/conversoes', label: 'Conversões', icon: Filter },
       { to: '/inteligencia', label: 'Inteligência', icon: Brain },
-      { to: '/analytics', label: 'Analytics', icon: BarChart3 },
       { to: '/testes', label: 'Testes', icon: FlaskConical },
     ],
   },
