@@ -5,7 +5,7 @@ import type { PublishingService } from '../application/ports';
 import type { RenderContext } from '../app/slideRendering';
 import { errorMessage } from '../app/useResource';
 import type { Carousel } from '../domain/carousel';
-import { activeJobFor, canAutoPublish, jobStatusInfo, publishProblems, saoPauloDate, sendsToDrafts, type PublishingJob } from '../domain/publishing/job';
+import { activeJobFor, canAutoPublish, DRAFT_LEAD_MINUTES, jobStatusInfo, publishProblems, saoPauloDate, sendsToDrafts, sendTimeFor, type PublishingJob } from '../domain/publishing/job';
 import { todayIso } from '../domain/schedule';
 import type { SocialConnection } from '../domain/social/connection';
 import { SOCIAL_PLATFORM_LABELS } from '../domain/social/publication';
@@ -67,7 +67,7 @@ export function PublishDialog({ carousel, context, connections, jobs, publishing
   const schedule = () =>
     run('schedule', async () => {
       if (!connection) return;
-      onJob(await publishing.createJob({ connectionId: connection.id, carouselId: carousel.id, scheduledAt: when.toISOString(), caption: carousel.caption, title: carousel.title }));
+      onJob(await publishing.createJob({ connectionId: connection.id, carouselId: carousel.id, scheduledAt: sendTimeFor(connection.platform, when).toISOString(), postAt: when.toISOString(), caption: carousel.caption, title: carousel.title }));
     });
 
   const approve = (job: PublishingJob) =>
@@ -118,7 +118,8 @@ export function PublishDialog({ carousel, context, connections, jobs, publishing
               <div className="flex flex-wrap items-center gap-2">
                 {activeStatus && <Badge tone={activeStatus.tone}>{activeStatus.label}</Badge>}
                 <span className="text-sm text-ink">
-                  {jobConnection ? `@${jobConnection.username} · ${SOCIAL_PLATFORM_LABELS[jobConnection.platform]}` : 'Conta removida'} · {new Date(active.scheduledAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                  {jobConnection ? `@${jobConnection.username} · ${SOCIAL_PLATFORM_LABELS[jobConnection.platform]}` : 'Conta removida'} · postar {new Date(active.postAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                  {toDrafts && active.postAt !== active.scheduledAt && ` · chega aos rascunhos ${new Date(active.scheduledAt).toLocaleTimeString('pt-BR', { timeStyle: 'short' })}`}
                 </span>
               </div>
               {active.lastError && <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">{active.lastError}</p>}
@@ -130,7 +131,7 @@ export function PublishDialog({ carousel, context, connections, jobs, publishing
               {active.status === 'awaiting_approval' && (
                 <p className="mt-3 text-sm text-muted">
                   {toDrafts
-                    ? `Ao aprovar, a Fábrica gera as ${carousel.slides.length} imagens como estão agora e, no horário marcado, envia o carrossel com a legenda para os rascunhos do TikTok. Você recebe o aviso no app, escolhe a música e publica. Dá pra cancelar até a hora.`
+                    ? `Ao aprovar, a Fábrica gera as ${carousel.slides.length} imagens como estão agora e envia o carrossel com a legenda para os rascunhos do TikTok ${DRAFT_LEAD_MINUTES} minutos antes do horário de postar. Você recebe o aviso no app e, na hora, escolhe a música e publica. Dá pra cancelar até lá.`
                     : `Ao aprovar, a Fábrica gera as ${carousel.slides.length} imagens como estão agora e publica sozinha no horário marcado, com a legenda atual. Dá pra cancelar até a hora.`}
                 </p>
               )}
@@ -171,7 +172,7 @@ export function PublishDialog({ carousel, context, connections, jobs, publishing
                   <Field label="Dia" htmlFor="publish-day">
                     <Input id="publish-day" type="date" value={day} min={todayIso()} onChange={(e) => e.target.value && setDay(e.target.value)} />
                   </Field>
-                  <Field label="Horário (Brasília)" htmlFor="publish-time">
+                  <Field label="Horário de postar (Brasília)" htmlFor="publish-time">
                     <Input id="publish-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
                   </Field>
                 </div>
@@ -186,7 +187,7 @@ export function PublishDialog({ carousel, context, connections, jobs, publishing
                   <Button variant="primary" disabled={problems.length > 0} loading={busy === 'schedule'} onClick={() => void schedule()}>
                     <Send className="size-4" aria-hidden /> Agendar (fica aguardando sua aprovação)
                   </Button>
-                  {toDrafts && <p className="mt-2 text-xs text-muted">No TikTok, o carrossel vai para os rascunhos da conta na hora marcada. A música e o toque final em Publicar ficam com você no app.</p>}
+                  {toDrafts && <p className="mt-2 text-xs text-muted">No TikTok, o carrossel chega aos rascunhos da conta {DRAFT_LEAD_MINUTES} minutos antes desse horário. Na hora, a música e o toque em Publicar ficam com você no app.</p>}
                 </div>
               </>
             )

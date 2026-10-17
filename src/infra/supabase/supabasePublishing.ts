@@ -18,7 +18,7 @@ interface JobRow {
   external_id: string | null;
   permalink: string | null;
   last_error: string | null;
-  data: { caption?: string; media?: string[]; title?: string };
+  data: { caption?: string; media?: string[]; title?: string; postAt?: string };
   created_at: string;
 }
 
@@ -28,6 +28,7 @@ const rowToJob = (row: JobRow): PublishingJob => ({
   carouselId: row.carousel_id,
   status: JOB_STATUSES.includes(row.status as JobStatus) ? (row.status as JobStatus) : 'failed',
   scheduledAt: row.scheduled_at,
+  postAt: row.data?.postAt ?? row.scheduled_at,
   idempotencyKey: row.idempotency_key,
   attempts: row.attempts,
   approvedAt: row.approved_at,
@@ -60,7 +61,7 @@ export class SupabasePublishing implements PublishingService {
         carousel_id: input.carouselId,
         scheduled_at: scheduledAt.toISOString(),
         idempotency_key: idempotencyKey(input.carouselId, input.connectionId, scheduledAt),
-        data: { caption: input.caption, title: input.title, media: [] },
+        data: { caption: input.caption, title: input.title, media: [], postAt: input.postAt },
       })
       .select()
       .single();
@@ -83,7 +84,7 @@ export class SupabasePublishing implements PublishingService {
     }
     const { data, error } = await this.client
       .from('publishing_jobs')
-      .update({ status: 'scheduled', approved_at: new Date().toISOString(), attempts: 0, next_attempt_at: null, last_error: null, data: { caption: job.caption, title: job.title, media: paths } })
+      .update({ status: 'scheduled', approved_at: new Date().toISOString(), attempts: 0, next_attempt_at: null, last_error: null, data: { caption: job.caption, title: job.title, media: paths, postAt: job.postAt } })
       .eq('id', job.id)
       .eq('status', 'awaiting_approval')
       .select()

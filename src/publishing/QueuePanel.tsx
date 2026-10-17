@@ -73,7 +73,7 @@ export function QueuePanel({ jobs, connections, carousels, publishing, onOpen, o
                     <Badge tone={status.tone}>{status.label}</Badge>
                   </span>
                   <span className="text-[11px] text-faint">
-                    {new Date(job.scheduledAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} · {connection ? `@${connection.username} · ${SOCIAL_PLATFORM_LABELS[connection.platform]}` : 'conta removida'}
+                    {new Date(job.postAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} · {connection ? `@${connection.username} · ${SOCIAL_PLATFORM_LABELS[connection.platform]}` : 'conta removida'}
                   </span>
                   {job.lastError && <span className="text-[11px] text-amber-800 dark:text-amber-200">{job.lastError}</span>}
                 </button>

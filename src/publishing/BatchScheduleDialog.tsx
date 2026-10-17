@@ -5,7 +5,7 @@ import type { RenderContext } from '../app/slideRendering';
 import { errorMessage } from '../app/useResource';
 import type { Carousel } from '../domain/carousel';
 import { planBatch, validTimes, type BatchEntry } from '../domain/publishing/batch';
-import { canAutoPublish, sendsToDrafts, type PublishingJob } from '../domain/publishing/job';
+import { canAutoPublish, DRAFT_LEAD_MINUTES, sendsToDrafts, sendTimeFor, type PublishingJob } from '../domain/publishing/job';
 import { addDays, todayIso } from '../domain/schedule';
 import type { SocialConnection } from '../domain/social/connection';
 import { SOCIAL_PLATFORM_LABELS } from '../domain/social/publication';
@@ -55,7 +55,7 @@ export function BatchScheduleDialog({ carousels, contextOf, connections, jobs, p
     const context = contextOf(carousel);
     if (!connection || !when) throw new Error('Sem conta ou horário.');
     if (!context) throw new Error('O carrossel não tem marca pra gerar as imagens.');
-    const job = await publishing.createJob({ connectionId: connection.id, carouselId: carousel.id, scheduledAt: when.toISOString(), caption: carousel.caption, title: carousel.title });
+    const job = await publishing.createJob({ connectionId: connection.id, carouselId: carousel.id, scheduledAt: sendTimeFor(connection.platform, when).toISOString(), postAt: when.toISOString(), caption: carousel.caption, title: carousel.title });
     onJob(job);
     const { carouselFiles } = await import('../app/exportCarousel');
     const files = await carouselFiles(context, carousel, 'jpg', (done) => setProgress(`Carrossel ${position} de ${ready.length}: imagem ${done}/${carousel.slides.length}`));
@@ -84,7 +84,7 @@ export function BatchScheduleDialog({ carousels, contextOf, connections, jobs, p
         <div className="flex flex-col gap-3">
           <Alert tone={outcome.failures.length ? 'info' : 'success'}>
             {outcome.done} {outcome.done === 1 ? 'carrossel agendado e aprovado' : 'carrosséis agendados e aprovados'}. Eles aparecem na fila do Calendário.
-            {toDrafts ? ' No TikTok, cada um chega aos rascunhos no horário marcado: aí é só escolher a música e publicar.' : ''}
+            {toDrafts ? ` No TikTok, cada um chega aos rascunhos ${DRAFT_LEAD_MINUTES} minutos antes do horário marcado: na hora, é só escolher a música e publicar.` : ''}
           </Alert>
           {outcome.failures.length > 0 && (
             <ul className="flex flex-col gap-1 rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
@@ -176,7 +176,7 @@ export function BatchScheduleDialog({ carousels, contextOf, connections, jobs, p
           </ol>
         </section>
 
-        {toDrafts && <p className="text-xs text-muted">No TikTok, cada carrossel vai para os rascunhos da conta no horário marcado. A música e o toque em Publicar ficam com você no app.</p>}
+        {toDrafts && <p className="text-xs text-muted">Os horários são os de postar. No TikTok, cada carrossel chega aos rascunhos da conta {DRAFT_LEAD_MINUTES} minutos antes, e a música e o toque em Publicar ficam com você no app.</p>}
         {progress && (
           <p role="status" className="text-xs text-muted">
             {progress}

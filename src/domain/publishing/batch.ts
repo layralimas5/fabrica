@@ -74,11 +74,11 @@ export function planBatch(carousels: Carousel[], connections: SocialConnection[]
   return oldestFirst.map((carousel, index) => {
     const connection = targets[index];
     const job = queued[index];
-    if (job && job.status !== 'failed') return { carousel, connection, when: new Date(job.scheduledAt), problems: ['Já está na fila de publicação.'] };
+    if (job && job.status !== 'failed') return { carousel, connection, when: new Date(job.postAt), problems: ['Já está na fila de publicação.'] };
     if (!connection) return { carousel, connection, when: null, problems: ['Escolhe pelo menos uma conta.'] };
     if (times.length === 0) return { carousel, connection, when: null, problems: ['Escolhe pelo menos um horário.'] };
     if (!nextSlot.has(connection.id)) {
-      const taken = new Set(jobs.filter((item) => item.connectionId === connection.id && item.status !== 'cancelled' && item.status !== 'failed').map((item) => new Date(item.scheduledAt).getTime()));
+      const taken = new Set(jobs.filter((item) => item.connectionId === connection.id && item.status !== 'cancelled' && item.status !== 'failed').map((item) => new Date(item.postAt).getTime()));
       nextSlot.set(connection.id, slotsFrom(options, times, taken, now));
     }
     const when = (nextSlot.get(connection.id) as () => Date | null)();

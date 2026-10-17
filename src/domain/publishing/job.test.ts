@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Carousel } from '../carousel';
-import { activeJobFor, jobStatusInfo, publishProblems, saoPauloDate, type PublishingJob } from './job';
+import { activeJobFor, jobStatusInfo, publishProblems, saoPauloDate, sendTimeFor, type PublishingJob } from './job';
 
 const carousel = (patch: Partial<Carousel> = {}) => ({ format: '4:5', caption: 'Legenda', slides: Array.from({ length: 5 }, () => ({})), ...patch }) as unknown as Carousel;
 const connection = { platform: 'instagram' as const, status: 'connected' as const, scopes: ['instagram_business_basic', 'instagram_business_content_publish'] };
@@ -30,6 +30,12 @@ describe('publish checks', () => {
     expect(publishProblems(carousel({ format: '9:16' }), { platform: 'tiktok', status: 'connected', scopes: ['video.list', 'video.upload'] }, later, now)).toEqual([]);
     expect(jobStatusInfo('published', 'tiktok').label).toBe('Nos rascunhos do TikTok');
     expect(jobStatusInfo('published', 'instagram').label).toBe('Publicado');
+  });
+
+  it('sends TikTok drafts 10 minutes before the posting time and the other networks right on it', () => {
+    const postAt = new Date('2026-10-20T22:00:00Z');
+    expect(sendTimeFor('tiktok', postAt).toISOString()).toBe('2026-10-20T21:50:00.000Z');
+    expect(sendTimeFor('instagram', postAt).toISOString()).toBe('2026-10-20T22:00:00.000Z');
   });
 
   it('reads the time in São Paulo and finds the live job of a carousel', () => {

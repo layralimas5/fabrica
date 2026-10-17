@@ -23,7 +23,10 @@ export interface PublishingJob {
   connectionId: string;
   carouselId: string | null;
   status: JobStatus;
+  /** When the queue sends it. For TikTok drafts, a few minutes before postAt. */
   scheduledAt: string;
+  /** When the owner wants it live: the time she picked. */
+  postAt: string;
   idempotencyKey: string;
   attempts: number;
   approvedAt: string | null;
@@ -48,6 +51,14 @@ const PUBLISH_SCOPES: Record<SocialConnection['platform'], string> = { instagram
 /** Every connected network takes part in the queue; TikTok as drafts (see sendsToDrafts). */
 export function canAutoPublish(connection: Pick<SocialConnection, 'platform'>): boolean {
   return connection.platform in PUBLISH_SCOPES;
+}
+
+/** A TikTok draft arrives this much before the posting time, so it is waiting when the time comes. */
+export const DRAFT_LEAD_MINUTES = 10;
+
+/** When the queue should send a post meant to go live at postAt. */
+export function sendTimeFor(platform: SocialConnection['platform'], postAt: Date): Date {
+  return sendsToDrafts(platform) ? new Date(postAt.getTime() - DRAFT_LEAD_MINUTES * 60_000) : postAt;
 }
 
 /** TikTok receives the carousel in the drafts: the owner adds the music and posts it in the app. */
