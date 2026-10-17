@@ -175,8 +175,10 @@ export interface TrackingService {
 export interface NewJob {
   connectionId: string;
   carouselId: string;
-  /** ISO date-time. */
+  /** ISO date-time the queue sends it. */
   scheduledAt: string;
+  /** ISO date-time the owner wants it live (the same as scheduledAt, except for TikTok drafts). */
+  postAt: string;
   caption: string;
   title: string;
 }

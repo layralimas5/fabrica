@@ -31,13 +31,13 @@ describe('scheduling a batch', () => {
   });
 
   it('skips times already gone today and slots already taken by the queue', () => {
-    const taken = { id: 'j', connectionId: 'a', carouselId: 'other', status: 'scheduled', scheduledAt: new Date('2026-10-16T19:00:00-03:00').toISOString(), createdAt: '1' } as PublishingJob;
+    const taken = { id: 'j', connectionId: 'a', carouselId: 'other', status: 'scheduled', scheduledAt: new Date('2026-10-16T18:50:00-03:00').toISOString(), postAt: new Date('2026-10-16T19:00:00-03:00').toISOString(), createdAt: '1' } as PublishingJob;
     const plan = planBatch([carousel('1'), carousel('2')], [tiktok('a')], [taken], options({ connectionIds: ['a'], startDay: '2026-10-16' }), now);
     expect(plan.map((entry) => local(entry.when))).toEqual(['2026-10-17 08:00', '2026-10-17 19:00']);
   });
 
   it('leaves out carousels already in the queue and says why nothing can be planned', () => {
-    const queued = { id: 'j', connectionId: 'a', carouselId: '1', status: 'awaiting_approval', scheduledAt: new Date('2026-10-20T10:00:00-03:00').toISOString(), createdAt: '1' } as PublishingJob;
+    const queued = { id: 'j', connectionId: 'a', carouselId: '1', status: 'awaiting_approval', scheduledAt: new Date('2026-10-20T09:50:00-03:00').toISOString(), postAt: new Date('2026-10-20T10:00:00-03:00').toISOString(), createdAt: '1' } as PublishingJob;
     expect(planBatch([carousel('1')], [tiktok('a')], [queued], options(), now)[0].problems).toEqual(['Já está na fila de publicação.']);
     expect(planBatch([carousel('1')], [tiktok('a')], [], options({ connectionIds: [] }), now)[0].problems[0]).toMatch(/conta/);
     expect(planBatch([carousel('1')], [tiktok('a')], [], options({ times: ['25:00'] }), now)[0].problems[0]).toMatch(/horário/);
