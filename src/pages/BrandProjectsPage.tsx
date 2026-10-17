@@ -1,12 +1,13 @@
 import { ExternalLink, Layers, Plus } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useAccountScope } from '../app/accountScope';
 import { useBrandKits, useCarousels } from '../app/data';
 import { useServices } from '../app/services';
-import { errorMessage } from '../app/useResource';
+import { errorMessage, useResource } from '../app/useResource';
 import { saveProject } from '../application/saveProject';
-import { CONVERSION_GOAL_LABELS, emptyProject, sameProject, STARTER_PROJECTS, toProjectInput, unregisteredProjectNames, type Project } from '../domain/project';
+import { CONVERSION_GOAL_LABELS, emptyProject, projectCounts, sameProject, STARTER_PROJECTS, toProjectInput, unregisteredProjectNames, type Project } from '../domain/project';
 import { ProjectDialog } from '../projects/ProjectDialog';
+import type { SocialConnection } from '../domain/social/connection';
 import { Alert, Badge, Button, EmptyState, PageHeader, Spinner } from '../ui/primitives';
 
 export function BrandProjectsPage() {
@@ -14,6 +15,7 @@ export function BrandProjectsPage() {
   const scope = useAccountScope();
   const carousels = useCarousels();
   const brands = useBrandKits();
+  const connections = useResource<SocialConnection[]>(useCallback(() => services.social.listConnections(), [services.social]), []);
   const [editing, setEditing] = useState<{ project: Project | null; name?: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,10 +44,7 @@ export function BrandProjectsPage() {
     }
   };
 
-  const countsOf = (project: Project) => ({
-    accounts: scope.accounts.filter((account) => sameProject(account.project, project.name)).length,
-    contents: carousels.data.filter((carousel) => sameProject(carousel.project, project.name)).length,
-  });
+  const countsOf = (project: Project) => projectCounts(project, scope.accounts, connections.data, carousels.data);
 
   return (
     <div className="mx-auto max-w-5xl">
