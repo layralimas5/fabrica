@@ -130,6 +130,22 @@ export function sameProject(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
+/**
+ * What a project gathers: the Fábrica accounts with its name plus the connected accounts linked to it (one account
+ * counted once when both point to it), and the carousels with its name or made for one of those accounts.
+ */
+export function projectCounts(
+  project: Pick<Project, 'id' | 'name'>,
+  accounts: { id: string; project: string }[],
+  connections: { projectId: string | null; accountId: string | null }[],
+  carousels: { project: string; source: { accountId?: string | null } }[],
+): { accounts: number; contents: number } {
+  const accountIds = new Set(accounts.filter((account) => sameProject(account.project, project.name)).map((account) => account.id));
+  const extraConnections = connections.filter((connection) => connection.projectId === project.id && !(connection.accountId && accountIds.has(connection.accountId)));
+  const contents = carousels.filter((carousel) => sameProject(carousel.project, project.name) || (carousel.source.accountId ? accountIds.has(carousel.source.accountId) : false));
+  return { accounts: accountIds.size + extraConnections.length, contents: contents.length };
+}
+
 export function projectNamed(projects: Project[], name: string): Project | null {
   return name.trim() ? (projects.find((project) => sameProject(project.name, name)) ?? null) : null;
 }
