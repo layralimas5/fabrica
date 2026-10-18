@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Carousel } from '../carousel';
-import { activeJobFor, jobStatusInfo, publishProblems, saoPauloDate, sendTimeFor, type PublishingJob } from './job';
+import { activeJobFor, jobStatusInfo, missesPublishScope, publishProblems, saoPauloDate, sendTimeFor, type PublishingJob } from './job';
 
 const carousel = (patch: Partial<Carousel> = {}) => ({ format: '4:5', caption: 'Legenda', slides: Array.from({ length: 5 }, () => ({})), ...patch }) as unknown as Carousel;
 const connection = { platform: 'instagram' as const, status: 'connected' as const, scopes: ['instagram_business_basic', 'instagram_business_content_publish'] };
@@ -30,6 +30,12 @@ describe('publish checks', () => {
     expect(publishProblems(carousel({ format: '9:16' }), { platform: 'tiktok', status: 'connected', scopes: ['video.list', 'video.upload'] }, later, now)).toEqual([]);
     expect(jobStatusInfo('published', 'tiktok').label).toBe('Nos rascunhos do TikTok');
     expect(jobStatusInfo('published', 'instagram').label).toBe('Publicado');
+  });
+
+  it('spots accounts connected for reading that still need to allow publishing', () => {
+    expect(missesPublishScope({ platform: 'tiktok', status: 'connected', scopes: ['video.list'] })).toBe(true);
+    expect(missesPublishScope({ platform: 'tiktok', status: 'connected', scopes: ['video.list', 'video.upload'] })).toBe(false);
+    expect(missesPublishScope({ platform: 'tiktok', status: 'expired', scopes: ['video.list'] })).toBe(false);
   });
 
   it('sends TikTok drafts 10 minutes before the posting time and the other networks right on it', () => {
