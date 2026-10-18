@@ -1,3 +1,4 @@
+import { missesPublishScope } from '../domain/publishing/job';
 import { AlertTriangle, CheckCircle2, ExternalLink, Link2, PlugZap, RefreshCw, Unplug } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -237,6 +238,7 @@ function ConnectionCard({ connection, now, lastRuns, busy, accounts, projects, o
   const soon = expiresSoon(connection, now);
   const days = daysUntilExpiry(connection, now);
   const name = connection.username ? `@${connection.username}` : connection.displayName || connection.externalId;
+  const cannotPublish = missesPublishScope(connection);
 
   return (
     <article className="rounded-2xl border border-line bg-surface p-5">
@@ -254,6 +256,7 @@ function ConnectionCard({ connection, now, lastRuns, busy, accounts, projects, o
             <Badge>{SOCIAL_PLATFORM_LABELS[connection.platform]}</Badge>
             <Badge tone={status.tone}>{status.label}</Badge>
             {soon && <Badge tone="warning">Autorização vence em {days} {days === 1 ? 'dia' : 'dias'}</Badge>}
+            {cannotPublish && <Badge tone="warning">Só leitura: falta permitir publicar</Badge>}
           </div>
           {connection.displayName && connection.username && <p className="truncate text-xs text-muted">{connection.displayName}</p>}
           <p className="mt-1 text-xs text-muted">
@@ -261,6 +264,9 @@ function ConnectionCard({ connection, now, lastRuns, busy, accounts, projects, o
             {connection.rateLimit?.percent != null && ` · cota da API usada: ${connection.rateLimit.percent}%`}
             {connection.rateLimit?.limited && ' · limite atingido na última leitura'}
           </p>
+          {cannotPublish && (
+            <p className="mt-2 text-xs text-muted">Os números já chegam, mas pra agendar posts nesta conta ela precisa autorizar de novo e aceitar a permissão de enviar conteúdo. Clica em Reconectar e entra com {name}.</p>
+          )}
           {connection.lastError && (
             <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-800 dark:text-amber-200">
               <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden /> {connection.lastError}
@@ -268,7 +274,7 @@ function ConnectionCard({ connection, now, lastRuns, busy, accounts, projects, o
           )}
         </div>
         <div className="flex flex-wrap gap-2">
-          {needsReconnect(connection) || soon ? (
+          {needsReconnect(connection) || soon || cannotPublish ? (
             <Button variant="primary" size="sm" onClick={onReconnect} loading={busy === `connect:${connection.platform}`}>
               <Link2 className="size-3.5" aria-hidden /> Reconectar
             </Button>

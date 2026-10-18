@@ -48,6 +48,11 @@ export const MAX_ATTEMPTS = 3;
 const INSTAGRAM_FEED_FORMATS: CarouselFormat[] = ['4:5', '1:1'];
 const PUBLISH_SCOPES: Record<SocialConnection['platform'], string> = { instagram: 'instagram_business_content_publish', facebook: 'pages_manage_posts', tiktok: 'video.upload' };
 
+/** Connected for reading, but without the permission to send posts: it needs to authorize again. */
+export function missesPublishScope(connection: Pick<SocialConnection, 'platform' | 'status' | 'scopes'>): boolean {
+  return connection.status === 'connected' && connection.scopes.length > 0 && !connection.scopes.includes(PUBLISH_SCOPES[connection.platform]);
+}
+
 /** Every connected network takes part in the queue; TikTok as drafts (see sendsToDrafts). */
 export function canAutoPublish(connection: Pick<SocialConnection, 'platform'>): boolean {
   return connection.platform in PUBLISH_SCOPES;
