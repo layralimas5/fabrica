@@ -17,6 +17,7 @@ import type { SocialPlatform } from '../domain/social/publication';
 import type { TrackingEvent, TrackingLink, TrackingLinkInput } from '../domain/tracking/tracking';
 import type { AiInsight, AiInsightInput } from '../domain/intelligence/insight';
 import type { PublishingJob } from '../domain/publishing/job';
+import type { VideoJob, VideoJobInput, VideoPublishPlan } from '../domain/studio/videoJob';
 import type { FacebookGroup, FacebookGroupInput, GroupDistribution, GroupDistributionInput } from '../domain/groups/groups';
 
 export interface User {
@@ -198,6 +199,36 @@ export interface PublishingService {
   processNow(): Promise<{ processed: number }>;
 }
 
+/** The local studio as the Fábrica sees it: its key (never shown again after creation) and when it last called. */
+export interface StudioLink {
+  connected: boolean;
+  createdAt: string | null;
+  lastSeenAt: string | null;
+  workerInfo: { machine?: string; channels?: string[]; version?: string } | null;
+}
+
+/**
+ * Videos asked of the local studio and their publishing. The studio itself talks to the studio function with
+ * its key; the app only queues, reviews, edits and schedules.
+ */
+export interface StudioService {
+  readonly available: boolean;
+  listJobs(): Promise<VideoJob[]>;
+  createJob(input: VideoJobInput): Promise<VideoJob>;
+  updateJob(id: string, patch: Partial<Pick<VideoJob, 'title' | 'caption'>>): Promise<VideoJob>;
+  cancel(id: string): Promise<VideoJob>;
+  /** Sends the request back to the queue (redo), clearing the previous attempt. */
+  requeue(id: string): Promise<VideoJob>;
+  remove(job: VideoJob): Promise<void>;
+  /** Short-lived link to watch a file of the bucket studio-media. */
+  fileUrl(path: string): Promise<string>;
+  link(): Promise<StudioLink>;
+  createKey(): Promise<string>;
+  revokeKey(): Promise<void>;
+  /** Creates the publishing job and approves it in one step: scheduling from the review is the approval. */
+  schedule(job: VideoJob, connection: Pick<SocialConnection, 'id' | 'platform'>, plan: VideoPublishPlan, scheduledAt: Date): Promise<PublishingJob>;
+}
+
 export interface AiService {
   readonly engine: 'claude' | 'heuristic';
   draftCarousel(request: DraftRequest): Promise<CarouselDraft>;
@@ -234,6 +265,7 @@ export interface Services {
   tracking: TrackingService;
   insights: InsightRepository;
   publishing: PublishingService;
+  studio: StudioService;
   groups: GroupRepository;
   distributions: DistributionRepository;
   ai: AiService;

@@ -6,7 +6,7 @@ import { invokeFunction } from './supabaseSocial';
 
 const BUCKET = 'publish-media';
 
-interface JobRow {
+export interface JobRow {
   id: string;
   connection_id: string;
   carousel_id: string | null;
@@ -23,7 +23,7 @@ interface JobRow {
   created_at: string;
 }
 
-const rowToJob = (row: JobRow): PublishingJob => ({
+export const rowToJob = (row: JobRow): PublishingJob => ({
   id: row.id,
   connectionId: row.connection_id,
   carouselId: row.carousel_id,

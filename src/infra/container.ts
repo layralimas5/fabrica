@@ -27,6 +27,8 @@ import { LocalTracking } from './demo/localTracking';
 import { SupabaseTracking } from './supabase/supabaseTracking';
 import { SupabasePublishing } from './supabase/supabasePublishing';
 import { UnavailablePublishing } from './demo/unavailablePublishing';
+import { SupabaseStudio } from './supabase/supabaseStudio';
+import { UnavailableStudio } from './demo/unavailableStudio';
 
 /** Address of the Fábrica itself, base of the short links /l/<slug>. */
 const appUrl = (import.meta.env.VITE_APP_URL as string | undefined) || window.location.origin;
@@ -57,6 +59,7 @@ export function createServices(): Services {
       tracking: new LocalTracking(appUrl),
       insights: demoInsights(),
       publishing: new UnavailablePublishing(),
+      studio: new UnavailableStudio(),
       groups: demoGroups(),
       distributions: demoDistributions(),
       ai: new HeuristicAi(),
@@ -88,6 +91,7 @@ export function createServices(): Services {
     tracking: new SupabaseTracking(client, url, appUrl),
     insights: supabaseInsights(client),
     publishing: new SupabasePublishing(client),
+    studio: new SupabaseStudio(client),
     ai: useHeuristic ? new HeuristicAi() : new ClaudeAi(client),
     backup: new SupabaseBackup(client, repositories),
   };
