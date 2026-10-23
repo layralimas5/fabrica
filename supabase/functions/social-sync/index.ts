@@ -4,6 +4,7 @@ import { corsHeaders, HttpError, json, logError, readJson, requireUser, serviceC
 import { createProvider } from '../_shared/social/providers.ts';
 import { supabaseSyncStore } from '../_shared/social/supabaseStore.ts';
 import { syncConnection, type SyncResult } from '../_shared/social/sync.ts';
+import type { SocialPlatform } from '../_shared/social/types.ts';
 
 /**
  * Reads profiles, posts and their metrics from the connected accounts.
@@ -19,7 +20,7 @@ const SCHEDULED_BATCH = 10;
 interface ConnectionRecord {
   id: string;
   user_id: string;
-  platform: 'instagram' | 'facebook' | 'tiktok';
+  platform: SocialPlatform;
   external_id: string;
   last_sync_at: string | null;
 }

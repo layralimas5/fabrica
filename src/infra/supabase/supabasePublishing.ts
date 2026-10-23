@@ -10,6 +10,7 @@ interface JobRow {
   id: string;
   connection_id: string;
   carousel_id: string | null;
+  video_job_id: string | null;
   status: string;
   scheduled_at: string;
   idempotency_key: string;
@@ -26,6 +27,7 @@ const rowToJob = (row: JobRow): PublishingJob => ({
   id: row.id,
   connectionId: row.connection_id,
   carouselId: row.carousel_id,
+  videoJobId: row.video_job_id ?? null,
   status: JOB_STATUSES.includes(row.status as JobStatus) ? (row.status as JobStatus) : 'failed',
   scheduledAt: row.scheduled_at,
   postAt: row.data?.postAt ?? row.scheduled_at,

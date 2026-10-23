@@ -3,9 +3,9 @@
  * (URL or id), and points back to the content of the Fábrica it came from, when there is one.
  */
 
-export const SOCIAL_PLATFORMS = ['instagram', 'facebook', 'tiktok'] as const;
+export const SOCIAL_PLATFORMS = ['instagram', 'facebook', 'tiktok', 'youtube'] as const;
 export type SocialPlatform = (typeof SOCIAL_PLATFORMS)[number];
-export const SOCIAL_PLATFORM_LABELS: Record<SocialPlatform, string> = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' };
+export const SOCIAL_PLATFORM_LABELS: Record<SocialPlatform, string> = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok', youtube: 'YouTube' };
 
 export const MEDIA_TYPES = ['carousel', 'image', 'video', 'reel', 'story', 'text', 'other'] as const;
 export type MediaType = (typeof MEDIA_TYPES)[number];
@@ -57,9 +57,17 @@ const text = (value: unknown, max: number) => (typeof value === 'string' ? value
 /** Networks whose site answers on www: the same post typed with or without it is one post. */
 const WWW_HOSTS = ['instagram.com', 'tiktok.com', 'facebook.com'];
 
+/** youtu.be/<id>, youtube.com/watch?v=<id>, /shorts/<id>, /live/<id>: the video id, which is all the identity there is. */
+function youtubeVideoId(url: URL, bare: string): string | null {
+  const segments = url.pathname.split('/').filter(Boolean);
+  const id = bare === 'youtu.be' ? segments[0] : segments[0] === 'watch' ? url.searchParams.get('v') : ['shorts', 'live', 'embed'].includes(segments[0] ?? '') ? segments[1] : null;
+  return id && /^[\w-]{11}$/.test(id) ? id : null;
+}
+
 /**
  * "instagram.com/reel/Cx1/?igsh=..." → "https://www.instagram.com/p/Cx1/".
- * Query strings and fragments carry share tracking, never the identity of the post. On Instagram the
+ * Query strings and fragments carry share tracking, never the identity of the post (except YouTube's ?v=, so a
+ * YouTube video always becomes "https://www.youtube.com/watch?v=<id>"). On Instagram the
  * same shortcode opens under /p/, /reel/ and /tv/, so all of them become /p/ to match the synced post.
  */
 export function normalizePermalink(raw: string): string | null {
@@ -67,6 +75,10 @@ export function normalizePermalink(raw: string): string | null {
     const url = new URL(raw.trim());
     if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
     const bare = url.hostname.toLowerCase().replace(/^(www|m)\./, '');
+    if (bare === 'youtu.be' || bare === 'youtube.com') {
+      const id = youtubeVideoId(url, bare);
+      return id ? `https://www.youtube.com/watch?v=${id}` : null;
+    }
     const host = WWW_HOSTS.includes(bare) ? `www.${bare}` : url.hostname.toLowerCase();
     let path = url.pathname.replace(/\/+$/, '');
     if (bare === 'instagram.com') path = path.replace(/^\/(reels?|tv)\//, '/p/');
@@ -77,7 +89,7 @@ export function normalizePermalink(raw: string): string | null {
 }
 
 /**
- * Reads what the user pasted: a post URL of Instagram, TikTok or Facebook, or a bare id for the platform chosen.
+ * Reads what the user pasted: a post URL of Instagram, TikTok, Facebook or YouTube, or a bare id for the platform chosen.
  * Returns null when it is neither.
  */
 export function parsePublicationRef(raw: string, fallbackPlatform: SocialPlatform): PublicationRef | null {
@@ -96,6 +108,10 @@ export function parsePublicationRef(raw: string, fallbackPlatform: SocialPlatfor
     const video = pathname.match(/\/(?:video|photo)\/(\d{8,25})\/$/);
     if (video) return { platform: 'tiktok', externalId: video[1], permalink };
     return /^\/[\w-]+\/$/.test(pathname) && hostname.startsWith('vm.') ? { platform: 'tiktok', externalId: null, permalink } : null;
+  }
+  if (hostname === 'www.youtube.com') {
+    const id = new URL(permalink).searchParams.get('v');
+    return id ? { platform: 'youtube', externalId: id, permalink } : null;
   }
   if (/(^|\.)(facebook\.com|fb\.com|fb\.watch)$/.test(hostname)) {
     return { platform: 'facebook', externalId: null, permalink };

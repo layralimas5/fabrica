@@ -101,13 +101,17 @@ export async function publishFacebookPage(target: PublishTarget, imageUrls: stri
   return { externalId: post.id, permalink: details.permalink_url ?? null };
 }
 
-export type FailureDecision = { status: 'scheduled'; retryInMinutes: number } | { status: 'failed'; reconnect: boolean };
+/** countsAttempt false: the network is still processing a video, which is waiting, not a failed try. */
+export type FailureDecision = { status: 'scheduled'; retryInMinutes: number; countsAttempt: boolean } | { status: 'failed'; reconnect: boolean };
+
+export const PROCESSING_RETRY_MINUTES = 3;
 
 /** What happens after a failed attempt: wait and retry (quota, temporary errors) or stop and tell the user. */
 export function afterFailure(error: unknown, attempts: number, maxAttempts: number): FailureDecision {
   if (error instanceof ProviderError && error.kind === 'auth') return { status: 'failed', reconnect: true };
   if (error instanceof ProviderError && error.kind === 'permission') return { status: 'failed', reconnect: false };
+  if (error instanceof ProviderError && error.kind === 'processing') return { status: 'scheduled', retryInMinutes: PROCESSING_RETRY_MINUTES, countsAttempt: false };
   if (attempts >= maxAttempts) return { status: 'failed', reconnect: false };
   const rateLimited = error instanceof ProviderError && error.kind === 'rate_limit';
-  return { status: 'scheduled', retryInMinutes: rateLimited ? 60 : 10 * attempts };
+  return { status: 'scheduled', retryInMinutes: rateLimited ? 60 : 10 * attempts, countsAttempt: true };
 }

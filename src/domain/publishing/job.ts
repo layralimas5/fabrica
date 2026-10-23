@@ -22,6 +22,8 @@ export interface PublishingJob {
   id: string;
   connectionId: string;
   carouselId: string | null;
+  /** Set when the job publishes a video of the studio (then carouselId is null). */
+  videoJobId: string | null;
   status: JobStatus;
   /** When the queue sends it. For TikTok drafts, a few minutes before postAt. */
   scheduledAt: string;
@@ -46,16 +48,28 @@ export const MAX_ATTEMPTS = 3;
 
 /** Proportions the Instagram feed accepts for images (between 4:5 and 1.91:1). */
 const INSTAGRAM_FEED_FORMATS: CarouselFormat[] = ['4:5', '1:1'];
-const PUBLISH_SCOPES: Record<SocialConnection['platform'], string> = { instagram: 'instagram_business_content_publish', facebook: 'pages_manage_posts', tiktok: 'video.upload' };
+const PUBLISH_SCOPES: Record<SocialConnection['platform'], string> = {
+  instagram: 'instagram_business_content_publish',
+  facebook: 'pages_manage_posts',
+  tiktok: 'video.upload',
+  youtube: 'https://www.googleapis.com/auth/youtube.upload',
+};
 
 /** Connected for reading, but without the permission to send posts: it needs to authorize again. */
 export function missesPublishScope(connection: Pick<SocialConnection, 'platform' | 'status' | 'scopes'>): boolean {
   return connection.status === 'connected' && connection.scopes.length > 0 && !connection.scopes.includes(PUBLISH_SCOPES[connection.platform]);
 }
 
-/** Every connected network takes part in the queue; TikTok as drafts (see sendsToDrafts). */
+/** Networks that take carousels: TikTok as drafts (see sendsToDrafts). YouTube only takes videos (domain/studio). */
+const CAROUSEL_NETWORKS: SocialConnection['platform'][] = ['instagram', 'facebook', 'tiktok'];
+
 export function canAutoPublish(connection: Pick<SocialConnection, 'platform'>): boolean {
-  return connection.platform in PUBLISH_SCOPES;
+  return CAROUSEL_NETWORKS.includes(connection.platform);
+}
+
+/** The permission a connection needs to receive posts from the queue (carousel or video). */
+export function publishScopeFor(platform: SocialConnection['platform']): string {
+  return PUBLISH_SCOPES[platform];
 }
 
 /** A TikTok draft arrives this much before the posting time, so it is waiting when the time comes. */

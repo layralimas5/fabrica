@@ -3,4 +3,6 @@
 /l/*  https://rvizhshxcrfhdgfpennu.supabase.co/functions/v1/track/go/:splat  200!
 # Imagens aprovadas para o TikTok: ele só baixa de site verificado, então o link assinado do Storage passa por aqui (o token vai junto).
 /m/*  https://rvizhshxcrfhdgfpennu.supabase.co/storage/v1/object/sign/publish-media/:splat  200!
+# Vídeos do estúdio para o TikTok: mesmo motivo, do bucket studio-media.
+/v/*  https://rvizhshxcrfhdgfpennu.supabase.co/storage/v1/object/sign/studio-media/:splat  200!
 /*  /index.html  200

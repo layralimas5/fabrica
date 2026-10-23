@@ -1,9 +1,10 @@
 import { createFacebookProvider } from './facebook.ts';
 import { createInstagramProvider } from './instagram.ts';
 import { createTikTokProvider } from './tiktok.ts';
+import { createYouTubeProvider } from './youtube.ts';
 import type { FetchFn, Provider, ProviderEnv, SocialPlatform } from './types.ts';
 
-export const PLATFORMS: SocialPlatform[] = ['instagram', 'facebook', 'tiktok'];
+export const PLATFORMS: SocialPlatform[] = ['instagram', 'facebook', 'tiktok', 'youtube'];
 
 export function createProvider(platform: SocialPlatform, env: ProviderEnv, fetchFn: FetchFn): Provider {
   switch (platform) {
@@ -13,6 +14,8 @@ export function createProvider(platform: SocialPlatform, env: ProviderEnv, fetch
       return createFacebookProvider(env, fetchFn);
     case 'tiktok':
       return createTikTokProvider(env, fetchFn);
+    case 'youtube':
+      return createYouTubeProvider(env, fetchFn);
   }
 }
 

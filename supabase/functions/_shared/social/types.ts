@@ -5,7 +5,7 @@
  * Keep the metric keys in sync with src/domain/social/metrics.ts.
  */
 
-export type SocialPlatform = 'instagram' | 'facebook' | 'tiktok';
+export type SocialPlatform = 'instagram' | 'facebook' | 'tiktok' | 'youtube';
 export type MediaType = 'carousel' | 'image' | 'video' | 'reel' | 'story' | 'text' | 'other';
 
 /** Post metrics. A key is present only when the API returned it: missing means unavailable, never zero. */
@@ -82,7 +82,8 @@ export interface Provider {
   usage(): RateUsage;
 }
 
-export type ProviderErrorKind = 'auth' | 'rate_limit' | 'permission' | 'not_configured' | 'unavailable';
+/** processing: the network accepted the media and is still working on it (a video); waiting is the whole fix. */
+export type ProviderErrorKind = 'auth' | 'rate_limit' | 'permission' | 'not_configured' | 'unavailable' | 'processing';
 
 /** An API refusal translated into what the Fábrica does next (reconnect, wait, ask for a permission). */
 export class ProviderError extends Error {

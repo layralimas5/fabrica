@@ -1,4 +1,4 @@
-import type { SocialPlatform } from './publication';
+import { SOCIAL_PLATFORMS, type SocialPlatform } from './publication';
 
 /** An account of ours authorized through the network's official login. Tokens never leave the server. */
 export interface SocialConnection {
@@ -40,6 +40,7 @@ export interface SocialConfig {
   instagram: PlatformSetup;
   facebook: PlatformSetup;
   tiktok: PlatformSetup;
+  youtube: PlatformSetup;
   tokenKey: boolean;
   redirectUris: Record<SocialPlatform, string>;
 }
@@ -83,16 +84,23 @@ export const PLATFORM_SETUP_INFO: Record<SocialPlatform, { title: string; reads:
     requires: 'App no TikTok for Developers com Login Kit, Display API e Content Posting API, com os escopos user.info.basic, user.info.profile, user.info.stats, video.list e video.upload (rascunhos agendados) aprovados. Em sandbox, só contas de teste conectam.',
     docs: 'https://developers.tiktok.com/doc/display-api-overview',
   },
+  youtube: {
+    title: 'YouTube (Data API v3)',
+    reads: 'Canal, inscritos e vídeos (longos e Shorts) com visualizações, gostei e comentários. A Data API não informa alcance, compartilhamentos nem salvamentos.',
+    requires: 'Projeto no Google Cloud com a YouTube Data API v3 ativa e cliente OAuth do tipo "Aplicativo da Web". Enquanto o app estiver em teste, só os usuários de teste conectam e a autorização vence em 7 dias; vídeos enviados pela API ficam privados até o Google auditar o projeto.',
+    docs: 'https://developers.google.com/youtube/v3/getting-started',
+  },
 };
 
 const DAY = 24 * 60 * 60 * 1000;
 
 /**
  * Days until the authorization ends. TikTok access tokens are refreshed on every sync, so what matters there is
- * the refresh token; Instagram renews its 60-day token on sync; Facebook page tokens do not expire.
+ * the refresh token; Instagram renews its 60-day token on sync; Facebook page tokens do not expire; YouTube
+ * renews its 1-hour token from a refresh token whose end Google does not tell (null).
  */
 export function daysUntilExpiry(connection: Pick<SocialConnection, 'platform' | 'tokenExpiresAt' | 'refreshExpiresAt'>, now: Date): number | null {
-  const end = connection.platform === 'tiktok' ? connection.refreshExpiresAt : connection.tokenExpiresAt;
+  const end = connection.platform === 'tiktok' || connection.platform === 'youtube' ? connection.refreshExpiresAt : connection.tokenExpiresAt;
   if (!end) return null;
   return Math.floor((new Date(end).getTime() - now.getTime()) / DAY);
 }
@@ -135,7 +143,7 @@ export function readConnectionNotice(search: string): ConnectionNotice | null {
   const platform = params.get('rede');
   return {
     ok: result === 'ok',
-    platform: platform === 'instagram' || platform === 'facebook' || platform === 'tiktok' ? platform : null,
+    platform: SOCIAL_PLATFORMS.includes(platform as SocialPlatform) ? (platform as SocialPlatform) : null,
     count: Math.max(0, Number(params.get('contas') ?? 0) || 0),
     reason: params.get('motivo')?.slice(0, 200) ?? null,
   };

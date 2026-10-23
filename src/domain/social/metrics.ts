@@ -45,16 +45,18 @@ export const METRIC_MEANING: Record<PostMetricKey, Record<SocialPlatform, string
     instagram: 'Vezes que o post foi exibido ou reproduzido ("views" da Meta, que substituiu impressões e plays). Conta repetições da mesma pessoa.',
     facebook: 'Vezes que o post foi exibido (post_media_view; em contas antigas, impressões). Conta repetições.',
     tiktok: 'Reproduções do vídeo (view_count). Conta repetições.',
+    youtube: 'Visualizações públicas do vídeo (viewCount da Data API), com o filtro de qualidade do YouTube.',
   },
   reach: {
     instagram: 'Contas únicas que viram o post pelo menos uma vez (estimativa da Meta).',
     facebook: 'Pessoas únicas que viram o post (estimativa da Meta).',
     tiktok: null,
+    youtube: null,
   },
-  likes: { instagram: 'Curtidas.', facebook: 'Reações (todas as reações contam).', tiktok: 'Curtidas.' },
-  comments: { instagram: 'Comentários.', facebook: 'Comentários.', tiktok: 'Comentários.' },
-  shares: { instagram: 'Compartilhamentos.', facebook: 'Compartilhamentos.', tiktok: 'Compartilhamentos.' },
-  saves: { instagram: 'Salvamentos.', facebook: null, tiktok: null },
+  likes: { instagram: 'Curtidas.', facebook: 'Reações (todas as reações contam).', tiktok: 'Curtidas.', youtube: 'Gostei (some quando o canal esconde).' },
+  comments: { instagram: 'Comentários.', facebook: 'Comentários.', tiktok: 'Comentários.', youtube: 'Comentários.' },
+  shares: { instagram: 'Compartilhamentos.', facebook: 'Compartilhamentos.', tiktok: 'Compartilhamentos.', youtube: null },
+  saves: { instagram: 'Salvamentos.', facebook: null, tiktok: null, youtube: null },
 };
 
 export function sanitizeMetrics<K extends string>(raw: unknown, keys: readonly K[]): Partial<Record<K, number>> {

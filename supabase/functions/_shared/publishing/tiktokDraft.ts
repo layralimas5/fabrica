@@ -1,4 +1,5 @@
 import { ProviderError, type FetchFn } from '../social/types.ts';
+import { stillProcessing } from './video.ts';
 
 /**
  * TikTok Content Posting API in upload mode: the carousel goes to the account's drafts (inbox) and the owner
@@ -17,6 +18,8 @@ const DELIVERED = ['SEND_TO_USER_INBOX', 'PUBLISH_COMPLETE'];
 export interface TikTokCheckpoint {
   /** Saved right after TikTok accepts the upload, so a retry checks it instead of creating a second draft. */
   publishId?: string;
+  /** When a video was sent: TikTok's download gets a time limit before it counts as a failure. */
+  sentAt?: string;
 }
 
 export interface TikTokDraftDeps {
@@ -41,16 +44,21 @@ interface Envelope<T> {
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * TikTok only pulls images from a verified domain, and a Supabase signed URL is not one: the same object is
- * served through the Fábrica's own site (`/m/*` proxies to the signed storage path, token included).
+ * TikTok only pulls media from a verified domain, and a Supabase signed URL is not one: the same object is
+ * served through the Fábrica's own site (`/m/*` and `/v/*` proxy to the signed storage path, token included).
  */
 export function verifiedMediaUrl(signedUrl: string, appUrl: string): string {
   const url = new URL(signedUrl);
-  const marker = '/storage/v1/object/sign/publish-media/';
-  const at = url.pathname.indexOf(marker);
-  if (at < 0) throw new Error('link assinado fora do bucket publish-media');
-  return `${appUrl.replace(/\/+$/, '')}/m/${url.pathname.slice(at + marker.length)}${url.search}`;
+  for (const [bucket, route] of Object.entries(VERIFIED_ROUTES)) {
+    const marker = `/storage/v1/object/sign/${bucket}/`;
+    const at = url.pathname.indexOf(marker);
+    if (at >= 0) return `${appUrl.replace(/\/+$/, '')}/${route}/${url.pathname.slice(at + marker.length)}${url.search}`;
+  }
+  throw new Error('link assinado fora dos buckets publicáveis');
 }
+
+/** Bucket → route of the Fábrica's site that proxies it (public/_redirects): images at /m, studio videos at /v. */
+const VERIFIED_ROUTES: Record<string, string> = { 'publish-media': 'm', 'studio-media': 'v' };
 
 export function tiktokPublishError(code: string, status: number): ProviderError {
   if (code === 'access_token_invalid' || status === 401) return new ProviderError('auth', 'A autorização do TikTok expirou. Reconecta a conta.');
@@ -114,4 +122,37 @@ export async function sendTikTokDraft(input: TikTokDraftInput, checkpoint: TikTo
     if (attempt < POLL_ATTEMPTS - 1) await wait(POLL_DELAY_MS);
   }
   throw new ProviderError('unavailable', 'O TikTok ainda está baixando as imagens. A próxima tentativa continua de onde parou.');
+}
+
+/**
+ * Sends a studio video to the account's drafts (inbox upload). TikTok takes no caption in this mode: the owner
+ * writes it in the app, where the draft arrives as a notification. Returns the publish id.
+ */
+export async function sendTikTokVideoDraft(input: { accessToken: string; videoUrl: string }, checkpoint: TikTokCheckpoint, deps: TikTokDraftDeps & { now?: () => Date }): Promise<string> {
+  const wait = deps.wait ?? sleep;
+  const now = deps.now ?? (() => new Date());
+  let publishId = checkpoint.publishId;
+  let sentAt = checkpoint.sentAt;
+
+  if (publishId) {
+    const previous = await fetchStatus(deps.fetchFn, input.accessToken, publishId);
+    if (previous.status && DELIVERED.includes(previous.status)) return publishId;
+    if (previous.status === 'FAILED') publishId = undefined;
+  }
+
+  if (!publishId) {
+    const init = await call<{ publish_id?: string }>(deps.fetchFn, '/inbox/video/init/', input.accessToken, { source_info: { source: 'PULL_FROM_URL', video_url: input.videoUrl } });
+    if (!init.publish_id) throw new ProviderError('unavailable', 'O TikTok aceitou o envio mas não devolveu o id.');
+    publishId = init.publish_id;
+    sentAt = now().toISOString();
+    await deps.saveCheckpoint({ publishId, sentAt });
+  }
+
+  for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt += 1) {
+    const current = await fetchStatus(deps.fetchFn, input.accessToken, publishId);
+    if (current.status && DELIVERED.includes(current.status)) return publishId;
+    if (current.status === 'FAILED') throw new ProviderError('unavailable', `O TikTok não conseguiu baixar o vídeo (${current.fail_reason ?? 'sem motivo'}).`);
+    if (attempt < POLL_ATTEMPTS - 1) await wait(POLL_DELAY_MS);
+  }
+  throw stillProcessing('O TikTok ainda está baixando o vídeo.', sentAt, now());
 }

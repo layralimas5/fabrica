@@ -72,10 +72,14 @@ describe('Facebook page publishing', () => {
 
 describe('after a failure', () => {
   it('retries temporary errors with growing waits, waits an hour on quota, stops on auth or after 3 attempts', () => {
-    expect(afterFailure(new ProviderError('unavailable', 'x'), 1, 3)).toEqual({ status: 'scheduled', retryInMinutes: 10 });
-    expect(afterFailure(new ProviderError('unavailable', 'x'), 2, 3)).toEqual({ status: 'scheduled', retryInMinutes: 20 });
-    expect(afterFailure(new ProviderError('rate_limit', 'x'), 1, 3)).toEqual({ status: 'scheduled', retryInMinutes: 60 });
+    expect(afterFailure(new ProviderError('unavailable', 'x'), 1, 3)).toEqual({ status: 'scheduled', retryInMinutes: 10, countsAttempt: true });
+    expect(afterFailure(new ProviderError('unavailable', 'x'), 2, 3)).toEqual({ status: 'scheduled', retryInMinutes: 20, countsAttempt: true });
+    expect(afterFailure(new ProviderError('rate_limit', 'x'), 1, 3)).toEqual({ status: 'scheduled', retryInMinutes: 60, countsAttempt: true });
     expect(afterFailure(new ProviderError('auth', 'x'), 1, 3)).toEqual({ status: 'failed', reconnect: true });
     expect(afterFailure(new Error('boom'), 3, 3)).toEqual({ status: 'failed', reconnect: false });
+  });
+
+  it('waits for a video still processing without spending an attempt, even on the last one', () => {
+    expect(afterFailure(new ProviderError('processing', 'x'), 3, 3)).toEqual({ status: 'scheduled', retryInMinutes: 3, countsAttempt: false });
   });
 });

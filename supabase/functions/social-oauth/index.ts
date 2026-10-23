@@ -1,7 +1,7 @@
 import type { SupabaseClient, User } from 'npm:@supabase/supabase-js@2';
 import { importKey, randomToken } from '../_shared/crypto.ts';
 import { corsHeaders, HttpError, json, logError, readJson, requireUser, serviceClient } from '../_shared/http.ts';
-import { configStatus, createProvider, isPlatform } from '../_shared/social/providers.ts';
+import { configStatus, createProvider, isPlatform, PLATFORMS } from '../_shared/social/providers.ts';
 import { loadTokenSet, saveTokenSet } from '../_shared/social/supabaseStore.ts';
 import { ProviderError, type SocialPlatform } from '../_shared/social/types.ts';
 
@@ -23,7 +23,7 @@ Deno.serve(async (request) => {
   const db = serviceClient();
   const url = new URL(request.url);
 
-  const callback = url.pathname.match(/\/callback\/(instagram|facebook|tiktok)\/?$/);
+  const callback = url.pathname.match(/\/callback\/(instagram|facebook|tiktok|youtube)\/?$/);
   if (request.method === 'GET' && callback) return handleCallback(db, callback[1] as SocialPlatform, url);
 
   try {
@@ -32,7 +32,7 @@ Deno.serve(async (request) => {
     const body = await readJson(request);
     switch (body.action) {
       case 'config':
-        return json({ ...configStatus(env, fetch), redirectUris: Object.fromEntries((['instagram', 'facebook', 'tiktok'] as const).map((p) => [p, redirectUri(p)])) }, 200, cors);
+        return json({ ...configStatus(env, fetch), redirectUris: Object.fromEntries(PLATFORMS.map((p) => [p, redirectUri(p)])) }, 200, cors);
       case 'start':
         return json(await start(db, user, body), 200, cors);
       case 'disconnect':

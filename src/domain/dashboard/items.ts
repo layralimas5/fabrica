@@ -54,7 +54,7 @@ function factsOf(record: ContentRecord | null, caption: string): ContentFacts {
 }
 
 export type DashPlatform = SocialPlatform | 'outros';
-export const DASH_PLATFORM_LABELS: Record<DashPlatform, string> = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok', outros: 'Outros' };
+export const DASH_PLATFORM_LABELS: Record<DashPlatform, string> = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok', youtube: 'YouTube', outros: 'Outros' };
 
 const FORMAT_TO_MEDIA: Partial<Record<ContentFormat, MediaType>> = { carrossel: 'carousel' };
 
