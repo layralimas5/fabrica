@@ -302,7 +302,7 @@ async function youtubeNext(db: SupabaseClient, userId: string) {
     const { data: connection } = await db.from('social_connections').select('id, platform, status').eq('id', job.connection_id).eq('user_id', userId).maybeSingle();
     if (!connection || connection.platform !== 'youtube' || connection.status !== 'connected') throw new ProviderError('auth', 'O canal do YouTube não está conectado. Reconecta e aprova de novo.');
     if (!job.video_job_id) throw new ProviderError('permission', 'Esse agendamento perdeu o vídeo do estúdio.');
-    const { data: video } = await db.from('video_jobs').select('outputs, status').eq('id', job.video_job_id).eq('user_id', userId).maybeSingle();
+    const { data: video } = await db.from('video_jobs').select('outputs, status, channel').eq('id', job.video_job_id).eq('user_id', userId).maybeSingle();
     if (!video || video.status !== 'ready') throw new ProviderError('permission', 'O vídeo não está mais pronto no estúdio (foi refeito ou apagado). Aprova de novo.');
 
     const key = await importKey(Deno.env.get('TOKEN_ENCRYPTION_KEY'));
@@ -323,6 +323,7 @@ async function youtubeNext(db: SupabaseClient, userId: string) {
       job: {
         id: job.id,
         videoJobId: job.video_job_id,
+        channel: video.channel,
         format,
         title,
         description,
