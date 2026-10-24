@@ -227,6 +227,8 @@ export interface StudioService {
   revokeKey(): Promise<void>;
   /** Creates the publishing job and approves it in one step: scheduling from the review is the approval. */
   schedule(job: VideoJob, connection: Pick<SocialConnection, 'id' | 'platform'>, plan: VideoPublishPlan, scheduledAt: Date): Promise<PublishingJob>;
+  /** Post proposed by the office agent: approving schedules it, refusing cancels it. Only awaiting jobs change. */
+  decideProposal(jobId: string, approve: boolean): Promise<PublishingJob>;
 }
 
 export interface AiService {

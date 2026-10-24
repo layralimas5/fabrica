@@ -7,6 +7,7 @@ import { createProvider } from '../_shared/social/providers.ts';
 import { loadTokenSet, saveTokenSet } from '../_shared/social/supabaseStore.ts';
 import { ProviderError, type ProviderErrorKind } from '../_shared/social/types.ts';
 import { youtubeWatchUrl } from '../_shared/social/youtube.ts';
+import { agentPostProblems, agentPublishingRow, agentVideoProblems, type AgentPostInput, type Format, type Platform, type Privacy } from '../_shared/studio/agent.ts';
 import {
   isOutputFile,
   OUTPUT_FILES,
@@ -28,6 +29,7 @@ import {
  *   With header x-studio-key (the studio):
  *     hello, claim, progress, upload-url, complete, fail       → video jobs
  *     youtube-next, youtube-checkpoint, youtube-done, youtube-failed → approved YouTube uploads
+ *     agent-overview, agent-request-video, agent-propose-post → the office agent (Jason); its posts always wait for approval
  * The studio never gets the service role nor anyone else's data: every query filters by the key's owner.
  * Deploy with --no-verify-jwt (the studio has no JWT; both paths check their own credential).
  */
@@ -132,6 +134,12 @@ async function studioAction(db: SupabaseClient, userId: string, body: Record<str
       return youtubeDone(db, userId, body);
     case 'youtube-failed':
       return youtubeFailed(db, userId, body);
+    case 'agent-overview':
+      return agentOverview(db, userId);
+    case 'agent-request-video':
+      return agentRequestVideo(db, userId, body);
+    case 'agent-propose-post':
+      return agentProposePost(db, userId, body);
     default:
       throw new HttpError(400, 'Ação desconhecida.');
   }
@@ -403,4 +411,77 @@ async function recordYoutubeFailure(db: SupabaseClient, job: PublishRow, error: 
     })
     .eq('id', job.id);
   if (decision.status === 'failed' && decision.reconnect) await db.from('social_connections').update({ status: 'expired', last_error: message }).eq('id', job.connection_id);
+}
+
+// Office agent ---------------------------------------------------------------------------
+
+const AGENT_LIST = 30;
+
+/** What the agent needs to plan posts: ready videos, connected accounts and what is already in the queue. */
+async function agentOverview(db: SupabaseClient, userId: string) {
+  const [videos, connections, queue] = await Promise.all([
+    db.from('video_jobs').select('id, channel, title, caption, formats, outputs, status, updated_at').eq('user_id', userId).in('status', ['queued', 'working', 'ready']).order('updated_at', { ascending: false }).limit(AGENT_LIST),
+    db.from('social_connections').select('id, platform, username, display_name, status').eq('user_id', userId).order('platform'),
+    db.from('publishing_jobs').select('id, connection_id, video_job_id, status, scheduled_at, data').eq('user_id', userId).in('status', ['awaiting_approval', 'scheduled', 'publishing']).order('scheduled_at').limit(AGENT_LIST),
+  ]);
+  if (videos.error || connections.error || queue.error) throw new HttpError(500, 'Não consegui ler a Fábrica.');
+  return {
+    videos: (videos.data ?? []).map((job) => ({
+      id: job.id, channel: job.channel, title: job.title, status: job.status, caption: String(job.caption ?? '').slice(0, 600),
+      formats: Object.fromEntries((['long', 'vertical'] as const).filter((format) => job.outputs?.[format]).map((format) => [format, Math.round(Number(job.outputs[format].durationSec ?? 0))])),
+    })),
+    connections: connections.data ?? [],
+    queue: (queue.data ?? []).map((job) => ({ id: job.id, connectionId: job.connection_id, videoJobId: job.video_job_id, status: job.status, scheduledAt: job.scheduled_at, postAt: job.data?.postAt ?? job.scheduled_at })),
+  };
+}
+
+async function agentRequestVideo(db: SupabaseClient, userId: string, body: Record<string, unknown>) {
+  const request = {
+    channel: text(body.channel, 40),
+    title: text(body.title, 200).trim(),
+    brief: text(body.brief, 5000).trim(),
+    formats: Array.isArray(body.formats) ? [...new Set(body.formats.filter((item): item is Format => item === 'long' || item === 'vertical'))] : [],
+    projectId: typeof body.projectId === 'string' && body.projectId ? id(body.projectId) : null,
+  };
+  const problems = agentVideoProblems(request);
+  if (problems.length) throw new HttpError(422, problems.join(' '));
+  if (request.projectId) {
+    const { data } = await db.from('projects').select('id').eq('id', request.projectId).eq('user_id', userId).maybeSingle();
+    if (!data) throw new HttpError(404, 'Projeto não encontrado.');
+  }
+  const { data, error } = await db
+    .from('video_jobs')
+    .insert({ user_id: userId, project_id: request.projectId, channel: request.channel, mode: 'create', title: request.title, brief: request.brief, formats: request.formats })
+    .select('id, status')
+    .single();
+  if (error) throw new HttpError(500, 'Não consegui criar o pedido de vídeo.');
+  return data;
+}
+
+async function agentProposePost(db: SupabaseClient, userId: string, body: Record<string, unknown>) {
+  const postAt = new Date(text(body.postAt, 40));
+  if (Number.isNaN(postAt.getTime())) throw new HttpError(400, 'Horário inválido (use ISO, ex.: 2026-10-25T19:00:00-03:00).');
+  const privacy: Privacy = body.privacy === 'unlisted' || body.privacy === 'private' ? body.privacy : 'public';
+  const input: AgentPostInput = {
+    videoJobId: id(body.videoJobId),
+    connectionId: id(body.connectionId),
+    format: body.format === 'long' ? 'long' : 'vertical',
+    title: text(body.title, 200),
+    caption: text(body.caption, 6000),
+    privacy,
+    postAt,
+  };
+  const [{ data: job }, { data: connection }] = await Promise.all([
+    db.from('video_jobs').select('status, outputs').eq('id', input.videoJobId).eq('user_id', userId).maybeSingle(),
+    db.from('social_connections').select('platform, status').eq('id', input.connectionId).eq('user_id', userId).maybeSingle(),
+  ]);
+  if (!job) throw new HttpError(404, 'Vídeo não encontrado.');
+  if (!connection) throw new HttpError(404, 'Conta não encontrada.');
+  const platform = connection.platform as Platform;
+  const problems = agentPostProblems({ job: { status: job.status, outputs: job.outputs ?? {} }, connection: { platform, status: connection.status } }, input, new Date());
+  if (problems.length) throw new HttpError(422, problems.join(' '));
+  const { data, error } = await db.from('publishing_jobs').insert(agentPublishingRow(userId, platform, input)).select('id, status, scheduled_at').single();
+  if (error?.code === '23505') throw new HttpError(409, 'Esse vídeo já está na fila para essa conta nesse horário.');
+  if (error) throw new HttpError(500, 'Não consegui colocar na fila.');
+  return { ...data, note: 'Na fila aguardando a aprovação da dona na Fábrica.' };
 }

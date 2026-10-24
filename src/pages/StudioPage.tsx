@@ -4,6 +4,7 @@ import { useAccountScope } from '../app/accountScope';
 import { errorMessage } from '../app/useResource';
 import type { VideoJob } from '../domain/studio/videoJob';
 import { NewVideoDialog } from '../studio/NewVideoDialog';
+import { OfficeProposalsCard } from '../studio/OfficeProposalsCard';
 import { ReviewDrawer } from '../studio/ReviewDrawer';
 import { StudioLinkCard } from '../studio/StudioLinkCard';
 import { useStudio } from '../studio/useStudio';
@@ -71,6 +72,8 @@ export function StudioPage() {
           <Alert>{error ?? jobs.error ?? link.error}</Alert>
         </div>
       )}
+
+      <OfficeProposalsCard studio={studio} queue={queue.data} jobs={jobs.data} connections={connections.data} onDecided={upsertQueued} />
 
       <div className="mb-8">
         <StudioLinkCard studio={studio} link={link.data} onChanged={() => void link.reload()} />

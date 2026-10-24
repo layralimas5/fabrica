@@ -40,4 +40,7 @@ export class UnavailableStudio implements StudioService {
   schedule(): Promise<PublishingJob> {
     return Promise.reject(new Error(NEEDS_SERVER));
   }
+  decideProposal(): Promise<PublishingJob> {
+    return Promise.reject(new Error(NEEDS_SERVER));
+  }
 }

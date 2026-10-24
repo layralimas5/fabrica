@@ -153,6 +153,13 @@ export class SupabaseStudio implements StudioService {
     return rowToJob(approved as JobRow);
   }
 
+  async decideProposal(jobId: string, approve: boolean): Promise<PublishingJob> {
+    const patch = approve ? { status: 'scheduled', approved_at: new Date().toISOString() } : { status: 'cancelled' };
+    const { data, error } = await this.client.from('publishing_jobs').update(patch).eq('id', jobId).eq('status', 'awaiting_approval').not('video_job_id', 'is', null).select().single();
+    if (error) fail(approve ? 'Não consegui aprovar a postagem' : 'Não consegui recusar a postagem', error);
+    return rowToJob(data as JobRow);
+  }
+
   private async setStatus(id: string, status: VideoStatus): Promise<VideoJob> {
     const { data, error } = await this.client.from('video_jobs').update({ status }).eq('id', id).select().single();
     if (error) fail('Não consegui mudar o estado do pedido', error);
