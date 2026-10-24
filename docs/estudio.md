@@ -85,3 +85,11 @@ Ver `pessoais/estudio-videos/README.md`: gerar a chave na tela Estúdio, preench
 - Nada disso foi testado contra as APIs reais nesta entrega: faltam as credenciais do Google e as
   aprovações da Meta. As chamadas foram testadas com respostas simuladas (`npm test`), a tela no
   navegador com o Supabase simulado e o estúdio com uma Fábrica falsa e render real no Remotion.
+
+## Agente do escritório (Jason)
+
+Com a mesma chave do estúdio, o escritório de agentes chama três ações da função `studio`:
+`agent-overview` (vídeos, contas conectadas e fila), `agent-request-video` (pedido no modo criar, canais
+nivora, ohlayralm e omnxdepp) e `agent-propose-post` (job de vídeo sempre `awaiting_approval`, com as mesmas
+regras e a mesma chave de idempotência da tela). As propostas aparecem no topo do Estúdio em "Postagens propostas
+pelo escritório", com Aprovar e Recusar. Horário que já passou só pode ser recusado.
