@@ -33,7 +33,7 @@ describe('Instagram mapping', () => {
     const provider = createInstagramProvider(env({ INSTAGRAM_APP_ID: 'app', INSTAGRAM_APP_SECRET: 's' }), async () => reply({}));
     const url = new URL(provider.authorizeUrl('st4te', 'https://x.supabase.co/functions/v1/social-oauth/callback/instagram'));
     expect(url.origin).toBe('https://www.instagram.com');
-    expect(url.searchParams.get('scope')).toContain('instagram_business_manage_insights');
+    expect(url.searchParams.get('scope')).toBe('instagram_business_basic,instagram_business_content_publish');
     expect(url.searchParams.get('state')).toBe('st4te');
   });
 
@@ -227,5 +227,13 @@ describe('syncConnection', () => {
     const memory = memoryStore();
     const busy = await syncConnection(memory.store, fakeProvider({ usage: () => ({ percent: 90, limited: false, checkedAt: '' }) }), connection, now);
     expect(busy).toMatchObject({ status: 'partial', publications: 1 });
+  });
+});
+
+describe('instagram scopes', () => {
+  it('asks for insights only when INSTAGRAM_INSIGHTS=on, and always for publishing', async () => {
+    const { instagramScopes } = await import('./instagram.ts');
+    expect(instagramScopes(undefined)).toEqual(['instagram_business_basic', 'instagram_business_content_publish']);
+    expect(instagramScopes('on')).toContain('instagram_business_manage_insights');
   });
 });

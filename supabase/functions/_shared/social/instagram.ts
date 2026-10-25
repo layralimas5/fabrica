@@ -6,6 +6,14 @@ import { ProviderError, type FetchFn, type MediaType, type PostMetrics, type Pro
  * https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login
  */
 export const INSTAGRAM_SCOPES = ['instagram_business_basic', 'instagram_business_manage_insights', 'instagram_business_content_publish'];
+const INSIGHTS_SCOPE = 'instagram_business_manage_insights';
+
+/**
+ * Insights (views, reach, saves, shares) need a permission the Meta may take long to grant. Without it the login
+ * asks only for basic + publishing; turn it on with INSTAGRAM_INSIGHTS=on once the app has it, and reconnect.
+ */
+export const instagramScopes = (insights: string | undefined): string[] =>
+  insights === 'on' ? INSTAGRAM_SCOPES : INSTAGRAM_SCOPES.filter((scope) => scope !== INSIGHTS_SCOPE);
 
 /** Long-lived tokens last 60 days; refreshing 10 days before keeps a margin for failed syncs. */
 const REFRESH_WINDOW_MS = 10 * 24 * 60 * 60 * 1000;
@@ -68,6 +76,7 @@ export function createInstagramProvider(env: ProviderEnv, fetchFn: FetchFn, now:
   const clientSecret = env.get('INSTAGRAM_APP_SECRET') ?? '';
   const version = env.get('META_GRAPH_VERSION') ?? DEFAULT_GRAPH_VERSION;
   const graph = `https://graph.instagram.com/${version}`;
+  const scopes = instagramScopes(env.get('INSTAGRAM_INSIGHTS'));
   const client = new MetaClient(fetchFn, now);
 
   const longLived = async (shortToken: string): Promise<TokenSet> => {
@@ -109,7 +118,7 @@ export function createInstagramProvider(env: ProviderEnv, fetchFn: FetchFn, now:
   return {
     platform: 'instagram',
     requiredSecrets: ['INSTAGRAM_APP_ID', 'INSTAGRAM_APP_SECRET'],
-    scopes: INSTAGRAM_SCOPES,
+    scopes,
 
     authorizeUrl(state, redirectUri) {
       return `https://www.instagram.com/oauth/authorize?${query({
@@ -118,7 +127,7 @@ export function createInstagramProvider(env: ProviderEnv, fetchFn: FetchFn, now:
         client_id: clientId,
         redirect_uri: redirectUri,
         response_type: 'code',
-        scope: INSTAGRAM_SCOPES.join(','),
+        scope: scopes.join(','),
         state,
       })}`;
     },
